@@ -61,8 +61,8 @@ Fetch and extract content from a URL with multiple extraction modes.
 
 ### Extraction modes
 
-- **text** — Converts HTML to plain text with entity decoding. Best for reading articles and documentation.
-- **html** — Returns raw HTML. Useful when you need to inspect page structure.
+- **text** — On Chrome, reads the rendered page's visible text for ordinary GET requests. Best for reading articles and signed-in pages.
+- **html** — On Chrome, returns the current DOM HTML for ordinary GET requests, including changes made by page scripts. Programmable requests return raw response HTML.
 - **binary** — Returns base64-encoded data URIs. Used for downloading images and other binary files.
 
 ### Returns
@@ -76,17 +76,20 @@ Fetch and extract content from a URL with multiple extraction modes.
 | `sizeBytes` | Response size |
 | `isBase64` | Whether content is base64-encoded |
 | `error` | Error message (if failed) |
-| `browserFallback` | Whether browser fallback was used |
+| `browserFallback` | Whether a browser tab was used to read the page |
 
-### Browser fallback
+### Browser page reads
 
-When a fetch fails due to CORS or network errors, AskTab automatically tries a browser fallback:
+On Chrome, ordinary GET requests without custom headers or body read a browser page. This uses the browser profile and site login and runs the page's scripts. AskTab:
 
-1. Opens a background tab with the URL
-2. Waits for the page to load (15 second timeout)
-3. Extracts `innerText` via the scripting API
-4. Closes the tab
+1. Uses an already-open tab at the exact URL when one exists, preserving its tab-specific state; otherwise opens an inactive temporary tab and waits for its load event (15 second timeout)
+2. Reads the page's visible text or current DOM HTML and navigation HTTP status
+3. Closes a temporary tab after reading, including when reading fails; existing user tabs remain open
+
+Pages that render content after the load event may still require the browser tool to wait and interact with them. Restricted browser pages cannot be scripted. A missing HTTP status is reported as `0`, never assumed to be `200`.
+
+POST, binary, and requests with custom headers or body continue to use the extension's HTTP `fetch()`. Firefox also keeps that path. On its network failure, a plain GET text/HTML request may try the legacy browser fallback.
 
 ### Caching
 
-Results are cached for 5 minutes by `method:url:extractMode:maxChars`. POST requests skip the cache.
+Programmable successful GET text/HTML results without custom headers are cached for 5 minutes by `method:url:extractMode:maxChars`. POST requests, requests with custom headers, and Chrome browser page reads skip the cache, so a login change is reflected in the next page read.

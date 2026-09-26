@@ -10,6 +10,7 @@ const mockTabsCreate = vi.fn<() => Promise<Pick<chrome.tabs.Tab, 'id'>>>(() =>
 const mockTabsGet = vi.fn((_tabId: number) =>
   Promise.resolve({ id: _tabId, title: 'Fallback Page', status: 'loading' }),
 );
+const mockTabsQuery = vi.fn<() => Promise<chrome.tabs.Tab[]>>(() => Promise.resolve([]));
 const mockTabsRemove = vi.fn(() => Promise.resolve());
 const mockOnUpdatedAddListener = vi.fn();
 const mockOnUpdatedRemoveListener = vi.fn();
@@ -28,6 +29,8 @@ const setupFallbackMocks = (opts?: { skipTabComplete?: boolean; tabStatus?: stri
   );
   mockTabsRemove.mockReset();
   mockTabsRemove.mockImplementation(() => Promise.resolve());
+  mockTabsQuery.mockReset();
+  mockTabsQuery.mockImplementation(() => Promise.resolve([]));
   mockOnUpdatedAddListener.mockReset();
   if (!opts?.skipTabComplete) {
     mockOnUpdatedAddListener.mockImplementation(
@@ -48,6 +51,7 @@ Object.defineProperty(globalThis, 'chrome', {
     tabs: {
       create: mockTabsCreate,
       get: mockTabsGet,
+      query: mockTabsQuery,
       remove: mockTabsRemove,
       onUpdated: {
         addListener: mockOnUpdatedAddListener,
@@ -88,7 +92,89 @@ vi.mock('../logging/logger-buffer', () => ({
 // Import module under test
 // ---------------------------------------------------------------------------
 
-const { decodeEntities, extractText, executeWebFetch, FETCH_CACHE } = await import('./web-fetch');
+const { decodeEntities, extractText, executeWebFetch, executeBrowserAwareWebFetch, FETCH_CACHE } =
+  await import('./web-fetch');
+
+describe('web_fetch browser page routing', () => {
+  beforeEach(() => {
+    globalThis.fetch = vi.fn();
+    setupFallbackMocks();
+    mockExecuteScript.mockResolvedValue([
+      {
+        result: {
+          text: 'Signed in as Alice',
+          title: 'Account',
+          status: 200,
+          mimeType: 'text/html',
+        },
+      },
+    ]);
+  });
+
+  it('loads ordinary GET in a browser tab and does not cache the login state', async () => {
+    const args = { url: 'https://example.com/account' };
+    const first = await executeBrowserAwareWebFetch(args);
+    const second = await executeBrowserAwareWebFetch(args);
+
+    expect(first).toMatchObject({ text: 'Signed in as Alice', status: 200, browserFallback: true });
+    expect(second).toMatchObject({ text: 'Signed in as Alice', status: 200 });
+    expect(mockTabsCreate).toHaveBeenCalledTimes(2);
+    expect(mockTabsCreate).toHaveBeenCalledWith({ url: args.url, active: false });
+    expect(mockTabsRemove).toHaveBeenCalledTimes(2);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('preserves the page HTTP error status and closes its temporary tab', async () => {
+    mockExecuteScript.mockResolvedValueOnce([
+      { result: { text: 'Not found', title: 'Missing', status: 404, mimeType: 'text/html' } },
+    ]);
+
+    const result = await executeBrowserAwareWebFetch({ url: 'https://example.com/missing' });
+    expect(result).toMatchObject({ text: 'Not found', status: 404, error: 'HTTP 404' });
+    expect(mockTabsRemove).toHaveBeenCalledWith(99);
+  });
+
+  it('reads an already open page without replacing or closing the user tab', async () => {
+    mockTabsQuery.mockResolvedValueOnce([
+      {
+        id: 7,
+        url: 'https://example.com/account',
+        status: 'complete',
+        active: true,
+        incognito: false,
+      } as chrome.tabs.Tab,
+    ]);
+
+    const result = await executeBrowserAwareWebFetch({ url: 'https://example.com/account' });
+    expect(result.text).toBe('Signed in as Alice');
+    expect(mockTabsCreate).not.toHaveBeenCalled();
+    expect(mockTabsRemove).not.toHaveBeenCalled();
+    expect(mockExecuteScript).toHaveBeenCalledWith(
+      expect.objectContaining({ target: { tabId: 7 } }),
+    );
+  });
+
+  it('keeps custom-header requests on the programmable fetch path', async () => {
+    const { readCache, writeCache } = await import('./web-shared');
+    vi.mocked(readCache).mockClear();
+    vi.mocked(writeCache).mockClear();
+    vi.mocked(globalThis.fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      text: async () => '<title>API</title><body>Private response content</body>',
+    } as Response);
+
+    await executeBrowserAwareWebFetch({
+      url: 'https://example.com/api',
+      headers: { Authorization: 'Bearer test' },
+    });
+    expect(globalThis.fetch).toHaveBeenCalledOnce();
+    expect(mockTabsCreate).not.toHaveBeenCalled();
+    expect(readCache).not.toHaveBeenCalled();
+    expect(writeCache).not.toHaveBeenCalled();
+  });
+});
 
 // ---------------------------------------------------------------------------
 // decodeEntities

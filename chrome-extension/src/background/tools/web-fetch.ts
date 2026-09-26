@@ -2,6 +2,7 @@
 // web_fetch tool — fetch and extract content from a URL.
 // ---------------------------------------------------------------------------
 
+import { fetchViaBrowserPage, waitForTabLoad } from './web-fetch-browser';
 import {
   normalizeCacheKey,
   readCache,
@@ -10,6 +11,7 @@ import {
   withTimeout,
 } from './web-shared';
 import { createLogger } from '../logging/logger-buffer';
+import { IS_FIREFOX } from '@extension/env';
 import { Type } from '@sinclair/typebox';
 import type { ToolRegistration, ToolResult } from './tool-registration';
 import type { CacheEntry } from './web-shared';
@@ -165,37 +167,6 @@ const extractText = (html: string, maxChars: number): string => {
 // Browser fallback — open a background tab to extract text when fetch() fails
 // ---------------------------------------------------------------------------
 
-const FALLBACK_LOAD_TIMEOUT_MS = 15_000;
-
-const waitForTabLoad = (tabId: number, timeoutMs = FALLBACK_LOAD_TIMEOUT_MS): Promise<void> =>
-  new Promise<void>((resolve, reject) => {
-    let settled = false;
-    const settle = (fn: () => void) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      chrome.tabs.onUpdated.removeListener(listener);
-      fn();
-    };
-    const timer = setTimeout(
-      () => settle(() => reject(new Error(`Tab load timed out after ${timeoutMs}ms`))),
-      timeoutMs,
-    );
-    const listener = (id: number, info: chrome.tabs.TabChangeInfo) => {
-      if (id === tabId && info.status === 'complete') settle(resolve);
-    };
-    chrome.tabs.onUpdated.addListener(listener);
-    // Check if already complete (race: page loaded before listener attached)
-    chrome.tabs
-      .get(tabId)
-      .then(tab => {
-        if (tab.status === 'complete') settle(resolve);
-      })
-      .catch(() => {
-        /* tab gone — timeout will handle */
-      });
-  });
-
 const fetchViaBrowserFallback = async (url: string, maxChars: number): Promise<WebFetchResult> => {
   log.trace('[webFetch] attempting browser fallback', { url });
 
@@ -269,11 +240,11 @@ const executeWebFetch = async (args: WebFetchArgs): Promise<WebFetchResult> => {
   const isPost = method === 'POST';
   log.trace('[webFetch] fetching', { url, method, extractMode, maxChars });
 
-  // Check cache (skip for POST — non-idempotent)
+  // Skip personalized requests so credentials and login changes never share a cache entry.
   const cacheKey = normalizeCacheKey(
     `${method ?? 'GET'}:${url}:${extractMode ?? 'text'}:${maxChars}`,
   );
-  if (!isPost) {
+  if (!isPost && !headers) {
     const cached = readCache(FETCH_CACHE, cacheKey, CACHE_TTL_MS);
     if (cached) {
       log.trace('[webFetch] cache hit', { url });
@@ -318,7 +289,7 @@ const executeWebFetch = async (args: WebFetchArgs): Promise<WebFetchResult> => {
     }
 
     // CORS/network error — try browser fallback for GET text/html requests
-    if (!isPost && extractMode !== 'binary') {
+    if (!isPost && !headers && !body && extractMode !== 'binary') {
       const fallbackResult = await fetchViaBrowserFallback(url, maxChars);
       if (fallbackResult.text.length > 0) {
         writeCache(FETCH_CACHE, cacheKey, fallbackResult);
@@ -430,11 +401,33 @@ const executeWebFetch = async (args: WebFetchArgs): Promise<WebFetchResult> => {
   }
 
   // Cache successful text results (skip for POST — non-idempotent)
-  if (!isPost && response.ok && text.length > 0) {
+  if (!isPost && !headers && response.ok && text.length > 0) {
     writeCache(FETCH_CACHE, cacheKey, result);
   }
 
   return result;
+};
+
+const executeBrowserAwareWebFetch = async (args: WebFetchArgs): Promise<WebFetchResult> => {
+  if (
+    IS_FIREFOX ||
+    args.method === 'POST' ||
+    args.headers ||
+    args.body ||
+    args.extractMode === 'binary'
+  ) {
+    return executeWebFetch(args);
+  }
+  try {
+    new URL(args.url);
+  } catch {
+    return executeWebFetch(args);
+  }
+  return fetchViaBrowserPage(
+    args.url,
+    args.extractMode ?? 'text',
+    args.maxChars ?? DEFAULT_MAX_CHARS,
+  );
 };
 
 // ── Tool registration ──
@@ -443,9 +436,9 @@ const webFetchToolDef: ToolRegistration = {
   name: 'web_fetch',
   label: 'Fetch URL',
   description:
-    'Fetch content from a URL. Supports GET (default) and POST methods with custom headers and body. Extraction modes: "text" strips HTML (default), "html" returns raw, "binary" returns base64 data URI for images/files. For POST requests, set method: "POST" with body and headers.',
+    'Read a URL. In Chrome, a plain GET uses an existing matching tab or opens an inactive browser tab and returns rendered page text (default) or current DOM HTML, using that browser profile and site login. POST, binary, and requests with custom headers or body use HTTP fetch instead. For POST, set method: "POST" with body and headers.',
   schema: webFetchSchema,
-  execute: args => executeWebFetch(args as WebFetchArgs),
+  execute: args => executeBrowserAwareWebFetch(args as WebFetchArgs),
   formatResult: (raw): ToolResult => {
     const result = raw as WebFetchResult;
     if (result.isBase64 && result.text) {
@@ -482,6 +475,7 @@ const webFetchToolDef: ToolRegistration = {
 export {
   webFetchSchema,
   executeWebFetch,
+  executeBrowserAwareWebFetch,
   FETCH_CACHE,
   extractText,
   decodeEntities,
