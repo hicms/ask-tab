@@ -101,6 +101,11 @@ const handleLLMStream = async (
   const { chatId, messages, model: modelConfig, assistantMessageId } = request;
   const assistantParts: ChatMessagePart[] = [];
   let turnPartStart = 0;
+  const controller = new AbortController();
+  const onDisconnect = () => controller.abort();
+  // Stopping the chat (or closing its UI) disconnects the port. Forward that
+  // cancellation to the agent so its finally block releases page markers.
+  port.onDisconnect.addListener(onDisconnect);
 
   streamLog.info('Stream started', { chatId, model: modelConfig.id });
   streamLog.trace('Stream request detail', {
@@ -113,6 +118,7 @@ const handleLLMStream = async (
   try {
     const sourceKey = modelSourceKey(modelConfig);
     const history = await loadModelHistory(chatId, messages, modelConfig);
+    if (controller.signal.aborted) return;
     const prompt = chatMessagesToPiMessages(messages.slice(-1))[0];
 
     if (!prompt) {
@@ -132,6 +138,7 @@ const handleLLMStream = async (
     // Build a fresh system prompt from workspace files/skills/tools each turn
     // so that writes to MEMORY.md (or any workspace file) are reflected immediately.
     const freshSystemPrompt = await buildHeadlessSystemPrompt(modelConfig, currentAgentId);
+    if (controller.signal.aborted) return;
     const freshSystemPromptTokens = Math.ceil(freshSystemPrompt.length / 4);
     streamLog.trace('Fresh system prompt built', {
       chatId,
@@ -175,6 +182,7 @@ const handleLLMStream = async (
       systemPrompt: freshSystemPrompt,
       systemPromptTokens: freshSystemPromptTokens,
     });
+    if (controller.signal.aborted) return;
 
     // Track per-step usage for UI and TTS
     let accInputTokens = 0;
@@ -186,6 +194,7 @@ const handleLLMStream = async (
     let endPayload: Omit<LLMStreamEnd, 'type'> | undefined;
 
     const runResult = await runAgent({
+      signal: controller.signal,
       model: modelConfig,
       systemPrompt: freshSystemPrompt,
       prompt,
@@ -333,6 +342,7 @@ const handleLLMStream = async (
         });
       },
       onAgentEnd: info => {
+        if (controller.signal.aborted) return;
         const agentError = info.agent.state.error;
         // Timeout is a graceful end, not an error — fall through to normal completion
         if (agentError && !info.timedOut) {
@@ -438,6 +448,8 @@ const handleLLMStream = async (
         // Best-effort — already in error path
       }
     }
+  } finally {
+    port.onDisconnect.removeListener(onDisconnect);
   }
 };
 
