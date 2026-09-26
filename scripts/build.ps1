@@ -1,11 +1,47 @@
+<#
+.SYNOPSIS
+Builds the extension for the selected AskTab service environment.
+
+.PARAMETER Environment
+Choose development or test. The selected service URL comes from .env.
+
+.PARAMETER Help
+Show usage without building.
+
+.EXAMPLE
+.\scripts\build.ps1 -Environment development
+
+.EXAMPLE
+.\scripts\build.ps1 -Environment test
+#>
 param(
-    [Parameter(Mandatory = $true)]
     [ValidateSet('development', 'test')]
-    [string] $Environment
+    [string] $Environment,
+    [switch] $Help
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+$usage = @'
+Usage: .\scripts\build.ps1 -Environment <development|test>
+       .\scripts\build.ps1 -Help
+
+Examples:
+  .\scripts\build.ps1 -Environment development
+  .\scripts\build.ps1 -Environment test
+'@
+
+if ($Help) {
+    Write-Host $usage
+    return
+}
+
+if ([string]::IsNullOrWhiteSpace($Environment)) {
+    Write-Host 'error: Specify -Environment development or test.' -ForegroundColor Red
+    Write-Host $usage
+    exit 1
+}
 
 $root = Split-Path -Parent $PSScriptRoot
 $envFile = Join-Path $root '.env'
