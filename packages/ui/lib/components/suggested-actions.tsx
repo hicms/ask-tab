@@ -5,27 +5,21 @@ import {
   isDefaultActions,
 } from '@extension/storage';
 import { motion } from 'framer-motion';
-import { useContext, useEffect, useState } from 'react';
-import type { SuggestedAction } from '@extension/storage';
+import { useContext, useSyncExternalStore } from 'react';
 
 type SuggestedActionsProps = {
   onSendMessage: (message: string) => void;
 };
 
 const SuggestedActions = ({ onSendMessage }: SuggestedActionsProps) => {
-  const [actions, setActions] = useState<SuggestedAction[]>([]);
-  // Re-fetch locale-appropriate defaults when locale version changes
-  const localeVersion = useContext(LocaleContext);
-
-  useEffect(() => {
-    suggestedActionsStorage.get().then(stored => {
-      if (isDefaultActions(stored)) {
-        setActions(getDefaultSuggestedActions(getLocale()));
-      } else {
-        setActions(stored);
-      }
-    });
-  }, [localeVersion]);
+  const stored = useSyncExternalStore(
+    suggestedActionsStorage.subscribe,
+    suggestedActionsStorage.getSnapshot,
+  );
+  // Re-render locale-appropriate defaults when the display language changes.
+  useContext(LocaleContext);
+  const actions =
+    stored && isDefaultActions(stored) ? getDefaultSuggestedActions(getLocale()) : (stored ?? []);
 
   if (actions.length === 0) return null;
 

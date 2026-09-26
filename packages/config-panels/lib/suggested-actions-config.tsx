@@ -59,8 +59,7 @@ const SuggestedActionsConfig = () => {
     (next: SuggestedAction[]) => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       const filtered = next.filter(a => a.label.trim() && a.prompt.trim());
-      suggestedActionsStorage.set(filtered);
-      triggerSaved();
+      suggestedActionsStorage.set(filtered).then(triggerSaved);
     },
     [triggerSaved],
   );
@@ -70,8 +69,7 @@ const SuggestedActionsConfig = () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
         const filtered = next.filter(a => a.label.trim() && a.prompt.trim());
-        suggestedActionsStorage.set(filtered);
-        triggerSaved();
+        suggestedActionsStorage.set(filtered).then(triggerSaved);
       }, 500);
     },
     [triggerSaved],

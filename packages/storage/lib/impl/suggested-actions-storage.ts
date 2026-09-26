@@ -151,13 +151,18 @@ const getDefaultSuggestedActions = (locale?: string): SuggestedAction[] => {
   return localeActions['en'];
 };
 
-/** Default IDs used by locale defaults — used to detect uncustomized actions */
-const DEFAULT_ACTION_IDS = new Set(['1', '2', '3', '4']);
-
-const isDefaultActions = (actions: SuggestedAction[]): boolean => {
-  if (actions.length !== 4) return false;
-  return actions.every(a => DEFAULT_ACTION_IDS.has(a.id));
-};
+/** Only untouched defaults should be replaced when the display locale changes. */
+const isDefaultActions = (actions: SuggestedAction[]): boolean =>
+  Object.values(localeActions).some(
+    defaults =>
+      actions.length === defaults.length &&
+      actions.every(
+        (action, index) =>
+          action.id === defaults[index].id &&
+          action.label === defaults[index].label &&
+          action.prompt === defaults[index].prompt,
+      ),
+  );
 
 // Keep English defaults as the storage initial value (backwards compatible)
 const defaultSuggestedActions = localeActions['en'];
