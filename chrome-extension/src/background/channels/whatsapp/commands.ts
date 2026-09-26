@@ -47,7 +47,7 @@ const handleWhatsAppCommand = async (
 const handleStart = async (msg: ChannelInboundMessage, adapter: ChannelAdapter): Promise<void> => {
   const name = msg.senderName ?? 'there';
   const text =
-    `Hello ${name}! I'm your DeepChat AI assistant.\n\n` +
+    `Hello ${name}! I'm your AskTab AI assistant.\n\n` +
     `Send me any message and I'll respond using your configured AI model.\n\n` +
     `Use /help to see available commands.`;
   await adapter.sendMessage({ to: msg.channelChatId, text });

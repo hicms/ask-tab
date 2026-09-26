@@ -15,7 +15,7 @@ import {
   saveLocalChannelConfig,
   setServerChannelEnabled,
 } from './channels';
-import { isChannelPollAlarm, runPollCycle, stopChannelPolling } from './channels/poller';
+import { isChannelPollAlarm, stopChannelPolling } from './channels/poller';
 import { CronService, readRunLogs } from './cron';
 import { executeScheduledTask } from './cron/executor';
 import { HeartbeatService, setHeartbeatServiceRef } from './heartbeat';
@@ -560,7 +560,9 @@ chrome.alarms.onAlarm.addListener(alarm => {
   } else if (alarm.name === ALARM_NAME) {
     runAutomaticBackup().catch(err => diagnostics.error('[backup] Automatic backup failed:', err));
   } else if (isChannelPollAlarm(alarm.name)) {
-    runPollCycle().catch(err => diagnostics.error('[alarm] Channel poll failed:', err));
+    // Re-reads server state each tick: the server may disable a channel on its own
+    // (rejected bot token, WhatsApp unlinked from the phone).
+    initChannels().catch(err => diagnostics.error('[alarm] Channel sync failed:', err));
   }
   // keep-alive alarms: no-op (they only keep the service worker active)
 });

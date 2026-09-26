@@ -10,6 +10,7 @@ vi.mock('../channels/registry', () => ({
 
 vi.mock('../channels/active-channel', () => ({
   findActiveChannel: vi.fn(async () => undefined),
+  isChannelDeliverable: vi.fn(async () => true),
 }));
 
 vi.mock('../agents/agent-setup', () => ({
@@ -58,7 +59,7 @@ vi.stubGlobal('chrome', {
 // Import mocked modules for per-test overrides
 const { resolveDefaultModel, runHeadlessLLM } = await import('../agents/agent-setup');
 const { getChannelAdapter } = await import('../channels/registry');
-const { findActiveChannel } = await import('../channels/active-channel');
+const { findActiveChannel, isChannelDeliverable } = await import('../channels/active-channel');
 const { addMessage, getChat, getMostRecentChat, touchChat, lastActiveSessionStorage } =
   await import('@extension/storage');
 
@@ -254,6 +255,26 @@ describe('executeScheduledTask', () => {
     const result = await executeScheduledTask(task);
     expect(result.status).toBe('error');
     expect(result.error).toContain('delivery failed');
+  });
+
+  it('does not deliver to a channel that is paused on the server', async () => {
+    const mockAdapter = {
+      id: 'telegram',
+      maxMessageLength: 4096,
+      sendMessage: vi.fn(async () => ({ ok: true, messageId: 42 })),
+    };
+    vi.mocked(getChannelAdapter).mockReturnValue(mockAdapter as never);
+    vi.mocked(isChannelDeliverable).mockResolvedValueOnce(false);
+
+    const task = createTask({
+      delivery: { channel: 'telegram', to: '123', bestEffort: false },
+    });
+
+    const result = await executeScheduledTask(task);
+    expect(isChannelDeliverable).toHaveBeenCalledWith('telegram');
+    expect(mockAdapter.sendMessage).not.toHaveBeenCalled();
+    expect(result.status).toBe('error');
+    expect(result.error).toContain('not enabled');
   });
 
   it('resolves default delivery from active channel when no explicit delivery', async () => {

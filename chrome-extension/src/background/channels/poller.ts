@@ -100,16 +100,21 @@ const runPollCycle = (): Promise<void> => {
   return loop;
 };
 
+/** Keeps the periodic alarm, which also retries a failed channel sync. */
+const ensurePollAlarm = async (): Promise<void> => {
+  const existing = await chrome.alarms.get(CHANNEL_POLL_ALARM);
+  if (!existing) {
+    await chrome.alarms.create(CHANNEL_POLL_ALARM, { periodInMinutes: POLL_ALARM_PERIOD_MINUTES });
+  }
+};
+
 /** Poll while at least one server channel is enabled; stop otherwise. */
 const setChannelPolling = async (enabled: boolean): Promise<void> => {
   if (!enabled) {
     await stopChannelPolling();
     return;
   }
-  const existing = await chrome.alarms.get(CHANNEL_POLL_ALARM);
-  if (!existing) {
-    await chrome.alarms.create(CHANNEL_POLL_ALARM, { periodInMinutes: POLL_ALARM_PERIOD_MINUTES });
-  }
+  await ensurePollAlarm();
   void runPollCycle();
 };
 
@@ -121,6 +126,7 @@ const stopChannelPolling = async (): Promise<void> => {
 const isChannelPollAlarm = (alarmName: string): boolean => alarmName === CHANNEL_POLL_ALARM;
 
 export {
+  ensurePollAlarm,
   runPollCycle,
   setChannelPolling,
   stopChannelPolling,

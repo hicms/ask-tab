@@ -90,13 +90,34 @@ describe('channel gateway', () => {
     request.mockResolvedValueOnce(json(items));
     const controller = new AbortController();
     expect(await pullUpdates(20, controller.signal)).toEqual(items);
-    expect(request).toHaveBeenCalledWith('/api/channels/updates?wait=20', {
-      signal: controller.signal,
-    });
+    expect(request.mock.calls.at(-1)?.[0]).toBe('/api/channels/updates?wait=20');
+    const signal = lastInit().signal;
+    expect(signal?.aborted).toBe(false);
+    controller.abort();
+    expect(signal?.aborted).toBe(true);
 
     request.mockResolvedValueOnce(json([]));
     await pullUpdates(-3);
     expect(request.mock.calls.at(-1)?.[0]).toBe('/api/channels/updates?wait=0');
+  });
+
+  it('gives up on a pull that outlives its wait', async () => {
+    const deadline = new AbortController();
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(deadline.signal);
+    try {
+      request.mockImplementationOnce(
+        (_path, init) =>
+          new Promise((_resolve, reject) =>
+            init?.signal?.addEventListener('abort', () => reject(new Error('aborted'))),
+          ),
+      );
+      const pending = pullUpdates(1, new AbortController().signal);
+      expect(timeout).toHaveBeenCalledWith(16_000);
+      deadline.abort();
+      await expect(pending).rejects.toThrow('aborted');
+    } finally {
+      timeout.mockRestore();
+    }
   });
 
   it('acks in batches of at most 200 ids', async () => {
@@ -109,6 +130,7 @@ describe('channel gateway', () => {
     );
     expect(sizes).toEqual([200, 200, 50]);
     expect(request.mock.calls[0]?.[0]).toBe('/api/channels/updates/ack');
+    expect(request.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it('skips the request when there is nothing to ack', async () => {

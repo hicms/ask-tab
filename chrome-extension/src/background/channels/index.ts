@@ -8,7 +8,7 @@ import {
   removeChannel,
   setChannelEnabled,
 } from './gateway';
-import { setChannelPolling, stopChannelPolling } from './poller';
+import { ensurePollAlarm, setChannelPolling, stopChannelPolling } from './poller';
 import { registerBotCommands } from './telegram/commands';
 import { AskServiceError } from '../ask-service/client';
 import { createLogger } from '../logging/logger-buffer';
@@ -33,6 +33,8 @@ const syncChannels = async (): Promise<ChannelView[]> => {
       await stopChannelPolling();
       return [];
     }
+    // The poll alarm re-runs this sync, so a startup while offline still recovers.
+    await ensurePollAlarm();
     throw err;
   }
   initLog.info('Channels synced', {

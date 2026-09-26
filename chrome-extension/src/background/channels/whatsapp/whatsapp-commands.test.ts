@@ -60,8 +60,8 @@ describe('whatsapp commands', () => {
     id: 'whatsapp',
     label: 'WhatsApp',
     maxMessageLength: 4096,
-    validateAuth: vi.fn(),
     sendMessage: vi.fn().mockResolvedValue({ ok: true }),
+    downloadMedia: vi.fn(),
     formatSenderDisplay: vi.fn().mockReturnValue('Alice'),
   };
 
@@ -180,9 +180,6 @@ describe('whatsapp commands', () => {
       const { getChannelConfig } = await import('../config');
       (getChannelConfig as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         channelId: 'whatsapp',
-        enabled: true,
-        status: 'active',
-        credentials: {},
         allowedSenderIds: [],
       });
       const { resolveModel } = await import('../agent-handler');

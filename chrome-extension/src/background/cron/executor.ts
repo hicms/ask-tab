@@ -2,7 +2,7 @@
 // Executes scheduled tasks via headless LLM
 
 import { runHeadlessLLM, resolveDefaultModel, dbModelToChatModel } from '../agents/agent-setup';
-import { findActiveChannel } from '../channels/active-channel';
+import { findActiveChannel, isChannelDeliverable } from '../channels/active-channel';
 import { getChannelAdapter } from '../channels/registry';
 import { getHeartbeatServiceRef } from '../heartbeat';
 import { createLogger } from '../logging/logger-buffer';
@@ -43,6 +43,14 @@ const deliverResult = async (task: ScheduledTask, responseText: string): Promise
       return;
     }
     throw new Error(`No adapter for delivery channel: ${channel}`);
+  }
+
+  if (!(await isChannelDeliverable(channel))) {
+    if (bestEffort) {
+      cronLog.warn('Delivery channel is not enabled, skipping (bestEffort)', { channel });
+      return;
+    }
+    throw new Error(`Delivery channel is not enabled: ${channel}`);
   }
 
   const text =

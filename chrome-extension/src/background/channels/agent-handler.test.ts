@@ -127,17 +127,14 @@ const createMockAdapter = (): ChannelAdapter => ({
   id: 'telegram',
   label: 'Telegram',
   maxMessageLength: 4096,
-  validateAuth: vi.fn(async () => ({ valid: true })),
   sendMessage: vi.fn(async () => ({ ok: true, messageId: '1' })),
+  downloadMedia: vi.fn(async () => new ArrayBuffer(0)),
   formatSenderDisplay: vi.fn(() => 'TestUser'),
 });
 
 const createMockConfig = (overrides: Partial<ChannelConfig> = {}): ChannelConfig => ({
   channelId: 'telegram',
-  enabled: true,
   allowedSenderIds: ['123'],
-  status: 'passive',
-  credentials: { botToken: '123:abc' },
   ...overrides,
 });
 
@@ -184,6 +181,29 @@ describe('agent-handler', () => {
     finishModelTurn = storage.finishModelTurn;
     findChatByChannelChatId = storage.findChatByChannelChatId;
     getMessagesByChatId = storage.getMessagesByChatId;
+  });
+
+  describe('describeTranscriptionError', () => {
+    it('maps server and setup failures without echoing the server message', async () => {
+      const { describeTranscriptionError } = await import('./agent-handler');
+      const { AskServiceError } = await import('../ask-service/client');
+
+      expect(describeTranscriptionError(new AskServiceError('upstream detail', 502))).toBe(
+        'the speech-to-text service returned an error (502)',
+      );
+      expect(describeTranscriptionError(new AskServiceError('Unauthorized', 401))).toBe(
+        'you are signed out of AskTab',
+      );
+      expect(describeTranscriptionError(new Error('Server STT is not configured'))).toBe(
+        'speech-to-text is not set up on the AskTab server',
+      );
+      expect(describeTranscriptionError(new Error('Audio transcription is disabled'))).toBe(
+        'transcription is turned off in settings',
+      );
+      expect(describeTranscriptionError(new TypeError('Failed to fetch'))).toBe(
+        'the speech-to-text service was unreachable',
+      );
+    });
   });
 
   // ── resolveModel ──

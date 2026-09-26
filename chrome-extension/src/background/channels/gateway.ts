@@ -32,6 +32,9 @@ interface WhatsAppDirection {
 }
 
 const MAX_ACK_BATCH = 200;
+/** Extra time past the server-side wait before a pull counts as stalled (e.g. a half-open connection after sleep). */
+const PULL_GRACE_SECONDS = 15;
+const ACK_TIMEOUT_MS = 15_000;
 
 const SERVER_CHANNEL_IDS: readonly ServerChannelId[] = ['telegram', 'whatsapp'];
 
@@ -84,18 +87,24 @@ const removeChannel = async (channelId: ServerChannelId): Promise<void> => {
 };
 
 /** Leases queued messages; the server holds the request open up to `waitSeconds` when empty. */
-const pullUpdates = async (waitSeconds: number, signal?: AbortSignal): Promise<QueuedUpdate[]> =>
-  (await (
-    await requestAuthorized(`/api/channels/updates?wait=${Math.max(0, Math.floor(waitSeconds))}`, {
-      signal,
-    })
-  ).json()) as QueuedUpdate[];
+const pullUpdates = async (waitSeconds: number, signal?: AbortSignal): Promise<QueuedUpdate[]> => {
+  const wait = Math.max(0, Math.floor(waitSeconds));
+  const deadline = AbortSignal.timeout((wait + PULL_GRACE_SECONDS) * 1000);
+  const response = await requestAuthorized(`/api/channels/updates?wait=${wait}`, {
+    signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
+  });
+  return (await response.json()) as QueuedUpdate[];
+};
 
 const ackUpdates = async (ids: string[]): Promise<void> => {
   for (let start = 0; start < ids.length; start += MAX_ACK_BATCH) {
     await requestAuthorized(
       '/api/channels/updates/ack',
-      sendJson('POST', { ids: ids.slice(start, start + MAX_ACK_BATCH) }),
+      sendJson(
+        'POST',
+        { ids: ids.slice(start, start + MAX_ACK_BATCH) },
+        AbortSignal.timeout(ACK_TIMEOUT_MS),
+      ),
     );
   }
 };
@@ -143,4 +152,4 @@ export {
   sendWhatsAppAudio,
   setWhatsAppTyping,
 };
-export type { ServerChannelId, ChannelStatus, ChannelView, QueuedUpdate, WhatsAppDirection };
+export type { ServerChannelId, ChannelView, QueuedUpdate };

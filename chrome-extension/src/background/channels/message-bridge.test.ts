@@ -139,6 +139,21 @@ describe('handleQueuedUpdate', () => {
     expect(handleChannelMessage).toHaveBeenCalledOnce();
   });
 
+  it('keeps messages from two chats that share a Telegram message id', async () => {
+    vi.mocked(getChannelConfig).mockResolvedValue({
+      channelId: 'telegram',
+      allowedSenderIds: ['456', '789'],
+    });
+    const first = telegramItem('from alice', { from: 456 });
+    const second = telegramItem('from bob', { from: 789 });
+    const shared = (first.update as { message: { message_id: number } }).message.message_id;
+    (second.update as { message: { message_id: number } }).message.message_id = shared;
+
+    expect(await handleQueuedUpdate(first)).toBe(true);
+    expect(await handleQueuedUpdate(second)).toBe(true);
+    expect(handleChannelMessage).toHaveBeenCalledTimes(2);
+  });
+
   it('skips updates that do not normalize to a message', async () => {
     const item: QueuedUpdate = {
       id: 'q-edit',

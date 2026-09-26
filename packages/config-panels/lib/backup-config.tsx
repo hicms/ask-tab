@@ -70,7 +70,7 @@ const translations = {
       'All older backups will be deleted after the latest one is checked. This cannot be undone.',
     deleteDone: 'Backup history deleted.',
     restoreWarning:
-      'Restoring replaces current agents, chats, credentials, schedules and settings. Channels will be disabled after restore until you turn them on again.',
+      'Restoring replaces current agents, chats, credentials, schedules and settings. Channel connections stay on the AskTab server and are not changed.',
     lastSuccess: 'Last successful backup',
     busy: 'Working…',
   },
@@ -97,7 +97,7 @@ const translations = {
     keepLatestWarning: '核对最新备份后，所有旧备份将被删除。此操作无法撤销。',
     deleteDone: '已删除备份历史。',
     restoreWarning:
-      '恢复会替换当前 Agent、聊天、凭据、定时任务和设置。恢复后通道将先停用，需要手动重新开启。',
+      '恢复会替换当前 Agent、聊天、凭据、定时任务和设置。通道连接保存在 AskTab 服务端，不受影响。',
     lastSuccess: '最近成功备份',
     busy: '处理中…',
   },

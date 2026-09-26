@@ -17,6 +17,7 @@ import {
   loadModelHistory,
   modelSourceKey,
 } from '../agents/model-transcript';
+import { AskServiceError } from '../ask-service/client';
 import { createTransformContext } from '../context/transform';
 import { createLogger } from '../logging/logger-buffer';
 import { resolveTranscription } from '../media-understanding';
@@ -68,16 +69,18 @@ const DRAFT_EDIT_INTERVAL_MS = 500;
 const DRAFT_INITIAL_THRESHOLD = 20;
 
 /**
- * Map a transcription failure to a short, user-safe reason. Never includes raw
- * keys, tokens, or endpoint URLs — only a coarse category and, for HTTP errors,
- * the numeric status code (which the provider embeds as `(NNN)`).
+ * Map a transcription failure to a short, user-safe reason: a coarse category
+ * and, for server errors, only the HTTP status, never the server's message.
  */
 const describeTranscriptionError = (err: unknown): string => {
+  if (err instanceof AskServiceError) {
+    return err.status === 401
+      ? 'you are signed out of AskTab'
+      : `the speech-to-text service returned an error (${err.status})`;
+  }
   const message = err instanceof Error ? err.message : String(err);
   if (/disabled/i.test(message)) return 'transcription is turned off in settings';
-  if (/no api key/i.test(message)) return 'no speech-to-text API key is configured';
-  const status = message.match(/\((\d{3})\)/)?.[1];
-  if (status) return `the speech-to-text service returned an error (${status})`;
+  if (/not configured/i.test(message)) return 'speech-to-text is not set up on the AskTab server';
   return 'the speech-to-text service was unreachable';
 };
 
@@ -719,4 +722,4 @@ const findOrCreateChat = async (
   return chat;
 };
 
-export { handleChannelMessage, resolveModel };
+export { handleChannelMessage, resolveModel, describeTranscriptionError };

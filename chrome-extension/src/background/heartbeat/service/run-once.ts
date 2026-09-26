@@ -15,7 +15,7 @@
 // orchestrator) owns lock acquisition, alarm scheduling, and retry.
 
 import { runHeadlessLLM, resolveDefaultModel, dbModelToChatModel } from '../../agents/agent-setup';
-import { findActiveChannel } from '../../channels/active-channel';
+import { findActiveChannel, isChannelDeliverable } from '../../channels/active-channel';
 import { getChannelAdapter } from '../../channels/registry';
 import { isWithinActiveHours } from '../active-hours';
 import { loadHeartbeatConfig } from '../config';
@@ -128,6 +128,10 @@ const deliverToChannel = async (
   } else {
     channelId = target;
     to = config.to;
+    if (channelId && !(await isChannelDeliverable(channelId))) {
+      log?.info?.('heartbeat channel delivery skipped: channel not enabled', { channelId });
+      return;
+    }
   }
 
   if (!channelId || !to) return;

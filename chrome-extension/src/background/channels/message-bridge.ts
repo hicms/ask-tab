@@ -76,7 +76,9 @@ const handleQueuedUpdate = async (item: QueuedUpdate): Promise<boolean> => {
     return false;
   }
 
-  if (trackMessageId(`${channelId}:${message.channelMessageId ?? item.id}`)) {
+  // Telegram message ids are only unique within one chat.
+  const messageKey = `${channelId}:${message.channelChatId}:${message.channelMessageId ?? item.id}`;
+  if (trackMessageId(messageKey)) {
     bridgeLog.debug('Skipping duplicate message', { channelId, id: item.id });
     return false;
   }

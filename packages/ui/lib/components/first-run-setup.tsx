@@ -459,7 +459,8 @@ const Step2ChannelSetup = ({
         config: { allowedSenderIds: userIds },
       })) as { error?: string } | undefined;
       if (saved?.error) throw new Error(saved.error);
-      if (!enableChannel) {
+      // Connecting enabled the bot on the server; with nobody allowed it would only queue unanswered messages.
+      if (!enableChannel || userIds.length === 0) {
         const disabled = (await chrome.runtime.sendMessage({
           type: 'CHANNEL_SET_ENABLED',
           channelId: 'telegram',

@@ -31,6 +31,7 @@ vi.mock('../config', () => ({
 
 vi.mock('../../channels/active-channel', () => ({
   findActiveChannel: vi.fn(async () => undefined),
+  isChannelDeliverable: vi.fn(async () => true),
 }));
 
 vi.mock('../../channels/registry', () => ({
@@ -41,7 +42,7 @@ vi.stubGlobal('chrome', {
   runtime: { sendMessage: vi.fn(() => Promise.resolve()) },
 });
 
-const { findActiveChannel } = await import('../../channels/active-channel');
+const { findActiveChannel, isChannelDeliverable } = await import('../../channels/active-channel');
 const { getChannelAdapter } = await import('../../channels/registry');
 
 const ts = Date.UTC(2026, 3, 1, 12, 0, 0);
@@ -199,6 +200,34 @@ describe('runHeartbeatOnce', () => {
     expect(sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({ to: '42', parseMode: 'markdown' }),
     );
+  });
+
+  it('does not deliver to an explicit target that is paused on the server', async () => {
+    setConfig({ target: 'telegram', to: '42' });
+    const sendMessage = vi.fn(async () => ({ ok: true, messageId: '7' }));
+    vi.mocked(getChannelAdapter).mockReturnValue({
+      id: 'telegram',
+      maxMessageLength: 4096,
+      sendMessage,
+    } as never);
+    vi.mocked(isChannelDeliverable).mockResolvedValueOnce(false);
+    const runHeadless = vi.fn().mockResolvedValue({
+      status: 'ok',
+      chatId: 'chat-5',
+      responseText: 'a heartbeat message that is long enough to be delivered '.repeat(10),
+    });
+
+    const res = await runHeartbeatOnce({
+      agentId: 'a',
+      reason: 'manual',
+      nowMs: () => ts,
+      runHeadless: runHeadless as never,
+    });
+
+    expect(res.status).toBe('ran');
+    expect(isChannelDeliverable).toHaveBeenCalledWith('telegram');
+    expect(sendMessage).not.toHaveBeenCalled();
+    vi.mocked(getChannelAdapter).mockReturnValue(undefined);
   });
 
   it('dedups identical non-ack text within 24h', async () => {
