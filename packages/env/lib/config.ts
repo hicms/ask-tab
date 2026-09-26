@@ -9,16 +9,18 @@ const baseEnv =
   }).parsed ?? {};
 
 const serviceTarget = process.env['CLI_CEB_TARGET'] ?? 'development';
-if (serviceTarget !== 'development' && serviceTarget !== 'test') {
+if (serviceTarget !== 'development' && serviceTarget !== 'test' && serviceTarget !== 'production') {
   throw new Error(`Invalid CLI_CEB_TARGET: ${serviceTarget}`);
 }
 
 const serviceUrl =
   serviceTarget === 'development'
     ? baseEnv.CEB_ASK_SERVICE_URL_DEVELOPMENT
-    : baseEnv.CEB_ASK_SERVICE_URL_TEST;
+    : serviceTarget === 'test'
+      ? baseEnv.CEB_ASK_SERVICE_URL_TEST
+      : process.env['CEB_ASK_SERVICE_URL_PRODUCTION'];
 if (!serviceUrl) {
-  throw new Error(`CEB_ASK_SERVICE_URL_${serviceTarget.toUpperCase()} is required in .env`);
+  throw new Error(`CEB_ASK_SERVICE_URL_${serviceTarget.toUpperCase()} is required`);
 }
 
 process.env['CEB_ASK_SERVICE_URL'] = serviceUrl;

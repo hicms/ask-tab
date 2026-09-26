@@ -25,6 +25,7 @@
     "dev:firefox": "pnpm set-global-env CLI_CEB_DEV=true CLI_CEB_FIREFOX=true && pnpm base-dev",
     "zip": "pnpm build && pnpm -F zipper zip",
     "zip:firefox": "pnpm build:firefox && pnpm -F zipper zip",
+    "release:package": "node scripts/package-release.mjs",
     "lint": "eslint . --cache --cache-strategy content --cache-location node_modules/.cache/eslint/ --max-warnings 0",
     "lint:fix": "pnpm lint --fix",
     "lint:full": "eslint . --max-warnings 0",

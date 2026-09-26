@@ -51,6 +51,19 @@ For a Firefox build, run `pnpm build:firefox` and load the generated extension t
 | `pnpm quality` | Run lint, formatting, type checks, and unit tests |
 | `pnpm zip` | Build and create a Chrome ZIP in `dist-zip/` |
 
+### Package a tagged Chrome release
+
+Set the HTTPS origin of the AskTab service that the release should use, then package a tag that matches the versions in the root and `chrome-extension/package.json`:
+
+```powershell
+$env:ASKTAB_RELEASE_SERVICE_URL = 'https://asktab.example.com'
+pnpm release:package v0.1.0
+```
+
+The command builds the Chrome extension and writes `asktab-chrome-v0.1.0.zip` and `asktab-chrome-v0.1.0.sha256` to `dist-zip/`. It checks the built manifest version and restores the local `.env` after packaging. It packages files locally; it does not create a Git tag or GitHub Release.
+
+For automated releases, set the repository Actions variable `ASKTAB_RELEASE_SERVICE_URL` to the production HTTPS service origin. After updating both package versions and pushing the source commit, push a matching tag such as `v0.1.0`. The [release workflow](.github/workflows/release.yml) runs checks, packages the extension, and publishes the ZIP and checksum as GitHub Release assets. A missing or invalid service URL stops the workflow before packaging.
+
 The monorepo contains `chrome-extension/` for the background worker and manifest, `pages/` for extension views, `packages/` for shared modules, and `tests/` for integration and end-to-end coverage. See [installation](docs/start/installation.md), [development](docs/development/index.md), and the [documentation index](docs/index.md) for details.
 
 ## Data and permissions

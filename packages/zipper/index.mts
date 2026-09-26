@@ -9,5 +9,7 @@ const fileName = `extension-${YYYY_MM_DD}-${HH_mm_ss}`;
 await zipBundle({
   distDirectory: resolve(import.meta.dirname, '..', '..', '..', 'dist'),
   buildDirectory: resolve(import.meta.dirname, '..', '..', '..', 'dist-zip'),
-  archiveName: IS_FIREFOX ? `${fileName}.xpi` : `${fileName}.zip`,
+  archiveName:
+    process.env['ASKTAB_RELEASE_ARCHIVE_NAME'] ||
+    (IS_FIREFOX ? `${fileName}.xpi` : `${fileName}.zip`),
 });
