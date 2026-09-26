@@ -21,6 +21,21 @@
       "outputs": ["../../dist/**", "dist/**"],
       "cache": false
     },
+    "@extension/sidepanel#build": {
+      "dependsOn": ["ready", "^build"],
+      "outputs": ["../../dist/side-panel/**"],
+      "cache": true
+    },
+    "@extension/options#build": {
+      "dependsOn": ["ready", "^build"],
+      "outputs": ["../../dist/options/**"],
+      "cache": true
+    },
+    "@extension/full-page-chat#build": {
+      "dependsOn": ["ready", "^build"],
+      "outputs": ["../../dist/full-page-chat/**"],
+      "cache": true
+    },
     "type-check": {
       "cache": false
     },
