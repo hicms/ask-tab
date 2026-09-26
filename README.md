@@ -49,7 +49,7 @@ For a Firefox build, run `pnpm build:firefox` and load the generated extension t
 | `pnpm dev` | Build and watch the Chrome extension |
 | `pnpm build` | Create a production build in `dist/` |
 | `pnpm test` | Run unit tests after building workspace packages |
-| `pnpm test:e2e` | Run Playwright tests after a build |
+| `pnpm test:e2e` | Run the optional extension startup smoke test after a build |
 | `pnpm quality` | Run lint, formatting, type checks, and unit tests |
 | `pnpm zip` | Build and create a Chrome ZIP in `dist-zip/` |
 

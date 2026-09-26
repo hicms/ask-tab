@@ -74,25 +74,15 @@ algorithm, a direct call to the test's own mock, or an assertion about a literal
 does not protect against production regressions. Keep storage behavior tests with the
 storage owner and component helper tests with the actual helper.
 
-### E2E tests (Playwright)
+### Browser smoke test (Playwright)
 
 ```bash
 pnpm build && pnpm test:e2e
 ```
 
-E2E tests:
-- Located in `tests/playwright/e2e/`
-- Launch Chrome with the extension loaded from `dist/`
-- Handle FirstRunSetup bypass via `helpers/setup.ts`
-- Use page objects from `tests/playwright/pages/`
-
-Establish the state named by the test and assert the resulting interaction. A page-title
-check belongs in the extension loading smoke suite; it does not test chat persistence,
-streaming, compaction, or attachments. Do not condition an assertion on whether the
-expected UI exists. The Copilot proxy integration is opt-in via `COPILOT_API_BASE_URL`.
-
-The current suite does not directly exercise the injected ChatGPT Sentinel flow,
-automatic title generation, or the channel draft promise chain.
+The single test in `tests/playwright/e2e/` loads the built extension in headless Chromium
+and checks that its service worker starts and the side panel renders. It is optional and
+does not run under `pnpm test` or `pnpm quality`. Run it after build or startup changes.
 
 ## Code quality
 

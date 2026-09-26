@@ -8,10 +8,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pathToExtension = path.resolve(__dirname, '../../../dist');
 
 export const test = base.extend<{ context: BrowserContext; extensionId: string }>({
-  // eslint-disable-next-line no-empty-pattern
-  context: async ({}, use) => {
+  context: async ({ headless, channel }, use) => {
     const context = await chromium.launchPersistentContext('', {
-      headless: false,
+      headless,
+      channel,
       args: [
         `--disable-extensions-except=${pathToExtension}`,
         `--load-extension=${pathToExtension}`,
