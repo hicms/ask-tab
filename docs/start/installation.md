@@ -30,11 +30,13 @@ This produces a production build in the `dist/` directory.
 On Windows, select which AskTab service the build connects to:
 
 ```powershell
-.\scripts\build.ps1 -Environment development
+.\scripts\build.ps1
 .\scripts\build.ps1 -Environment test
+.\scripts\build.ps1 -Full
+.\scripts\build.ps1 -Environment test -Full
 ```
 
-Both variants are production builds. The selected service URL is embedded in the extension. `pnpm build` uses the development URL by default.
+By default, `build.ps1` quickly rebuilds only the background script for the development service. Use `-Environment test` to select the test service. Run `-Full` first for the same environment, after changing page or shared UI code, or when switching environments. Full builds are production builds in `dist/`. The selected service URL is embedded in the extension. `pnpm build` uses the development URL by default.
 
 ### Load in Chrome
 

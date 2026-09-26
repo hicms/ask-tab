@@ -30,11 +30,13 @@ pnpm build
 On Windows, choose the service environment at build time:
 
 ```powershell
-.\scripts\build.ps1 -Environment development
+.\scripts\build.ps1
 .\scripts\build.ps1 -Environment test
+.\scripts\build.ps1 -Full
+.\scripts\build.ps1 -Environment test -Full
 ```
 
-Both commands produce a release build in `dist/`. `pnpm build` uses the development service URL by default.
+By default, `build.ps1` quickly rebuilds only the background script for the development service. Use `-Environment test` to select the test service. Run `-Full` first for the same environment, after changing page or shared UI code, or when switching environments. Full builds produce a release build in `dist/`. `pnpm build` uses the development service URL by default.
 
 Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select the generated `dist/` directory. Sign in to the AskTab service and select a model in the extension.
 
