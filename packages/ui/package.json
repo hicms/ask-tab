@@ -1,0 +1,54 @@
+{
+  "name": "@extension/ui",
+  "version": "0.1.0",
+  "description": "chrome extension - chat UI components",
+  "type": "module",
+  "private": true,
+  "sideEffects": true,
+  "files": [
+    "dist/**"
+  ],
+  "types": "index.ts",
+  "main": "dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./dist/index.js"
+    },
+    "./ai-elements": {
+      "types": "./ai-elements.ts",
+      "default": "./dist/ai-elements.js"
+    },
+    "./with-ui": {
+      "types": "./lib/with-ui.ts",
+      "default": "./lib/with-ui.ts"
+    },
+    "./global.css": "./global.css"
+  },
+  "scripts": {
+    "clean:bundle": "rimraf dist",
+    "clean:node_modules": "pnpx rimraf node_modules",
+    "clean:turbo": "rimraf .turbo",
+    "clean": "pnpm clean:bundle && pnpm clean:node_modules && pnpm clean:turbo",
+    "ready": "tsc && tsc-alias -p tsconfig.json",
+    "lint": "eslint .",
+    "lint:fix": "pnpm lint --fix",
+    "format": "prettier . --write --ignore-path ../../.prettierignore",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@extension/env": "workspace:*",
+    "@extension/i18n": "workspace:*",
+    "@extension/shared": "workspace:*",
+    "@extension/storage": "workspace:*",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.3.0"
+  },
+  "devDependencies": {
+    "@extension/tailwindcss-config": "workspace:*",
+    "@extension/tsconfig": "workspace:*",
+    "deepmerge": "^4.3.1",
+    "react-spinners": "^0.17.0",
+    "tsc-alias": "^1.8.16"
+  }
+}

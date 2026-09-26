@@ -1,0 +1,99 @@
+import { DiffType, diffEditor } from '../editor/diff';
+import OrderedMap from 'orderedmap';
+import { DOMParser, Schema } from 'prosemirror-model';
+import { schema } from 'prosemirror-schema-basic';
+import { addListNodes } from 'prosemirror-schema-list';
+import { EditorState } from 'prosemirror-state';
+import { EditorView } from 'prosemirror-view';
+import { useEffect, useRef } from 'react';
+import { renderToString } from 'react-dom/server';
+import { Streamdown } from 'streamdown';
+import type { MarkSpec, Node as ProsemirrorNode } from 'prosemirror-model';
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — diff.js is untyped
+
+const diffSchema = new Schema({
+  nodes: addListNodes(schema.spec.nodes, 'paragraph block*', 'block'),
+  marks: OrderedMap.from({
+    ...schema.spec.marks.toObject(),
+    diffMark: {
+      attrs: { type: { default: '' } },
+      toDOM(mark) {
+        let className = '';
+
+        switch (mark.attrs.type) {
+          case DiffType.Inserted:
+            className = 'bg-green-100 text-green-700 dark:bg-green-500/70 dark:text-green-300';
+            break;
+          case DiffType.Deleted:
+            className = 'bg-red-100 line-through text-red-600 dark:bg-red-500/70 dark:text-red-300';
+            break;
+          default:
+            className = '';
+        }
+        return ['span', { class: className }, 0];
+      },
+    } as MarkSpec,
+  }),
+});
+
+function computeDiff(oldDoc: ProsemirrorNode, newDoc: ProsemirrorNode) {
+  return diffEditor(diffSchema, oldDoc.toJSON(), newDoc.toJSON());
+}
+
+type DiffEditorProps = {
+  oldContent: string;
+  newContent: string;
+};
+
+export const DiffView = ({ oldContent, newContent }: DiffEditorProps) => {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<EditorView | null>(null);
+
+  useEffect(() => {
+    if (editorRef.current && !viewRef.current) {
+      const parser = DOMParser.fromSchema(diffSchema);
+
+      const oldHtmlContent = renderToString(<Streamdown>{oldContent}</Streamdown>);
+      const newHtmlContent = renderToString(<Streamdown>{newContent}</Streamdown>);
+
+      // Use <template> elements for safer HTML parsing — they don't execute
+      // scripts or load resources when innerHTML is set, unlike regular elements.
+      const parseHtml = (html: string): HTMLElement => {
+        const tpl = document.createElement('template');
+        tpl.innerHTML = html;
+        const div = document.createElement('div');
+        div.appendChild(tpl.content.cloneNode(true));
+        return div;
+      };
+
+      const oldContainer = parseHtml(oldHtmlContent);
+      const newContainer = parseHtml(newHtmlContent);
+
+      const oldDoc = parser.parse(oldContainer);
+      const newDoc = parser.parse(newContainer);
+
+      const diffedDoc = computeDiff(oldDoc, newDoc);
+
+      const state = EditorState.create({
+        doc: diffedDoc,
+        plugins: [],
+      });
+
+      viewRef.current = new EditorView(editorRef.current, {
+        state,
+        editable: () => false,
+      });
+    }
+
+    return () => {
+      if (viewRef.current) {
+        viewRef.current.destroy();
+        viewRef.current = null;
+      }
+    };
+  }, [oldContent, newContent]);
+
+  return <div className="diff-editor" ref={editorRef} />;
+};

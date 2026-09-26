@@ -1,0 +1,1123 @@
+{
+  "tab_backup": { "message": "備份" },
+  "extensionDescription": {
+    "description": "Extension description",
+    "message": "AskTab - 瀏覽器中的個人AI助手。任何作業系統，任何平台。"
+  },
+  "extensionName": {
+    "description": "Extension name",
+    "message": "AskTab - 瀏覽器中的個人AI助手"
+  },
+  "extensionShortName": {
+    "description": "Short extension name for Firefox (max 50 chars)",
+    "message": "AskTab - 你的個人瀏覽器AI助手"
+  },
+  "displayErrorInfo": {
+    "message": "發生錯誤"
+  },
+  "displayErrorDescription": {
+    "message": "抱歉，載入頁面時出現問題。"
+  },
+  "displayErrorDetailsInfo": {
+    "message": "錯誤詳情："
+  },
+  "displayErrorUnknownErrorInfo": {
+    "message": "未知錯誤"
+  },
+  "displayErrorReset": {
+    "message": "重新執行"
+  },
+  "firstRun_welcome": {
+    "message": "歡迎使用 AskTab"
+  },
+  "firstRun_saveFailed": {
+    "message": "儲存模型失敗"
+  },
+  "firstRun_stepChannels": {
+    "message": "頻道"
+  },
+  "firstRun_stepAgent": {
+    "message": "智慧體"
+  },
+  "firstRun_stepTools": {
+    "message": "工具"
+  },
+  "firstRun_stepPermissions": {
+    "message": "權限"
+  },
+  "firstRun_permissionsTitle": {
+    "message": "主機權限"
+  },
+  "firstRun_permissionsDescription": {
+    "message": "Firefox 需要明確授權才能讓工具與網頁互動。請授予存取權限，以便 AI 助理能夠讀取和操作頁面內容。"
+  },
+  "firstRun_permissionsGranted": {
+    "message": "主機權限已授予 — 工具可以存取網頁。"
+  },
+  "firstRun_permissionsGrant": {
+    "message": "授予權限"
+  },
+  "firstRun_permissionsDenied": {
+    "message": "權限被拒絕。與網頁互動的工具可能無法正常運作。您可以稍後在擴充功能的權限設定中授予此權限。"
+  },
+  "firstRun_step2Title": {
+    "message": "連接頻道"
+  },
+  "firstRun_step2Description": {
+    "message": "可選擇連接 Telegram 機器人，從手機進行聊天。"
+  },
+  "firstRun_step3Title": {
+    "message": "自訂你的智慧體"
+  },
+  "firstRun_step3Description": {
+    "message": "為你的 AI 助手設定名稱和個性。"
+  },
+  "firstRun_step4Title": {
+    "message": "啟用工具"
+  },
+  "firstRun_step4Description": {
+    "message": "選擇你的 AI 助手可以使用的工具。"
+  },
+  "firstRun_next": {
+    "message": "下一步"
+  },
+  "firstRun_skip": {
+    "message": "略過"
+  },
+  "firstRun_back": {
+    "message": "返回"
+  },
+  "firstRun_skipSetup": {
+    "message": "略過設定 →"
+  },
+  "firstRun_getStarted": {
+    "message": "開始使用"
+  },
+  "firstRun_telegramBotToken": {
+    "message": "Telegram 機器人權杖"
+  },
+  "firstRun_telegramValidate": {
+    "message": "驗證"
+  },
+  "firstRun_telegramValidated": {
+    "message": "權杖有效"
+  },
+  "firstRun_telegramAllowedUsers": {
+    "message": "允許的使用者 ID（以逗號分隔）"
+  },
+  "firstRun_whatsappNote": {
+    "message": "WhatsApp 可以稍後透過設定 > 頻道連接（需要掃描 QR 碼）。"
+  },
+  "firstRun_agentName": {
+    "message": "智慧體名稱"
+  },
+  "firstRun_agentEmoji": {
+    "message": "智慧體表情符號"
+  },
+  "firstRun_stepSkills": {
+    "message": "技能"
+  },
+  "firstRun_step5Title": {
+    "message": "啟用技能"
+  },
+  "firstRun_step5Description": {
+    "message": "技能是可重複使用的提示範本，可以擴展助手的能力。"
+  },
+  "firstRun_noSkills": {
+    "message": "目前沒有可用的技能。你可以稍後在設定中新增技能。"
+  },
+  "firstRun_advancedSetup": {
+    "message": "進階設定"
+  },
+  "firstRun_defaultAgentName": {
+    "message": "主智慧體"
+  },
+  "firstRun_tools": {
+    "message": "工具"
+  },
+  "firstRun_restoreFailed": {
+    "message": "從備份還原智慧體失敗"
+  },
+  "chat_placeholder": {
+    "message": "你想了解什麼？"
+  },
+  "chat_mic_start": {
+    "message": "錄製語音"
+  },
+  "chat_mic_stop": {
+    "message": "停止錄製"
+  },
+  "chat_mic_error": {
+    "message": "語音轉錄失敗，請重試。"
+  },
+  "chat_mic_permission": {
+    "message": "需要麥克風權限。正在開啟視窗以允許存取..."
+  },
+  "stt_web_login": {
+    "message": "登入"
+  },
+  "stt_web_logout": {
+    "message": "登出"
+  },
+  "stt_web_status_logged_in": {
+    "message": "已登入"
+  },
+  "stt_web_status_expired": {
+    "message": "工作階段已過期"
+  },
+  "stt_web_status_not_logged_in": {
+    "message": "未登入"
+  },
+  "stt_web_status_checking": {
+    "message": "檢查中…"
+  },
+  "stt_hotkey_label": {
+    "message": "錄音快速鍵"
+  },
+  "stt_hotkey_hint": {
+    "message": "點擊後按住一個鍵進行聽寫，放開即停止。"
+  },
+  "stt_hotkey_prompt": {
+    "message": "請按一個鍵…"
+  },
+  "stt_hotkey_unset": {
+    "message": "未設定"
+  },
+  "chat_modelSelect": {
+    "message": "模型"
+  },
+  "chat_thinkLevelThinking": { "message": "深度思考" },
+  "chat_thinkLevelThinkingDesc": { "message": "解決複雜問題" },
+  "chat_thinkLevelFast": { "message": "快速" },
+  "chat_thinkLevelFastDesc": { "message": "快速回答" },
+  "chat_fileSizeError": {
+    "message": "檔案「$FILE_NAME$」超過 10MB 限制。",
+    "placeholders": {
+      "file_name": {
+        "content": "$1"
+      }
+    }
+  },
+  "chat_fileReadError": {
+    "message": "無法讀取「$FILE_NAME$」。",
+    "placeholders": {
+      "file_name": {
+        "content": "$1"
+      }
+    }
+  },
+  "chat_maxFilesError": {
+    "message": "最多允許 $MAX_FILES$ 個檔案。",
+    "placeholders": {
+      "max_files": {
+        "content": "$1"
+      }
+    }
+  },
+  "session_newSession": {
+    "message": "新工作階段"
+  },
+  "session_rename": {
+    "message": "重新命名"
+  },
+  "session_delete": {
+    "message": "刪除"
+  },
+  "session_searchPlaceholder": {
+    "message": "搜尋聊天..."
+  },
+  "session_noMatching": {
+    "message": "沒有符合的工作階段"
+  },
+  "session_noSessions": {
+    "message": "尚無工作階段"
+  },
+  "session_today": {
+    "message": "今天"
+  },
+  "session_yesterday": {
+    "message": "昨天"
+  },
+  "session_last7Days": {
+    "message": "最近 7 天"
+  },
+  "session_last30Days": {
+    "message": "最近 30 天"
+  },
+  "session_older": {
+    "message": "更早"
+  },
+  "session_deleteTitle": {
+    "message": "刪除工作階段"
+  },
+  "session_deleteDescription": {
+    "message": "這將永久刪除此工作階段及其所有訊息。此操作無法復原。"
+  },
+  "session_deleteAllTitle": {
+    "message": "刪除所有工作階段？"
+  },
+  "session_deleteAllDescription": {
+    "message": "這將永久刪除所有工作階段、訊息和產出物。此操作無法復原。"
+  },
+  "common_cancel": {
+    "message": "取消"
+  },
+  "common_delete": {
+    "message": "刪除"
+  },
+  "common_deleteAll": {
+    "message": "全部刪除"
+  },
+  "common_save": {
+    "message": "儲存"
+  },
+  "common_saved": {
+    "message": "已儲存"
+  },
+  "common_confirm": {
+    "message": "確認"
+  },
+  "common_ok": {
+    "message": "確定"
+  },
+  "common_loading": {
+    "message": "載入中..."
+  },
+  "common_on": {
+    "message": "開"
+  },
+  "common_off": {
+    "message": "關"
+  },
+  "common_enabled": {
+    "message": "已啟用"
+  },
+  "common_disabled": {
+    "message": "已停用"
+  },
+  "toolbar_elementary": {
+    "message": "國小"
+  },
+  "toolbar_middleSchool": {
+    "message": "國中"
+  },
+  "toolbar_keepLevel": {
+    "message": "保持目前等級"
+  },
+  "toolbar_highSchool": {
+    "message": "高中"
+  },
+  "toolbar_college": {
+    "message": "大學"
+  },
+  "toolbar_graduate": {
+    "message": "研究所"
+  },
+  "toolbar_adjustReading": {
+    "message": "請將閱讀等級調整為$LEVEL$等級。",
+    "placeholders": {
+      "level": {
+        "content": "$1"
+      }
+    }
+  },
+  "slash_notEnoughMessages": {
+    "message": "訊息不足，無法壓縮"
+  },
+  "slash_compacting": {
+    "message": "正在壓縮對話..."
+  },
+  "slash_noResponse": {
+    "message": "後台無回應（Service Worker 可能已重新啟動）"
+  },
+  "slash_conversationSummary": {
+    "message": "[對話摘要]"
+  },
+  "slash_earlierCompacted": {
+    "message": "[早期訊息已壓縮]"
+  },
+  "slash_compactSuccess": {
+    "message": "對話已壓縮"
+  },
+  "slash_compactFailed": {
+    "message": "壓縮失敗"
+  },
+  "slash_conversationCleared": {
+    "message": "對話已清除"
+  },
+  "slash_copied": {
+    "message": "已複製到剪貼簿"
+  },
+  "slash_noAssistantMessage": {
+    "message": "沒有可複製的助手訊息"
+  },
+  "slash_invalidCopyArg": {
+    "message": "無效的引數 — 使用 /copy 或 /copy N（例如 /copy 2）"
+  },
+  "slash_exported": {
+    "message": "對話已匯出"
+  },
+  "slash_exportEmpty": {
+    "message": "沒有可匯出的訊息"
+  },
+  "toast_offline": {
+    "message": "AskTab 已離線，請檢查網路連線。"
+  },
+  "toast_online": {
+    "message": "AskTab 已恢復連線。"
+  },
+  "toast_allSessionsCleared": {
+    "message": "所有工作階段已清除"
+  },
+  "toast_subagentFinished": {
+    "message": "子代理已完成：$TASK$",
+    "placeholders": {
+      "task": {
+        "content": "$1"
+      }
+    }
+  },
+  "toast_scheduledTask": {
+    "message": "已排程：$TASK$",
+    "placeholders": {
+      "task": {
+        "content": "$1"
+      }
+    }
+  },
+  "toast_scheduledTaskFired": {
+    "message": "排程任務已觸發"
+  },
+  "toast_heartbeatDelivered": {
+    "message": "心跳提醒"
+  },
+  "toast_newTelegramMessage": {
+    "message": "收到新的 Telegram 訊息"
+  },
+  "toast_view": {
+    "message": "檢視"
+  },
+  "settings_title": {
+    "message": "設定"
+  },
+  "settings_description": {
+    "message": "設定外觀與偏好"
+  },
+  "settings_appearance": {
+    "message": "外觀"
+  },
+  "settings_theme": {
+    "message": "主題"
+  },
+  "settings_themeSystem": {
+    "message": "跟隨系統"
+  },
+  "settings_themeLight": {
+    "message": "淺色"
+  },
+  "settings_themeDark": {
+    "message": "深色"
+  },
+  "settings_language": {
+    "message": "語言"
+  },
+  "settings_languageAuto": {
+    "message": "自動（瀏覽器預設）"
+  },
+  "model_title": {
+    "message": "模型設定"
+  },
+  "model_supportsTools": {
+    "message": "支援工具呼叫"
+  },
+  "model_supportsReasoning": {
+    "message": "支援推理"
+  },
+  "skill_title": {
+    "message": "技能"
+  },
+  "skill_description": {
+    "message": "技能為 LLM 提供按需讀取的特定任務指導。"
+  },
+  "skill_browserWarning": {
+    "message": "技能在 Chrome 瀏覽器環境中執行——不支援 CLI 工具、Python 指令碼和其他本機執行檔。"
+  },
+  "skill_installedSkills": {
+    "message": "已安裝的技能"
+  },
+  "skill_importZip": {
+    "message": "匯入 Zip"
+  },
+  "skill_loadingSkills": {
+    "message": "正在載入技能…"
+  },
+  "skill_noSkills": {
+    "message": "尚未安裝技能"
+  },
+  "skill_deleted": {
+    "message": "技能已刪除"
+  },
+  "skill_importExists": {
+    "message": "技能 $PATH$ 已存在。請先刪除或重新命名匯入。",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "skill_importedSkill": {
+    "message": "已匯入技能：$SKILL_NAME$",
+    "placeholders": {
+      "skill_name": {
+        "content": "$1"
+      }
+    }
+  },
+  "skill_importFailed": {
+    "message": "技能匯入失敗"
+  },
+  "skill_deleteConfirm": {
+    "message": "刪除技能「$SKILL_NAME$」？此操作無法復原。",
+    "placeholders": {
+      "skill_name": {
+        "content": "$1"
+      }
+    }
+  },
+  "sessionMgr_title": {
+    "message": "工作階段"
+  },
+  "sessionMgr_searchPlaceholder": {
+    "message": "搜尋工作階段..."
+  },
+  "sessionMgr_noMatching": {
+    "message": "沒有符合的工作階段。"
+  },
+  "sessionMgr_noSessions": {
+    "message": "尚無工作階段。"
+  },
+  "sessionMgr_clickToSelect": {
+    "message": "按一下選取，按兩下開啟"
+  },
+  "sessionMgr_clickToSelectSidePanel": {
+    "message": "按一下選取，按兩下在側邊面板中開啟"
+  },
+  "telegram_title": {
+    "message": "Telegram 機器人"
+  },
+  "telegram_description": {
+    "message": "連接 Telegram 機器人，以便從 Telegram 與 AI 助手聊天。"
+  },
+  "telegram_enableBot": {
+    "message": "啟用 Telegram 機器人"
+  },
+  "telegram_botToken": {
+    "message": "Bot Token"
+  },
+  "telegram_validate": {
+    "message": "驗證"
+  },
+  "telegram_tokenValid": {
+    "message": "Token 有效"
+  },
+  "telegram_invalidToken": {
+    "message": "無效的 Token"
+  },
+  "telegram_allowedUserIds": {
+    "message": "允許的使用者 ID"
+  },
+  "telegram_userIdsHint": {
+    "message": "僅處理來自這些 Telegram 使用者 ID 的訊息。從 @userinfobot 取得您的 ID，必須為數字。"
+  },
+  "telegram_noUsers": {
+    "message": "尚無允許的使用者。新增至少一個使用者 ID 以開始接收訊息。"
+  },
+  "telegram_loadFailed": {
+    "message": "載入設定失敗"
+  },
+  "telegram_validationFailed": {
+    "message": "驗證失敗"
+  },
+  "telegram_saveFailed": {
+    "message": "儲存失敗"
+  },
+  "telegram_toggleFailed": {
+    "message": "切換失敗"
+  },
+  "agents_newAgent": {
+    "message": "新建代理"
+  },
+  "agents_deleteAgent": {
+    "message": "刪除代理"
+  },
+  "agents_deleteAgentConfirm": {
+    "message": "刪除此代理及其所有資料？此操作無法復原。"
+  },
+  "agents_overview": {
+    "message": "總覽"
+  },
+  "agents_files": {
+    "message": "檔案"
+  },
+  "agents_tools": {
+    "message": "工具"
+  },
+  "agents_skills": {
+    "message": "技能"
+  },
+  "agents_workspaceFiles": {
+    "message": "工作區檔案"
+  },
+  "agents_agentCreated": {
+    "message": "代理已建立"
+  },
+  "agents_agentDeleted": {
+    "message": "代理已刪除"
+  },
+  "agents_deleteAgentFailed": {
+    "message": "刪除代理失敗"
+  },
+  "agents_fileDeleted": {
+    "message": "檔案已刪除"
+  },
+  "agents_fileUploaded": {
+    "message": "檔案已上傳"
+  },
+  "agents_fileRenamed": {
+    "message": "檔案已重新命名"
+  },
+  "agents_cannotRenamePredefined": {
+    "message": "無法重新命名包含預設檔案的資料夾"
+  },
+  "agents_cannotDeletePredefined": {
+    "message": "無法刪除包含預設檔案的資料夾"
+  },
+  "agents_folderRenamed": {
+    "message": "資料夾已重新命名"
+  },
+  "agents_folderDeleted": {
+    "message": "資料夾已刪除"
+  },
+  "agents_folderEmpty": {
+    "message": "資料夾為空"
+  },
+  "agents_fileSaved": {
+    "message": "檔案已儲存"
+  },
+  "agents_identity": {
+    "message": "身分"
+  },
+  "agents_identityHint": {
+    "message": "在「檔案」分頁的 IDENTITY.md 檔案中編輯這些值。"
+  },
+  "agents_notSet": {
+    "message": "（未設定）"
+  },
+  "agents_justNow": {
+    "message": "剛才"
+  },
+  "agents_minutesAgo": {
+    "message": "$MINUTES$分鐘前",
+    "placeholders": {
+      "minutes": {
+        "content": "$1"
+      }
+    }
+  },
+  "agents_hoursAgo": {
+    "message": "$HOURS$小時前",
+    "placeholders": {
+      "hours": {
+        "content": "$1"
+      }
+    }
+  },
+  "agents_daysAgo": {
+    "message": "$DAYS$天前",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      }
+    }
+  },
+  "agents_monthsAgo": {
+    "message": "$MONTHS$個月前",
+    "placeholders": {
+      "months": {
+        "content": "$1"
+      }
+    }
+  },
+  "agents_deleteFile": {
+    "message": "刪除檔案"
+  },
+  "agents_deleteFileConfirm": {
+    "message": "刪除「$FILE_NAME$」？此操作無法復原。",
+    "placeholders": {
+      "file_name": {
+        "content": "$1"
+      }
+    }
+  },
+  "agents_deleteFolder": {
+    "message": "刪除資料夾"
+  },
+  "agents_deleteFolderConfirm": {
+    "message": "刪除資料夾「$FOLDER_NAME$」及其中的 $FILE_COUNT$ 個檔案？此操作無法復原。",
+    "placeholders": {
+      "folder_name": {
+        "content": "$1"
+      },
+      "file_count": {
+        "content": "$2"
+      }
+    }
+  },
+  "agents_renameFile": {
+    "message": "重新命名檔案"
+  },
+  "agents_renameFolder": {
+    "message": "重新命名資料夾"
+  },
+  "agents_newFile": {
+    "message": "新建檔案"
+  },
+  "agents_newFolder": {
+    "message": "新建資料夾"
+  },
+  "agents_newFolderName": {
+    "message": "新資料夾名稱"
+  },
+  "agents_upload": {
+    "message": "上傳"
+  },
+  "agents_edit": {
+    "message": "編輯"
+  },
+  "agents_download": {
+    "message": "下載"
+  },
+  "agents_downloadFolderZip": {
+    "message": "下載資料夾為 ZIP"
+  },
+  "agents_refresh": {
+    "message": "重新整理"
+  },
+  "agents_backupAgent": {
+    "message": "備份"
+  },
+  "agents_restoreAgent": {
+    "message": "還原"
+  },
+  "agents_restoreConfirm": {
+    "message": "這將使用備份「$2」覆蓋智慧體「$1」。所有工作區檔案和設定將被替換。是否繼續？"
+  },
+  "agents_backupSuccess": {
+    "message": "智慧體備份成功"
+  },
+  "agents_restoreSuccess": {
+    "message": "智慧體還原成功"
+  },
+  "agents_restoreFailed": {
+    "message": "智慧體還原失敗"
+  },
+  "agents_backupFailed": {
+    "message": "智慧體備份失敗"
+  },
+  "agents_invalidBackup": {
+    "message": "無效的備份檔案"
+  },
+  "optionsPage_title": {
+    "message": "AskTab 設定"
+  },
+  "provider_openai": {
+    "message": "OpenAI"
+  },
+  "tabGroup_control": {
+    "message": "控制"
+  },
+  "tabGroup_agent": {
+    "message": "代理"
+  },
+  "tabGroup_settings": {
+    "message": "設定"
+  },
+  "tab_channels": {
+    "message": "頻道"
+  },
+  "tab_cronJobs": {
+    "message": "排程任務"
+  },
+  "tab_sessions": {
+    "message": "工作階段"
+  },
+  "tab_usage": {
+    "message": "用量"
+  },
+  "tab_agents": {
+    "message": "代理"
+  },
+  "tab_tools": {
+    "message": "工具"
+  },
+  "tab_skills": {
+    "message": "技能"
+  },
+  "tab_general": {
+    "message": "一般"
+  },
+  "tab_models": {
+    "message": "模型"
+  },
+  "tab_actions": {
+    "message": "快捷操作"
+  },
+  "tab_logs": {
+    "message": "日誌"
+  },
+  "whatsapp_title": {
+    "message": "WhatsApp"
+  },
+  "whatsapp_description": {
+    "message": "連接 WhatsApp，透過手機與 AI 助手聊天。使用 WhatsApp Web 協定——無需外部伺服器。"
+  },
+  "whatsapp_connection": {
+    "message": "連線"
+  },
+  "whatsapp_connect": {
+    "message": "連接"
+  },
+  "whatsapp_disconnect": {
+    "message": "中斷連線"
+  },
+  "whatsapp_disconnected": {
+    "message": "已中斷連線"
+  },
+  "whatsapp_connecting": {
+    "message": "等待掃描 QR 碼..."
+  },
+  "whatsapp_connected": {
+    "message": "已連接"
+  },
+  "whatsapp_reconnecting": {
+    "message": "重新連線中..."
+  },
+  "whatsapp_loggedOut": {
+    "message": "已登出"
+  },
+  "whatsapp_scanQr": {
+    "message": "使用 WhatsApp 掃描"
+  },
+  "whatsapp_scanInstructions": {
+    "message": "開啟手機上的 WhatsApp → 設定 → 已連結的裝置 → 連結裝置"
+  },
+  "whatsapp_connectedMsg": {
+    "message": "WhatsApp 已連接，正在接收訊息"
+  },
+  "whatsapp_reconnectingMsg": {
+    "message": "正在重新連接 WhatsApp..."
+  },
+  "whatsapp_allowedNumbers": {
+    "message": "允許的電話號碼"
+  },
+  "whatsapp_numbersHint": {
+    "message": "僅處理來自這些電話號碼的訊息。請輸入含國碼的號碼（例如 +886912345678）。"
+  },
+  "whatsapp_noNumbers": {
+    "message": "尚無允許的號碼。新增至少一個電話號碼以開始接收訊息。"
+  },
+  "whatsapp_messageDirection": {
+    "message": "訊息方向"
+  },
+  "whatsapp_directionHint": {
+    "message": "控制 AI 助手處理哪些訊息。"
+  },
+  "whatsapp_processMyMessages": {
+    "message": "處理我自己的訊息"
+  },
+  "whatsapp_processOthers": {
+    "message": "處理他人的訊息"
+  },
+  "whatsapp_connectionFailed": {
+    "message": "連線失敗"
+  },
+  "whatsapp_disconnectFailed": {
+    "message": "中斷連線失敗"
+  },
+  "whatsapp_saveFailed": {
+    "message": "儲存失敗"
+  },
+  "whatsapp_loadFailed": {
+    "message": "載入設定失敗"
+  },
+  "cron_title": {
+    "message": "排程任務"
+  },
+  "cron_description": {
+    "message": "管理 AI 代理建立的自動化任務"
+  },
+  "cron_active": {
+    "message": "執行中"
+  },
+  "cron_stopped": {
+    "message": "已停止"
+  },
+  "cron_noJobs": {
+    "message": "尚無排程任務。請讓 AI 為您排程一個任務。"
+  },
+  "cron_runHistory": {
+    "message": "執行歷史"
+  },
+  "cron_noRuns": {
+    "message": "尚無執行紀錄"
+  },
+  "usage_title": {
+    "message": "用量"
+  },
+  "usage_description": {
+    "message": "所有工作階段的 Token 使用情況"
+  },
+  "usage_sessions": {
+    "message": "工作階段數"
+  },
+  "usage_totalTokens": {
+    "message": "總 Token 數"
+  },
+  "usage_input": {
+    "message": "輸入"
+  },
+  "usage_output": {
+    "message": "輸出"
+  },
+  "usage_average": {
+    "message": "平均：$COUNT$ token/工作階段",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "usage_sessionsByUsage": {
+    "message": "依用量排列的工作階段"
+  },
+  "usage_compacted": {
+    "message": "已壓縮 $COUNT$ 次",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "usage_moreSessionsCount": {
+    "message": "...還有 $COUNT$ 個工作階段",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "actions_title": {
+    "message": "快捷操作"
+  },
+  "actions_description": {
+    "message": "自訂空聊天畫面顯示的快捷提示（最多 $MAX$ 個）",
+    "placeholders": {
+      "max": {
+        "content": "$1"
+      }
+    }
+  },
+  "actions_heading": {
+    "message": "操作"
+  },
+  "actions_resetDefaults": {
+    "message": "恢復預設值"
+  },
+  "actions_addAction": {
+    "message": "新增操作"
+  },
+  "actions_noActions": {
+    "message": "尚未設定快捷操作。新增一個或恢復預設值。"
+  },
+  "actions_actionNumber": {
+    "message": "操作 $NUMBER$",
+    "placeholders": {
+      "number": {
+        "content": "$1"
+      }
+    }
+  },
+  "actions_moveUp": {
+    "message": "上移"
+  },
+  "actions_moveDown": {
+    "message": "下移"
+  },
+  "actions_remove": {
+    "message": "移除"
+  },
+  "actions_labelPlaceholder": {
+    "message": "按鈕標籤（顯示在聊天畫面上）"
+  },
+  "actions_promptPlaceholder": {
+    "message": "點擊時傳送給 AI 的完整提示"
+  },
+  "tool_title": {
+    "message": "工具設定"
+  },
+  "tool_description": {
+    "message": "啟用或停用 AI 工具"
+  },
+  "tool_searchProvider": {
+    "message": "搜尋提供者"
+  },
+  "tool_selectProvider": {
+    "message": "選擇提供者"
+  },
+  "tool_searchEngine": {
+    "message": "搜尋引擎"
+  },
+  "tool_selectEngine": {
+    "message": "選擇引擎"
+  },
+  "tool_noApiKey": {
+    "message": "無需 API 金鑰 — 使用瀏覽器自動化"
+  },
+  "tool_subTopics": {
+    "message": "子主題"
+  },
+  "tool_iterationsPerTopic": {
+    "message": "每個主題的迭代次數"
+  },
+  "tool_sourcesPerSearch": {
+    "message": "每次搜尋的來源數"
+  },
+  "tool_timeout": {
+    "message": "逾時（秒）"
+  },
+  "tool_clientId": {
+    "message": "用戶端 ID"
+  },
+  "tool_connectGoogle": {
+    "message": "連接 Google 帳戶"
+  },
+  "tool_connecting": {
+    "message": "連接中..."
+  },
+  "tool_connectedAs": {
+    "message": "已連接為"
+  },
+  "tool_disconnect": {
+    "message": "中斷連接"
+  },
+  "tool_failedToConnect": {
+    "message": "連接失敗"
+  },
+  "tool_googleServices": {
+    "message": "Google 服務"
+  },
+  "tool_enableGoogleHint": {
+    "message": "連接您的 Google 帳戶以啟用這些工具"
+  },
+  "tab_chat": {
+    "message": "聊天"
+  },
+  "log_title": {
+    "message": "日誌"
+  },
+  "log_description": {
+    "message": "檢視擴充功能除錯日誌。日誌儲存在記憶體中，擴充功能重新啟動後會被清除。"
+  },
+  "log_enableLogging": {
+    "message": "啟用日誌記錄"
+  },
+  "log_minLevel": {
+    "message": "最低等級："
+  },
+  "log_allLevels": {
+    "message": "所有等級"
+  },
+  "log_allCategories": {
+    "message": "所有分類"
+  },
+  "log_searchPlaceholder": {
+    "message": "搜尋訊息..."
+  },
+  "log_live": {
+    "message": "即時"
+  },
+  "log_stop": {
+    "message": "停止"
+  },
+  "log_clear": {
+    "message": "清除"
+  },
+  "log_noEntries": {
+    "message": "暫無日誌條目"
+  },
+  "log_noMatch": {
+    "message": "沒有符合篩選條件的條目"
+  },
+  "log_copyEntry": {
+    "message": "複製條目"
+  },
+  "log_exportText": {
+    "message": "匯出文字"
+  },
+  "log_exportJson": {
+    "message": "匯出 JSON"
+  },
+  "log_copyAll": {
+    "message": "全部複製"
+  },
+  "log_copiedCount": {
+    "message": "已複製 $COUNT$ 筆日誌到剪貼簿",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "log_entriesCount": {
+    "message": "$COUNT$ 筆日誌",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "log_droppedCount": {
+    "message": "$COUNT$ 筆已捨棄",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "agents_title": {
+    "message": "代理"
+  },
+  "tab_speech": { "message": "語音" },
+  "greeting_hello": { "message": "你好！" },
+  "greeting_help": { "message": "今天我能幫你什麼？" },
+  "firstRun_agentTemplate": { "message": "選擇角色" },
+  "agent_tpl_ask_creature": { "message": "瀏覽器駐留任務代理" },
+  "agent_tpl_ask_vibe": { "message": "足智多謀、謹慎、能幹" },
+  "agent_tpl_ask_bestFor": { "message": "通用場景" },
+  "agent_tpl_ask_strengths": { "message": "判斷均衡、工具使用強、務實執行" },
+  "agent_tpl_ask_boundaries": { "message": "執行高風險操作前會先詢問" },
+  "agent_tpl_sage_creature": { "message": "深思熟慮的嚮導" },
+  "agent_tpl_sage_vibe": { "message": "沉著、善於反思、睿智" },
+  "agent_tpl_sage_bestFor": { "message": "決策支持、輔導、權衡討論" },
+  "agent_tpl_sage_strengths": { "message": "善於提問、平衡表述" },
+  "agent_tpl_sage_boundaries": { "message": "尊重使用者自主權，不會說教" },
+  "agent_tpl_slate_creature": { "message": "嵌入式系統幽靈" },
+  "agent_tpl_slate_vibe": { "message": "直接、幹練、高效" },
+  "agent_tpl_slate_bestFor": { "message": "程式設計、實作、命令列任務" },
+  "agent_tpl_slate_strengths": { "message": "言簡意賅、範圍明確" },
+  "agent_tpl_slate_boundaries": { "message": "除非被要求，否則不擴大範圍" },
+  "firstRun_agentCreature": { "message": "類型" },
+  "firstRun_agentVibe": { "message": "風格" },
+  "firstRun_agentStrengths": { "message": "優勢" },
+  "firstRun_agentBoundaries": { "message": "界限" }
+}

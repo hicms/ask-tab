@@ -1,0 +1,67 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { SttConfig } from '@extension/storage';
+
+const state = vi.hoisted(() => ({
+  config: null as SttConfig | null,
+  catalog: [] as Array<{ id: string; kind: string; isDefault: boolean }>,
+  transcribe: vi.fn(async () => 'transcript'),
+  session: vi.fn(async () => ({ token: 'jwt' })),
+}));
+vi.mock('@extension/storage', () => ({
+  sttConfigStorage: { get: async () => state.config },
+  publicModelsStorage: { get: async () => state.catalog },
+}));
+vi.mock('../ask-service/client', () => ({ requireSession: state.session }));
+vi.mock('./providers', () => ({
+  getProvider: (id: string) => ({ id, transcribe: state.transcribe }),
+}));
+vi.mock('../logging/logger-buffer', () => ({ createLogger: () => ({ info: vi.fn() }) }));
+const { resolveTranscription, resolveSttModel, detectBestEngine } = await import('./resolve');
+
+const config: SttConfig = {
+  engine: 'openai',
+  openai: { modelId: '' },
+  language: 'zh',
+  localModel: 'tiny',
+  hotkey: '',
+};
+const audio = new ArrayBuffer(3);
+beforeEach(() => {
+  state.config = { ...config, openai: { ...config.openai } };
+  state.catalog = [{ id: 'server-stt', kind: 'stt', isDefault: true }];
+  state.transcribe.mockClear();
+  state.session.mockClear();
+});
+
+describe('STT resolution', () => {
+  it('selects a published server model and sends only public preferences', async () => {
+    expect(await resolveTranscription(audio, 'audio/webm')).toBe('transcript');
+    expect(state.transcribe).toHaveBeenCalledWith(audio, 'audio/webm', {
+      language: 'zh',
+      model: 'server-stt',
+      session: { token: 'jwt' },
+    });
+    expect(state.session).toHaveBeenCalledTimes(2);
+  });
+  it('rejects a configured public ID absent from the current catalog', async () => {
+    state.config!.openai.modelId = 'removed';
+    await expect(resolveTranscription(audio, 'audio/webm')).rejects.toThrow(
+      'Server STT is not configured',
+    );
+    expect(state.transcribe).not.toHaveBeenCalled();
+  });
+  it('keeps local inference available when auto has no server STT', async () => {
+    state.config!.engine = 'auto';
+    state.catalog = [];
+    expect(await detectBestEngine(state.config!)).toBe('transformers');
+    await resolveTranscription(audio, 'audio/webm');
+    expect(state.transcribe).toHaveBeenCalledWith(audio, 'audio/webm', {
+      language: 'zh',
+      model: 'tiny',
+    });
+  });
+  it('never selects an unrelated chat model', async () => {
+    state.catalog = [{ id: 'chat', kind: 'chat', isDefault: true }];
+    await expect(resolveSttModel(state.config!)).rejects.toThrow('Server STT is not configured');
+  });
+});

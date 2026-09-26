@@ -1,0 +1,27 @@
+{
+  "name": "@extension/config-panels",
+  "version": "0.1.0",
+  "description": "chrome extension - shared config panel components",
+  "type": "module",
+  "private": true,
+  "sideEffects": true,
+  "types": "index.ts",
+  "dependencies": {
+    "@extension/env": "workspace:*",
+    "@extension/i18n": "workspace:*",
+    "@extension/shared": "workspace:*",
+    "@extension/storage": "workspace:*",
+    "@extension/ui": "workspace:*",
+    "jszip": "^3.10.1",
+    "qrcode": "^1.5.4"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "pnpm lint --fix"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@types/qrcode": "^1.5.6"
+  }
+}

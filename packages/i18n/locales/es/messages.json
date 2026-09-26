@@ -1,0 +1,1124 @@
+{
+  "extensionDescription": {
+    "description": "Extension description",
+    "message": "AskTab - Tu asistente de IA personal en el navegador. Cualquier SO. Cualquier plataforma."
+  },
+  "extensionName": {
+    "description": "Extension name",
+    "message": "AskTab - Tu asistente de IA personal en el navegador"
+  },
+  "extensionShortName": {
+    "description": "Short extension name for Firefox (max 50 chars)",
+    "message": "AskTab - Asistente IA en el Navegador"
+  },
+  "displayErrorInfo": {
+    "message": "Ocurrió un error"
+  },
+  "displayErrorDescription": {
+    "message": "Lo sentimos, algo salió mal al cargar la página."
+  },
+  "displayErrorDetailsInfo": {
+    "message": "Detalles del error:"
+  },
+  "displayErrorUnknownErrorInfo": {
+    "message": "Error desconocido"
+  },
+  "displayErrorReset": {
+    "message": "Ejecutar de nuevo"
+  },
+  "firstRun_welcome": {
+    "message": "Bienvenido a AskTab"
+  },
+  "firstRun_saveFailed": {
+    "message": "Error al guardar el modelo"
+  },
+  "firstRun_stepChannels": {
+    "message": "Canales"
+  },
+  "firstRun_stepAgent": {
+    "message": "Agente"
+  },
+  "firstRun_stepTools": {
+    "message": "Herramientas"
+  },
+  "firstRun_stepPermissions": {
+    "message": "Permisos"
+  },
+  "firstRun_permissionsTitle": {
+    "message": "Permisos de host"
+  },
+  "firstRun_permissionsDescription": {
+    "message": "Firefox requiere permiso explícito para que las herramientas interactúen con las páginas web. Otorga acceso para que el asistente de IA pueda leer y actuar sobre el contenido de la página."
+  },
+  "firstRun_permissionsGranted": {
+    "message": "Permisos de host otorgados — las herramientas pueden acceder a las páginas web."
+  },
+  "firstRun_permissionsGrant": {
+    "message": "Otorgar permiso"
+  },
+  "firstRun_permissionsDenied": {
+    "message": "El permiso fue denegado. Las herramientas que interactúan con páginas web pueden no funcionar. Puedes otorgar este permiso más tarde en la configuración de permisos de la extensión."
+  },
+  "firstRun_step2Title": {
+    "message": "Conectar canales"
+  },
+  "firstRun_step2Description": {
+    "message": "Conecta opcionalmente un bot de Telegram para chatear desde tu teléfono."
+  },
+  "firstRun_step3Title": {
+    "message": "Personaliza tu agente"
+  },
+  "firstRun_step3Description": {
+    "message": "Dale a tu asistente de IA un nombre y una personalidad."
+  },
+  "firstRun_step4Title": {
+    "message": "Activar herramientas"
+  },
+  "firstRun_step4Description": {
+    "message": "Elige qué herramientas puede usar tu asistente de IA."
+  },
+  "firstRun_next": {
+    "message": "Siguiente"
+  },
+  "firstRun_skip": {
+    "message": "Omitir"
+  },
+  "firstRun_back": {
+    "message": "Atrás"
+  },
+  "firstRun_skipSetup": {
+    "message": "Omitir configuración \u2192"
+  },
+  "firstRun_getStarted": {
+    "message": "Comenzar"
+  },
+  "firstRun_telegramBotToken": {
+    "message": "Token del bot de Telegram"
+  },
+  "firstRun_telegramValidate": {
+    "message": "Validar"
+  },
+  "firstRun_telegramValidated": {
+    "message": "Token válido"
+  },
+  "firstRun_telegramAllowedUsers": {
+    "message": "IDs de usuario permitidos (separados por comas)"
+  },
+  "firstRun_whatsappNote": {
+    "message": "WhatsApp se puede conectar más tarde en Ajustes > Canales (requiere escanear código QR)."
+  },
+  "firstRun_agentName": {
+    "message": "Nombre del agente"
+  },
+  "firstRun_agentEmoji": {
+    "message": "Emoji del agente"
+  },
+  "firstRun_stepSkills": {
+    "message": "Habilidades"
+  },
+  "firstRun_step5Title": {
+    "message": "Activar habilidades"
+  },
+  "firstRun_step5Description": {
+    "message": "Las habilidades son plantillas de prompts reutilizables que amplían las capacidades de tu asistente."
+  },
+  "firstRun_noSkills": {
+    "message": "Aún no hay habilidades disponibles. Puedes añadir habilidades más tarde en Ajustes."
+  },
+  "firstRun_advancedSetup": {
+    "message": "Configuración avanzada"
+  },
+  "firstRun_defaultAgentName": {
+    "message": "Agente principal"
+  },
+  "firstRun_tools": {
+    "message": "herramientas"
+  },
+  "firstRun_restoreFailed": {
+    "message": "Error al restaurar el agente desde la copia de seguridad"
+  },
+  "chat_placeholder": {
+    "message": "¿Qué te gustaría saber?"
+  },
+  "chat_mic_start": {
+    "message": "Grabar voz"
+  },
+  "chat_mic_stop": {
+    "message": "Detener grabación"
+  },
+  "chat_mic_error": {
+    "message": "La transcripción de voz falló. Inténtalo de nuevo."
+  },
+  "chat_mic_permission": {
+    "message": "Se necesita permiso de micrófono. Abriendo una ventana para permitir el acceso..."
+  },
+  "stt_web_login": {
+    "message": "Iniciar sesión"
+  },
+  "stt_web_logout": {
+    "message": "Cerrar sesión"
+  },
+  "stt_web_status_logged_in": {
+    "message": "Sesión iniciada"
+  },
+  "stt_web_status_expired": {
+    "message": "Sesión expirada"
+  },
+  "stt_web_status_not_logged_in": {
+    "message": "No conectado"
+  },
+  "stt_web_status_checking": {
+    "message": "Comprobando\u2026"
+  },
+  "stt_hotkey_label": {
+    "message": "Atajo de grabación"
+  },
+  "stt_hotkey_hint": {
+    "message": "Haz clic y pulsa una tecla. Mantén pulsada esa tecla para dictar; suéltala para detener."
+  },
+  "stt_hotkey_prompt": {
+    "message": "Pulsa una tecla…"
+  },
+  "stt_hotkey_unset": {
+    "message": "Sin asignar"
+  },
+  "chat_modelSelect": {
+    "message": "Modelo"
+  },
+  "chat_thinkLevelThinking": { "message": "Pensamiento" },
+  "chat_thinkLevelThinkingDesc": { "message": "Resuelve problemas complejos" },
+  "chat_thinkLevelFast": { "message": "Rápido" },
+  "chat_thinkLevelFastDesc": { "message": "Responde rápidamente" },
+  "chat_fileSizeError": {
+    "message": "El archivo \"$FILE_NAME$\" supera el límite de 10 MB.",
+    "placeholders": {
+      "file_name": {
+        "content": "$1"
+      }
+    }
+  },
+  "chat_fileReadError": {
+    "message": "Error al leer \"$FILE_NAME$\".",
+    "placeholders": {
+      "file_name": {
+        "content": "$1"
+      }
+    }
+  },
+  "chat_maxFilesError": {
+    "message": "Se permiten un máximo de $MAX_FILES$ archivos.",
+    "placeholders": {
+      "max_files": {
+        "content": "$1"
+      }
+    }
+  },
+  "session_newSession": {
+    "message": "Nueva sesión"
+  },
+  "session_rename": {
+    "message": "Renombrar"
+  },
+  "session_delete": {
+    "message": "Eliminar"
+  },
+  "session_searchPlaceholder": {
+    "message": "Buscar chats..."
+  },
+  "session_noMatching": {
+    "message": "No hay sesiones coincidentes"
+  },
+  "session_noSessions": {
+    "message": "Aún no hay sesiones"
+  },
+  "session_today": {
+    "message": "Hoy"
+  },
+  "session_yesterday": {
+    "message": "Ayer"
+  },
+  "session_last7Days": {
+    "message": "Últimos 7 días"
+  },
+  "session_last30Days": {
+    "message": "Últimos 30 días"
+  },
+  "session_older": {
+    "message": "Más antiguos"
+  },
+  "session_deleteTitle": {
+    "message": "Eliminar sesión"
+  },
+  "session_deleteDescription": {
+    "message": "Esto eliminará permanentemente esta sesión y todos sus mensajes. Esta acción no se puede deshacer."
+  },
+  "session_deleteAllTitle": {
+    "message": "¿Eliminar todas las sesiones?"
+  },
+  "session_deleteAllDescription": {
+    "message": "Esto eliminará permanentemente todas las sesiones, mensajes y artefactos. Esta acción no se puede deshacer."
+  },
+  "common_cancel": {
+    "message": "Cancelar"
+  },
+  "common_delete": {
+    "message": "Eliminar"
+  },
+  "common_deleteAll": {
+    "message": "Eliminar todo"
+  },
+  "common_save": {
+    "message": "Guardar"
+  },
+  "common_saved": {
+    "message": "Guardado"
+  },
+  "common_confirm": {
+    "message": "Confirmar"
+  },
+  "common_ok": {
+    "message": "Aceptar"
+  },
+  "common_loading": {
+    "message": "Cargando..."
+  },
+  "common_on": {
+    "message": "Activado"
+  },
+  "common_off": {
+    "message": "Desactivado"
+  },
+  "common_enabled": {
+    "message": "Habilitado"
+  },
+  "common_disabled": {
+    "message": "Deshabilitado"
+  },
+  "toolbar_elementary": {
+    "message": "Primaria"
+  },
+  "toolbar_middleSchool": {
+    "message": "Secundaria"
+  },
+  "toolbar_keepLevel": {
+    "message": "Mantener nivel actual"
+  },
+  "toolbar_highSchool": {
+    "message": "Preparatoria"
+  },
+  "toolbar_college": {
+    "message": "Universidad"
+  },
+  "toolbar_graduate": {
+    "message": "Posgrado"
+  },
+  "toolbar_adjustReading": {
+    "message": "Por favor, ajusta el nivel de lectura a nivel $LEVEL$.",
+    "placeholders": {
+      "level": {
+        "content": "$1"
+      }
+    }
+  },
+  "slash_notEnoughMessages": {
+    "message": "No hay suficientes mensajes para compactar"
+  },
+  "slash_compacting": {
+    "message": "Compactando conversación..."
+  },
+  "slash_noResponse": {
+    "message": "Sin respuesta del segundo plano (el service worker puede haberse reiniciado)"
+  },
+  "slash_conversationSummary": {
+    "message": "[Resumen de la conversación]"
+  },
+  "slash_earlierCompacted": {
+    "message": "[Mensajes anteriores compactados]"
+  },
+  "slash_compactSuccess": {
+    "message": "Conversación compactada"
+  },
+  "slash_compactFailed": {
+    "message": "Error al compactar"
+  },
+  "slash_conversationCleared": {
+    "message": "Conversación borrada"
+  },
+  "slash_copied": {
+    "message": "Copiado al portapapeles"
+  },
+  "slash_noAssistantMessage": {
+    "message": "No hay mensaje del asistente para copiar"
+  },
+  "slash_invalidCopyArg": {
+    "message": "Argumento no válido — usa /copy o /copy N (p. ej. /copy 2)"
+  },
+  "slash_exported": {
+    "message": "Conversación exportada"
+  },
+  "slash_exportEmpty": {
+    "message": "No hay mensajes para exportar"
+  },
+  "toast_offline": {
+    "message": "AskTab está sin conexión. Verifica tu conexión de red."
+  },
+  "toast_online": {
+    "message": "AskTab está de nuevo en línea."
+  },
+  "toast_allSessionsCleared": {
+    "message": "Todas las sesiones borradas"
+  },
+  "toast_subagentFinished": {
+    "message": "Subagente finalizado: $TASK$",
+    "placeholders": {
+      "task": {
+        "content": "$1"
+      }
+    }
+  },
+  "toast_scheduledTask": {
+    "message": "Programado: $TASK$",
+    "placeholders": {
+      "task": {
+        "content": "$1"
+      }
+    }
+  },
+  "toast_scheduledTaskFired": {
+    "message": "Tarea programada ejecutada"
+  },
+  "toast_heartbeatDelivered": {
+    "message": "Alerta de heartbeat"
+  },
+  "toast_newTelegramMessage": {
+    "message": "Nuevo mensaje de Telegram"
+  },
+  "toast_view": {
+    "message": "Ver"
+  },
+  "settings_title": {
+    "message": "Configuración"
+  },
+  "settings_description": {
+    "message": "Configurar apariencia y preferencias"
+  },
+  "settings_appearance": {
+    "message": "Apariencia"
+  },
+  "settings_theme": {
+    "message": "Tema"
+  },
+  "settings_themeSystem": {
+    "message": "Sistema"
+  },
+  "settings_themeLight": {
+    "message": "Claro"
+  },
+  "settings_themeDark": {
+    "message": "Oscuro"
+  },
+  "settings_language": {
+    "message": "Idioma"
+  },
+  "settings_languageAuto": {
+    "message": "Automático (predeterminado del navegador)"
+  },
+  "model_title": {
+    "message": "Configuración de modelos"
+  },
+  "model_supportsTools": {
+    "message": "Compatible con herramientas"
+  },
+  "model_supportsReasoning": {
+    "message": "Compatible con razonamiento"
+  },
+  "skill_title": {
+    "message": "Habilidades"
+  },
+  "skill_description": {
+    "message": "Las habilidades proporcionan guías específicas de tareas que el LLM puede leer bajo demanda a través de la herramienta de lectura."
+  },
+  "skill_browserWarning": {
+    "message": "Las habilidades se ejecutan en el entorno del navegador Chrome — no se admiten herramientas CLI, scripts de Python ni otros ejecutables locales."
+  },
+  "skill_installedSkills": {
+    "message": "Habilidades instaladas"
+  },
+  "skill_importZip": {
+    "message": "Importar Zip"
+  },
+  "skill_loadingSkills": {
+    "message": "Cargando habilidades…"
+  },
+  "skill_noSkills": {
+    "message": "No hay habilidades instaladas"
+  },
+  "skill_deleted": {
+    "message": "Habilidad eliminada"
+  },
+  "skill_importExists": {
+    "message": "Ya existe una habilidad en $PATH$. Elimínala primero o renombra la importación.",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "skill_importedSkill": {
+    "message": "Habilidad importada: $SKILL_NAME$",
+    "placeholders": {
+      "skill_name": {
+        "content": "$1"
+      }
+    }
+  },
+  "skill_importFailed": {
+    "message": "Error al importar habilidad"
+  },
+  "skill_deleteConfirm": {
+    "message": "¿Eliminar habilidad \"$SKILL_NAME$\"? Esta acción no se puede deshacer.",
+    "placeholders": {
+      "skill_name": {
+        "content": "$1"
+      }
+    }
+  },
+  "sessionMgr_title": {
+    "message": "Sesiones"
+  },
+  "sessionMgr_searchPlaceholder": {
+    "message": "Buscar sesiones..."
+  },
+  "sessionMgr_noMatching": {
+    "message": "No hay sesiones coincidentes."
+  },
+  "sessionMgr_noSessions": {
+    "message": "Aún no hay sesiones."
+  },
+  "sessionMgr_clickToSelect": {
+    "message": "Clic para seleccionar, doble clic para abrir"
+  },
+  "sessionMgr_clickToSelectSidePanel": {
+    "message": "Clic para seleccionar, doble clic para abrir en el panel lateral"
+  },
+  "telegram_title": {
+    "message": "Bot de Telegram"
+  },
+  "telegram_description": {
+    "message": "Conecta un bot de Telegram para chatear con tu asistente de IA desde Telegram."
+  },
+  "telegram_enableBot": {
+    "message": "Habilitar bot de Telegram"
+  },
+  "telegram_botToken": {
+    "message": "Token del bot"
+  },
+  "telegram_validate": {
+    "message": "Validar"
+  },
+  "telegram_tokenValid": {
+    "message": "Token válido"
+  },
+  "telegram_invalidToken": {
+    "message": "Token inválido"
+  },
+  "telegram_allowedUserIds": {
+    "message": "IDs de usuario permitidos"
+  },
+  "telegram_userIdsHint": {
+    "message": "Solo se procesarán mensajes de estos IDs de usuario de Telegram. Obtén tu ID de @userinfobot. Debe ser numérico."
+  },
+  "telegram_noUsers": {
+    "message": "Aún no hay usuarios permitidos. Agrega al menos un ID de usuario para comenzar a recibir mensajes."
+  },
+  "telegram_loadFailed": {
+    "message": "Error al cargar la configuración"
+  },
+  "telegram_validationFailed": {
+    "message": "Error en la validación"
+  },
+  "telegram_saveFailed": {
+    "message": "Error al guardar"
+  },
+  "telegram_toggleFailed": {
+    "message": "Error al alternar"
+  },
+  "agents_newAgent": {
+    "message": "Nuevo agente"
+  },
+  "agents_deleteAgent": {
+    "message": "Eliminar agente"
+  },
+  "agents_deleteAgentConfirm": {
+    "message": "¿Eliminar este agente y todos sus datos? Esta acción no se puede deshacer."
+  },
+  "agents_overview": {
+    "message": "Resumen"
+  },
+  "agents_files": {
+    "message": "Archivos"
+  },
+  "agents_tools": {
+    "message": "Herramientas"
+  },
+  "agents_skills": {
+    "message": "Habilidades"
+  },
+  "agents_workspaceFiles": {
+    "message": "Archivos del espacio de trabajo"
+  },
+  "agents_agentCreated": {
+    "message": "Agente creado"
+  },
+  "agents_agentDeleted": {
+    "message": "Agente eliminado"
+  },
+  "agents_deleteAgentFailed": {
+    "message": "Error al eliminar el agente"
+  },
+  "agents_fileDeleted": {
+    "message": "Archivo eliminado"
+  },
+  "agents_fileUploaded": {
+    "message": "Archivo subido"
+  },
+  "agents_fileRenamed": {
+    "message": "Archivo renombrado"
+  },
+  "agents_cannotRenamePredefined": {
+    "message": "No se puede renombrar la carpeta que contiene archivos predefinidos"
+  },
+  "agents_cannotDeletePredefined": {
+    "message": "No se puede eliminar la carpeta que contiene archivos predefinidos"
+  },
+  "agents_folderRenamed": {
+    "message": "Carpeta renombrada"
+  },
+  "agents_folderDeleted": {
+    "message": "Carpeta eliminada"
+  },
+  "agents_folderEmpty": {
+    "message": "La carpeta está vacía"
+  },
+  "agents_fileSaved": {
+    "message": "Archivo guardado"
+  },
+  "agents_identity": {
+    "message": "Identidad"
+  },
+  "agents_identityHint": {
+    "message": "Edita estos valores en el archivo IDENTITY.md en la pestaña Archivos."
+  },
+  "agents_notSet": {
+    "message": "(no establecido)"
+  },
+  "agents_justNow": {
+    "message": "ahora mismo"
+  },
+  "agents_minutesAgo": {
+    "message": "hace $MINUTES$ min",
+    "placeholders": {
+      "minutes": {
+        "content": "$1"
+      }
+    }
+  },
+  "agents_hoursAgo": {
+    "message": "hace $HOURS$ h",
+    "placeholders": {
+      "hours": {
+        "content": "$1"
+      }
+    }
+  },
+  "agents_daysAgo": {
+    "message": "hace $DAYS$ d",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      }
+    }
+  },
+  "agents_monthsAgo": {
+    "message": "hace $MONTHS$ meses",
+    "placeholders": {
+      "months": {
+        "content": "$1"
+      }
+    }
+  },
+  "agents_deleteFile": {
+    "message": "Eliminar archivo"
+  },
+  "agents_deleteFileConfirm": {
+    "message": "¿Eliminar \"$FILE_NAME$\"? Esta acción no se puede deshacer.",
+    "placeholders": {
+      "file_name": {
+        "content": "$1"
+      }
+    }
+  },
+  "agents_deleteFolder": {
+    "message": "Eliminar carpeta"
+  },
+  "agents_deleteFolderConfirm": {
+    "message": "¿Eliminar la carpeta \"$FOLDER_NAME$\" y los $FILE_COUNT$ archivo(s) dentro? Esta acción no se puede deshacer.",
+    "placeholders": {
+      "folder_name": {
+        "content": "$1"
+      },
+      "file_count": {
+        "content": "$2"
+      }
+    }
+  },
+  "agents_renameFile": {
+    "message": "Renombrar archivo"
+  },
+  "agents_renameFolder": {
+    "message": "Renombrar carpeta"
+  },
+  "agents_newFile": {
+    "message": "Nuevo archivo"
+  },
+  "agents_newFolder": {
+    "message": "Nueva carpeta"
+  },
+  "agents_newFolderName": {
+    "message": "Nombre de la nueva carpeta"
+  },
+  "agents_upload": {
+    "message": "Subir"
+  },
+  "agents_edit": {
+    "message": "Editar"
+  },
+  "agents_download": {
+    "message": "Descargar"
+  },
+  "agents_downloadFolderZip": {
+    "message": "Descargar carpeta como ZIP"
+  },
+  "agents_refresh": {
+    "message": "Actualizar"
+  },
+  "agents_backupAgent": {
+    "message": "Copia de seguridad"
+  },
+  "agents_restoreAgent": {
+    "message": "Restaurar"
+  },
+  "agents_restoreConfirm": {
+    "message": "Esto sobrescribirá el agente «$1» con la copia de seguridad «$2». Todos los archivos del espacio de trabajo y la configuración serán reemplazados. ¿Continuar?"
+  },
+  "agents_backupSuccess": {
+    "message": "Copia de seguridad del agente realizada correctamente"
+  },
+  "agents_restoreSuccess": {
+    "message": "Agente restaurado correctamente"
+  },
+  "agents_restoreFailed": {
+    "message": "Error al restaurar el agente"
+  },
+  "agents_backupFailed": {
+    "message": "Error al realizar la copia de seguridad del agente"
+  },
+  "agents_invalidBackup": {
+    "message": "Archivo de copia de seguridad no válido"
+  },
+  "optionsPage_title": {
+    "message": "Configuración de AskTab"
+  },
+  "provider_openai": {
+    "message": "OpenAI"
+  },
+  "tabGroup_control": {
+    "message": "Control"
+  },
+  "tabGroup_agent": {
+    "message": "Agente"
+  },
+  "tabGroup_settings": {
+    "message": "Configuración"
+  },
+  "tab_channels": {
+    "message": "Canales"
+  },
+  "tab_cronJobs": {
+    "message": "Tareas programadas"
+  },
+  "tab_sessions": {
+    "message": "Sesiones"
+  },
+  "tab_usage": {
+    "message": "Uso"
+  },
+  "tab_agents": {
+    "message": "Agentes"
+  },
+  "tab_tools": {
+    "message": "Herramientas"
+  },
+  "tab_skills": {
+    "message": "Habilidades"
+  },
+  "tab_general": {
+    "message": "General"
+  },
+  "tab_models": {
+    "message": "Modelos"
+  },
+  "tab_actions": {
+    "message": "Acciones"
+  },
+  "tab_logs": {
+    "message": "Registros"
+  },
+  "whatsapp_title": {
+    "message": "WhatsApp"
+  },
+  "whatsapp_description": {
+    "message": "Conecta WhatsApp para chatear con tu asistente de IA desde tu teléfono. Usa el protocolo de WhatsApp Web — no se necesita servidor externo."
+  },
+  "whatsapp_connection": {
+    "message": "Conexión"
+  },
+  "whatsapp_connect": {
+    "message": "Conectar"
+  },
+  "whatsapp_disconnect": {
+    "message": "Desconectar"
+  },
+  "whatsapp_disconnected": {
+    "message": "Desconectado"
+  },
+  "whatsapp_connecting": {
+    "message": "Esperando escaneo del QR..."
+  },
+  "whatsapp_connected": {
+    "message": "Conectado"
+  },
+  "whatsapp_reconnecting": {
+    "message": "Reconectando..."
+  },
+  "whatsapp_loggedOut": {
+    "message": "Sesión cerrada"
+  },
+  "whatsapp_scanQr": {
+    "message": "Escanear con WhatsApp"
+  },
+  "whatsapp_scanInstructions": {
+    "message": "Abre WhatsApp en tu teléfono → Configuración → Dispositivos vinculados → Vincular un dispositivo"
+  },
+  "whatsapp_connectedMsg": {
+    "message": "WhatsApp conectado y recibiendo mensajes"
+  },
+  "whatsapp_reconnectingMsg": {
+    "message": "Reconectando a WhatsApp..."
+  },
+  "whatsapp_allowedNumbers": {
+    "message": "Números de teléfono permitidos"
+  },
+  "whatsapp_numbersHint": {
+    "message": "Solo se procesarán mensajes de estos números de teléfono. Ingresa números con código de país (ej. +1234567890)."
+  },
+  "whatsapp_noNumbers": {
+    "message": "Aún no hay números permitidos. Agrega al menos un número de teléfono para comenzar a recibir mensajes."
+  },
+  "whatsapp_messageDirection": {
+    "message": "Dirección de mensajes"
+  },
+  "whatsapp_directionHint": {
+    "message": "Controla qué mensajes son procesados por el asistente de IA."
+  },
+  "whatsapp_processMyMessages": {
+    "message": "Procesar mis propios mensajes"
+  },
+  "whatsapp_processOthers": {
+    "message": "Procesar mensajes de otros"
+  },
+  "whatsapp_connectionFailed": {
+    "message": "Error de conexión"
+  },
+  "whatsapp_disconnectFailed": {
+    "message": "Error al desconectar"
+  },
+  "whatsapp_saveFailed": {
+    "message": "Error al guardar"
+  },
+  "whatsapp_loadFailed": {
+    "message": "Error al cargar la configuración"
+  },
+  "cron_title": {
+    "message": "Tareas programadas"
+  },
+  "cron_description": {
+    "message": "Administrar tareas automatizadas creadas por el agente de IA"
+  },
+  "cron_active": {
+    "message": "Activo"
+  },
+  "cron_stopped": {
+    "message": "Detenido"
+  },
+  "cron_noJobs": {
+    "message": "Aún no hay tareas programadas. Pide a la IA que programe una tarea para ti."
+  },
+  "cron_runHistory": {
+    "message": "Historial de ejecuciones"
+  },
+  "cron_noRuns": {
+    "message": "Sin ejecuciones aún"
+  },
+  "usage_title": {
+    "message": "Uso"
+  },
+  "usage_description": {
+    "message": "Uso de tokens en todas las sesiones"
+  },
+  "usage_sessions": {
+    "message": "Sesiones"
+  },
+  "usage_totalTokens": {
+    "message": "Tokens totales"
+  },
+  "usage_input": {
+    "message": "Entrada"
+  },
+  "usage_output": {
+    "message": "Salida"
+  },
+  "usage_average": {
+    "message": "Promedio: $COUNT$ tokens/sesión",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "usage_sessionsByUsage": {
+    "message": "Sesiones por uso"
+  },
+  "usage_compacted": {
+    "message": "$COUNT$x compactado",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "usage_moreSessionsCount": {
+    "message": "...y $COUNT$ sesiones más",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "actions_title": {
+    "message": "Acciones sugeridas"
+  },
+  "actions_description": {
+    "message": "Personaliza los prompts iniciales mostrados en la pantalla de chat vacía (máx. $MAX$)",
+    "placeholders": {
+      "max": {
+        "content": "$1"
+      }
+    }
+  },
+  "actions_heading": {
+    "message": "Acciones"
+  },
+  "actions_resetDefaults": {
+    "message": "Restablecer valores predeterminados"
+  },
+  "actions_addAction": {
+    "message": "Agregar acción"
+  },
+  "actions_noActions": {
+    "message": "No hay acciones sugeridas configuradas. Agrega una o restablece los valores predeterminados."
+  },
+  "actions_actionNumber": {
+    "message": "Acción $NUMBER$",
+    "placeholders": {
+      "number": {
+        "content": "$1"
+      }
+    }
+  },
+  "actions_moveUp": {
+    "message": "Mover arriba"
+  },
+  "actions_moveDown": {
+    "message": "Mover abajo"
+  },
+  "actions_remove": {
+    "message": "Eliminar"
+  },
+  "actions_labelPlaceholder": {
+    "message": "Etiqueta del botón (mostrada en la pantalla de chat)"
+  },
+  "actions_promptPlaceholder": {
+    "message": "Prompt completo enviado a la IA al hacer clic"
+  },
+  "tool_title": {
+    "message": "Configuración de herramientas"
+  },
+  "tool_description": {
+    "message": "Habilitar o deshabilitar herramientas de IA"
+  },
+  "tool_searchProvider": {
+    "message": "Proveedor de búsqueda"
+  },
+  "tool_selectProvider": {
+    "message": "Seleccionar proveedor"
+  },
+  "tool_searchEngine": {
+    "message": "Motor de búsqueda"
+  },
+  "tool_selectEngine": {
+    "message": "Seleccionar motor"
+  },
+  "tool_noApiKey": {
+    "message": "No se necesita clave API — usa automatización del navegador"
+  },
+  "tool_subTopics": {
+    "message": "Subtemas"
+  },
+  "tool_iterationsPerTopic": {
+    "message": "Iteraciones por tema"
+  },
+  "tool_sourcesPerSearch": {
+    "message": "Fuentes por búsqueda"
+  },
+  "tool_timeout": {
+    "message": "Tiempo de espera (segundos)"
+  },
+  "tool_clientId": {
+    "message": "ID de cliente"
+  },
+  "tool_connectGoogle": {
+    "message": "Conectar cuenta de Google"
+  },
+  "tool_connecting": {
+    "message": "Conectando..."
+  },
+  "tool_connectedAs": {
+    "message": "Conectado como"
+  },
+  "tool_disconnect": {
+    "message": "Desconectar"
+  },
+  "tool_failedToConnect": {
+    "message": "Error al conectar"
+  },
+  "tool_googleServices": {
+    "message": "Servicios de Google"
+  },
+  "tool_enableGoogleHint": {
+    "message": "Conecta tu cuenta de Google para habilitar estas herramientas"
+  },
+  "tab_chat": {
+    "message": "Chat"
+  },
+  "log_title": {
+    "message": "Registros"
+  },
+  "log_description": {
+    "message": "Ver registros de la extensión para depuración. Los registros se almacenan en memoria y se borran al reiniciar la extensión."
+  },
+  "log_enableLogging": {
+    "message": "Habilitar registro"
+  },
+  "log_minLevel": {
+    "message": "Nivel mínimo:"
+  },
+  "log_allLevels": {
+    "message": "Todos los niveles"
+  },
+  "log_allCategories": {
+    "message": "Todas las categorías"
+  },
+  "log_searchPlaceholder": {
+    "message": "Buscar mensajes..."
+  },
+  "log_live": {
+    "message": "En vivo"
+  },
+  "log_stop": {
+    "message": "Detener"
+  },
+  "log_clear": {
+    "message": "Limpiar"
+  },
+  "log_noEntries": {
+    "message": "No hay entradas de registro"
+  },
+  "log_noMatch": {
+    "message": "Ninguna entrada coincide con los filtros"
+  },
+  "log_copyEntry": {
+    "message": "Copiar entrada"
+  },
+  "log_exportText": {
+    "message": "Exportar texto"
+  },
+  "log_exportJson": {
+    "message": "Exportar JSON"
+  },
+  "log_copyAll": {
+    "message": "Copiar todo"
+  },
+  "log_copiedCount": {
+    "message": "$COUNT$ entradas copiadas al portapapeles",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "log_entriesCount": {
+    "message": "$COUNT$ entradas",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "log_droppedCount": {
+    "message": "$COUNT$ descartadas",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "agents_title": {
+    "message": "Agentes"
+  },
+  "tab_speech": { "message": "Voz" },
+  "greeting_hello": { "message": "¡Hola!" },
+  "greeting_help": { "message": "¿En qué puedo ayudarte hoy?" },
+  "firstRun_agentTemplate": { "message": "Elige una personalidad" },
+  "agent_tpl_ask_creature": { "message": "Agente de tareas del navegador" },
+  "agent_tpl_ask_vibe": { "message": "Ingenioso, cuidadoso, capaz" },
+  "agent_tpl_ask_bestFor": { "message": "Uso general" },
+  "agent_tpl_ask_strengths": {
+    "message": "Juicio equilibrado, buen uso de herramientas, ejecución pragmática"
+  },
+  "agent_tpl_ask_boundaries": { "message": "Pregunta antes de acciones arriesgadas" },
+  "agent_tpl_sage_creature": { "message": "Guía reflexivo" },
+  "agent_tpl_sage_vibe": { "message": "Sereno, reflexivo, sabio" },
+  "agent_tpl_sage_bestFor": { "message": "Apoyo en decisiones, coaching, discusión de opciones" },
+  "agent_tpl_sage_strengths": { "message": "Buenas preguntas, enfoque equilibrado" },
+  "agent_tpl_sage_boundaries": { "message": "Respeta la autonomía del usuario; no sermonea" },
+  "agent_tpl_slate_creature": { "message": "Fantasma de sistemas embebidos" },
+  "agent_tpl_slate_vibe": { "message": "Directo, seco, eficiente" },
+  "agent_tpl_slate_bestFor": { "message": "Programación, implementación, tareas CLI" },
+  "agent_tpl_slate_strengths": { "message": "Mínima verbosidad, ejecución acotada" },
+  "agent_tpl_slate_boundaries": { "message": "No amplía el alcance a menos que se le pida" },
+  "firstRun_agentCreature": { "message": "Criatura" },
+  "firstRun_agentVibe": { "message": "Estilo" },
+  "firstRun_agentStrengths": { "message": "Fortalezas" },
+  "firstRun_agentBoundaries": { "message": "Límites" }
+}

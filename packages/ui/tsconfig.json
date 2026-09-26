@@ -1,0 +1,11 @@
+{
+  "extends": "@extension/tsconfig/base",
+  "compilerOptions": {
+    "outDir": "dist",
+    "baseUrl": ".",
+    "noEmit": false,
+    "declaration": true
+  },
+  "include": ["index.ts", "lib"],
+  "exclude": ["lib/**/*.test.ts"]
+}

@@ -1,0 +1,1122 @@
+{
+  "extensionDescription": {
+    "description": "Extension description",
+    "message": "AskTab - ブラウザで使えるパーソナルAIアシスタント。あらゆるOS、あらゆるプラットフォームに対応。"
+  },
+  "extensionName": {
+    "description": "Extension name",
+    "message": "AskTab - ブラウザで使えるパーソナルAIアシスタント"
+  },
+  "extensionShortName": {
+    "description": "Short extension name for Firefox (max 50 chars)",
+    "message": "AskTab - ブラウザのAIアシスタント"
+  },
+  "displayErrorInfo": {
+    "message": "エラーが発生しました"
+  },
+  "displayErrorDescription": {
+    "message": "申し訳ありません。ページの読み込み中に問題が発生しました。"
+  },
+  "displayErrorDetailsInfo": {
+    "message": "エラーの詳細："
+  },
+  "displayErrorUnknownErrorInfo": {
+    "message": "不明なエラー"
+  },
+  "displayErrorReset": {
+    "message": "再実行"
+  },
+  "firstRun_welcome": {
+    "message": "AskTab へようこそ"
+  },
+  "firstRun_saveFailed": {
+    "message": "モデルの保存に失敗しました"
+  },
+  "firstRun_stepChannels": {
+    "message": "チャンネル"
+  },
+  "firstRun_stepAgent": {
+    "message": "エージェント"
+  },
+  "firstRun_stepTools": {
+    "message": "ツール"
+  },
+  "firstRun_stepPermissions": {
+    "message": "権限"
+  },
+  "firstRun_permissionsTitle": {
+    "message": "ホスト権限"
+  },
+  "firstRun_permissionsDescription": {
+    "message": "Firefoxでは、ツールがWebページと連携するために明示的な許可が必要です。AIアシスタントがページの内容を読み取って操作できるようにアクセスを許可してください。"
+  },
+  "firstRun_permissionsGranted": {
+    "message": "ホスト権限が付与されました — ツールはWebページにアクセスできます。"
+  },
+  "firstRun_permissionsGrant": {
+    "message": "権限を付与"
+  },
+  "firstRun_permissionsDenied": {
+    "message": "権限が拒否されました。Webページと連携するツールが動作しない場合があります。拡張機能の権限設定から後で付与できます。"
+  },
+  "firstRun_step2Title": {
+    "message": "チャンネルを接続"
+  },
+  "firstRun_step2Description": {
+    "message": "オプションでTelegramボットを接続して、スマートフォンからチャットできます。"
+  },
+  "firstRun_step3Title": {
+    "message": "エージェントをカスタマイズ"
+  },
+  "firstRun_step3Description": {
+    "message": "AIアシスタントに名前と性格を設定しましょう。"
+  },
+  "firstRun_step4Title": {
+    "message": "ツールを有効化"
+  },
+  "firstRun_step4Description": {
+    "message": "AIアシスタントが使用できるツールを選択してください。"
+  },
+  "firstRun_next": {
+    "message": "次へ"
+  },
+  "firstRun_skip": {
+    "message": "スキップ"
+  },
+  "firstRun_back": {
+    "message": "戻る"
+  },
+  "firstRun_skipSetup": {
+    "message": "セットアップをスキップ →"
+  },
+  "firstRun_getStarted": {
+    "message": "始める"
+  },
+  "firstRun_telegramBotToken": {
+    "message": "Telegramボットトークン"
+  },
+  "firstRun_telegramValidate": {
+    "message": "検証"
+  },
+  "firstRun_telegramValidated": {
+    "message": "トークン有効"
+  },
+  "firstRun_telegramAllowedUsers": {
+    "message": "許可するユーザーID（カンマ区切り）"
+  },
+  "firstRun_whatsappNote": {
+    "message": "WhatsAppは後から設定 > チャンネルで接続できます（QRコードスキャンが必要）。"
+  },
+  "firstRun_agentName": {
+    "message": "エージェント名"
+  },
+  "firstRun_agentEmoji": {
+    "message": "エージェント絵文字"
+  },
+  "firstRun_stepSkills": {
+    "message": "スキル"
+  },
+  "firstRun_step5Title": {
+    "message": "スキルを有効化"
+  },
+  "firstRun_step5Description": {
+    "message": "スキルはアシスタントの機能を拡張する再利用可能なプロンプトテンプレートです。"
+  },
+  "firstRun_noSkills": {
+    "message": "まだスキルがありません。後から設定でスキルを追加できます。"
+  },
+  "firstRun_advancedSetup": {
+    "message": "詳細設定"
+  },
+  "firstRun_defaultAgentName": {
+    "message": "メインエージェント"
+  },
+  "firstRun_tools": {
+    "message": "ツール"
+  },
+  "firstRun_restoreFailed": {
+    "message": "バックアップからのエージェントの復元に失敗しました"
+  },
+  "chat_placeholder": {
+    "message": "何について知りたいですか？"
+  },
+  "chat_mic_start": {
+    "message": "音声を録音"
+  },
+  "chat_mic_stop": {
+    "message": "録音を停止"
+  },
+  "chat_mic_error": {
+    "message": "音声の文字起こしに失敗しました。もう一度お試しください。"
+  },
+  "chat_mic_permission": {
+    "message": "マイクの許可が必要です。アクセスを許可するウィンドウを開いています..."
+  },
+  "stt_web_login": {
+    "message": "ログイン"
+  },
+  "stt_web_logout": {
+    "message": "ログアウト"
+  },
+  "stt_web_status_logged_in": {
+    "message": "ログイン済み"
+  },
+  "stt_web_status_expired": {
+    "message": "セッション期限切れ"
+  },
+  "stt_web_status_not_logged_in": {
+    "message": "未ログイン"
+  },
+  "stt_web_status_checking": {
+    "message": "確認中…"
+  },
+  "stt_hotkey_label": {
+    "message": "録音ショートカット"
+  },
+  "stt_hotkey_hint": {
+    "message": "クリックしてキーを押してください。そのキーを押している間だけ音声入力し、離すと停止します。"
+  },
+  "stt_hotkey_prompt": {
+    "message": "キーを押してください…"
+  },
+  "stt_hotkey_unset": {
+    "message": "未設定"
+  },
+  "chat_modelSelect": {
+    "message": "モデル"
+  },
+  "chat_thinkLevelThinking": { "message": "思考" },
+  "chat_thinkLevelThinkingDesc": { "message": "複雑な問題を解決" },
+  "chat_thinkLevelFast": { "message": "高速" },
+  "chat_thinkLevelFastDesc": { "message": "すばやく回答" },
+  "chat_fileSizeError": {
+    "message": "ファイル「$FILE_NAME$」が 10MB の制限を超えています。",
+    "placeholders": {
+      "file_name": {
+        "content": "$1"
+      }
+    }
+  },
+  "chat_fileReadError": {
+    "message": "「$FILE_NAME$」の読み込みに失敗しました。",
+    "placeholders": {
+      "file_name": {
+        "content": "$1"
+      }
+    }
+  },
+  "chat_maxFilesError": {
+    "message": "ファイルは最大 $MAX_FILES$ 個までです。",
+    "placeholders": {
+      "max_files": {
+        "content": "$1"
+      }
+    }
+  },
+  "session_newSession": {
+    "message": "新しいセッション"
+  },
+  "session_rename": {
+    "message": "名前を変更"
+  },
+  "session_delete": {
+    "message": "削除"
+  },
+  "session_searchPlaceholder": {
+    "message": "チャットを検索..."
+  },
+  "session_noMatching": {
+    "message": "一致するセッションはありません"
+  },
+  "session_noSessions": {
+    "message": "セッションはまだありません"
+  },
+  "session_today": {
+    "message": "今日"
+  },
+  "session_yesterday": {
+    "message": "昨日"
+  },
+  "session_last7Days": {
+    "message": "過去 7 日間"
+  },
+  "session_last30Days": {
+    "message": "過去 30 日間"
+  },
+  "session_older": {
+    "message": "それ以前"
+  },
+  "session_deleteTitle": {
+    "message": "セッションを削除"
+  },
+  "session_deleteDescription": {
+    "message": "このセッションとすべてのメッセージが完全に削除されます。この操作は取り消せません。"
+  },
+  "session_deleteAllTitle": {
+    "message": "すべてのセッションを削除しますか？"
+  },
+  "session_deleteAllDescription": {
+    "message": "すべてのセッション、メッセージ、成果物が完全に削除されます。この操作は取り消せません。"
+  },
+  "common_cancel": {
+    "message": "キャンセル"
+  },
+  "common_delete": {
+    "message": "削除"
+  },
+  "common_deleteAll": {
+    "message": "すべて削除"
+  },
+  "common_save": {
+    "message": "保存"
+  },
+  "common_saved": {
+    "message": "保存しました"
+  },
+  "common_confirm": {
+    "message": "確認"
+  },
+  "common_ok": {
+    "message": "OK"
+  },
+  "common_loading": {
+    "message": "読み込み中..."
+  },
+  "common_on": {
+    "message": "オン"
+  },
+  "common_off": {
+    "message": "オフ"
+  },
+  "common_enabled": {
+    "message": "有効"
+  },
+  "common_disabled": {
+    "message": "無効"
+  },
+  "toolbar_elementary": {
+    "message": "小学生"
+  },
+  "toolbar_middleSchool": {
+    "message": "中学生"
+  },
+  "toolbar_keepLevel": {
+    "message": "現在のレベルを維持"
+  },
+  "toolbar_highSchool": {
+    "message": "高校生"
+  },
+  "toolbar_college": {
+    "message": "大学生"
+  },
+  "toolbar_graduate": {
+    "message": "大学院"
+  },
+  "toolbar_adjustReading": {
+    "message": "読解レベルを$LEVEL$レベルに調整してください。",
+    "placeholders": {
+      "level": {
+        "content": "$1"
+      }
+    }
+  },
+  "slash_notEnoughMessages": {
+    "message": "圧縮するのに十分なメッセージがありません"
+  },
+  "slash_compacting": {
+    "message": "会話を圧縮中..."
+  },
+  "slash_noResponse": {
+    "message": "バックグラウンドから応答がありません（Service Worker が再起動した可能性があります）"
+  },
+  "slash_conversationSummary": {
+    "message": "[会話の要約]"
+  },
+  "slash_earlierCompacted": {
+    "message": "[以前のメッセージは圧縮されました]"
+  },
+  "slash_compactSuccess": {
+    "message": "会話を圧縮しました"
+  },
+  "slash_compactFailed": {
+    "message": "圧縮に失敗しました"
+  },
+  "slash_conversationCleared": {
+    "message": "会話をクリアしました"
+  },
+  "slash_copied": {
+    "message": "クリップボードにコピーしました"
+  },
+  "slash_noAssistantMessage": {
+    "message": "コピーするアシスタントのメッセージがありません"
+  },
+  "slash_invalidCopyArg": {
+    "message": "無効な引数 — /copy または /copy N を使用してください（例: /copy 2）"
+  },
+  "slash_exported": {
+    "message": "会話をエクスポートしました"
+  },
+  "slash_exportEmpty": {
+    "message": "エクスポートするメッセージがありません"
+  },
+  "toast_offline": {
+    "message": "AskTab はオフラインです。ネットワーク接続を確認してください。"
+  },
+  "toast_online": {
+    "message": "AskTab がオンラインに復帰しました。"
+  },
+  "toast_allSessionsCleared": {
+    "message": "すべてのセッションをクリアしました"
+  },
+  "toast_subagentFinished": {
+    "message": "サブエージェントが完了しました：$TASK$",
+    "placeholders": {
+      "task": {
+        "content": "$1"
+      }
+    }
+  },
+  "toast_scheduledTask": {
+    "message": "スケジュール済み：$TASK$",
+    "placeholders": {
+      "task": {
+        "content": "$1"
+      }
+    }
+  },
+  "toast_scheduledTaskFired": {
+    "message": "スケジュールタスクが実行されました"
+  },
+  "toast_heartbeatDelivered": {
+    "message": "ハートビート通知"
+  },
+  "toast_newTelegramMessage": {
+    "message": "新しい Telegram メッセージ"
+  },
+  "toast_view": {
+    "message": "表示"
+  },
+  "settings_title": {
+    "message": "設定"
+  },
+  "settings_description": {
+    "message": "外観と環境設定を構成"
+  },
+  "settings_appearance": {
+    "message": "外観"
+  },
+  "settings_theme": {
+    "message": "テーマ"
+  },
+  "settings_themeSystem": {
+    "message": "システム"
+  },
+  "settings_themeLight": {
+    "message": "ライト"
+  },
+  "settings_themeDark": {
+    "message": "ダーク"
+  },
+  "settings_language": {
+    "message": "言語"
+  },
+  "settings_languageAuto": {
+    "message": "自動（ブラウザのデフォルト）"
+  },
+  "model_title": {
+    "message": "モデル設定"
+  },
+  "model_supportsTools": {
+    "message": "ツール対応"
+  },
+  "model_supportsReasoning": {
+    "message": "推論対応"
+  },
+  "skill_title": {
+    "message": "スキル"
+  },
+  "skill_description": {
+    "message": "スキルは LLM が読み取りツールでオンデマンドに参照できるタスク固有のガイダンスを提供します。"
+  },
+  "skill_browserWarning": {
+    "message": "スキルは Chrome ブラウザ環境で実行されます。CLI ツール、Python スクリプト、その他のローカル実行ファイルはサポートされていません。"
+  },
+  "skill_installedSkills": {
+    "message": "インストール済みスキル"
+  },
+  "skill_importZip": {
+    "message": "Zip をインポート"
+  },
+  "skill_loadingSkills": {
+    "message": "スキルを読み込み中…"
+  },
+  "skill_noSkills": {
+    "message": "スキルがインストールされていません"
+  },
+  "skill_deleted": {
+    "message": "スキルを削除しました"
+  },
+  "skill_importExists": {
+    "message": "スキル $PATH$ は既に存在します。先に削除するか、インポート名を変更してください。",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "skill_importedSkill": {
+    "message": "スキルをインポートしました：$SKILL_NAME$",
+    "placeholders": {
+      "skill_name": {
+        "content": "$1"
+      }
+    }
+  },
+  "skill_importFailed": {
+    "message": "スキルのインポートに失敗しました"
+  },
+  "skill_deleteConfirm": {
+    "message": "スキル「$SKILL_NAME$」を削除しますか？この操作は取り消せません。",
+    "placeholders": {
+      "skill_name": {
+        "content": "$1"
+      }
+    }
+  },
+  "sessionMgr_title": {
+    "message": "セッション"
+  },
+  "sessionMgr_searchPlaceholder": {
+    "message": "セッションを検索..."
+  },
+  "sessionMgr_noMatching": {
+    "message": "一致するセッションはありません。"
+  },
+  "sessionMgr_noSessions": {
+    "message": "セッションはまだありません。"
+  },
+  "sessionMgr_clickToSelect": {
+    "message": "クリックで選択、ダブルクリックで開く"
+  },
+  "sessionMgr_clickToSelectSidePanel": {
+    "message": "クリックで選択、ダブルクリックでサイドパネルに開く"
+  },
+  "telegram_title": {
+    "message": "Telegram ボット"
+  },
+  "telegram_description": {
+    "message": "Telegram ボットを接続して、Telegram から AI アシスタントとチャットできます。"
+  },
+  "telegram_enableBot": {
+    "message": "Telegram ボットを有効化"
+  },
+  "telegram_botToken": {
+    "message": "ボットトークン"
+  },
+  "telegram_validate": {
+    "message": "検証"
+  },
+  "telegram_tokenValid": {
+    "message": "トークンは有効です"
+  },
+  "telegram_invalidToken": {
+    "message": "無効なトークン"
+  },
+  "telegram_allowedUserIds": {
+    "message": "許可するユーザー ID"
+  },
+  "telegram_userIdsHint": {
+    "message": "これらの Telegram ユーザー ID からのメッセージのみ処理されます。@userinfobot から ID を取得できます。数値で入力してください。"
+  },
+  "telegram_noUsers": {
+    "message": "許可されたユーザーがいません。メッセージの受信を開始するには、少なくとも 1 つのユーザー ID を追加してください。"
+  },
+  "telegram_loadFailed": {
+    "message": "設定の読み込みに失敗しました"
+  },
+  "telegram_validationFailed": {
+    "message": "検証に失敗しました"
+  },
+  "telegram_saveFailed": {
+    "message": "保存に失敗しました"
+  },
+  "telegram_toggleFailed": {
+    "message": "切り替えに失敗しました"
+  },
+  "agents_newAgent": {
+    "message": "新しいエージェント"
+  },
+  "agents_deleteAgent": {
+    "message": "エージェントを削除"
+  },
+  "agents_deleteAgentConfirm": {
+    "message": "このエージェントとすべてのデータを削除しますか？この操作は取り消せません。"
+  },
+  "agents_overview": {
+    "message": "概要"
+  },
+  "agents_files": {
+    "message": "ファイル"
+  },
+  "agents_tools": {
+    "message": "ツール"
+  },
+  "agents_skills": {
+    "message": "スキル"
+  },
+  "agents_workspaceFiles": {
+    "message": "ワークスペースファイル"
+  },
+  "agents_agentCreated": {
+    "message": "エージェントを作成しました"
+  },
+  "agents_agentDeleted": {
+    "message": "エージェントを削除しました"
+  },
+  "agents_deleteAgentFailed": {
+    "message": "エージェントの削除に失敗しました"
+  },
+  "agents_fileDeleted": {
+    "message": "ファイルを削除しました"
+  },
+  "agents_fileUploaded": {
+    "message": "ファイルをアップロードしました"
+  },
+  "agents_fileRenamed": {
+    "message": "ファイル名を変更しました"
+  },
+  "agents_cannotRenamePredefined": {
+    "message": "定義済みファイルを含むフォルダーの名前は変更できません"
+  },
+  "agents_cannotDeletePredefined": {
+    "message": "定義済みファイルを含むフォルダーは削除できません"
+  },
+  "agents_folderRenamed": {
+    "message": "フォルダー名を変更しました"
+  },
+  "agents_folderDeleted": {
+    "message": "フォルダーを削除しました"
+  },
+  "agents_folderEmpty": {
+    "message": "フォルダーは空です"
+  },
+  "agents_fileSaved": {
+    "message": "ファイルを保存しました"
+  },
+  "agents_identity": {
+    "message": "アイデンティティ"
+  },
+  "agents_identityHint": {
+    "message": "「ファイル」タブの IDENTITY.md ファイルでこれらの値を編集してください。"
+  },
+  "agents_notSet": {
+    "message": "（未設定）"
+  },
+  "agents_justNow": {
+    "message": "たった今"
+  },
+  "agents_minutesAgo": {
+    "message": "$MINUTES$分前",
+    "placeholders": {
+      "minutes": {
+        "content": "$1"
+      }
+    }
+  },
+  "agents_hoursAgo": {
+    "message": "$HOURS$時間前",
+    "placeholders": {
+      "hours": {
+        "content": "$1"
+      }
+    }
+  },
+  "agents_daysAgo": {
+    "message": "$DAYS$日前",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      }
+    }
+  },
+  "agents_monthsAgo": {
+    "message": "$MONTHS$か月前",
+    "placeholders": {
+      "months": {
+        "content": "$1"
+      }
+    }
+  },
+  "agents_deleteFile": {
+    "message": "ファイルを削除"
+  },
+  "agents_deleteFileConfirm": {
+    "message": "「$FILE_NAME$」を削除しますか？この操作は取り消せません。",
+    "placeholders": {
+      "file_name": {
+        "content": "$1"
+      }
+    }
+  },
+  "agents_deleteFolder": {
+    "message": "フォルダーを削除"
+  },
+  "agents_deleteFolderConfirm": {
+    "message": "フォルダー「$FOLDER_NAME$」と中の $FILE_COUNT$ 個のファイルを削除しますか？この操作は取り消せません。",
+    "placeholders": {
+      "folder_name": {
+        "content": "$1"
+      },
+      "file_count": {
+        "content": "$2"
+      }
+    }
+  },
+  "agents_renameFile": {
+    "message": "ファイル名を変更"
+  },
+  "agents_renameFolder": {
+    "message": "フォルダー名を変更"
+  },
+  "agents_newFile": {
+    "message": "新しいファイル"
+  },
+  "agents_newFolder": {
+    "message": "新しいフォルダー"
+  },
+  "agents_newFolderName": {
+    "message": "新しいフォルダー名"
+  },
+  "agents_upload": {
+    "message": "アップロード"
+  },
+  "agents_edit": {
+    "message": "編集"
+  },
+  "agents_download": {
+    "message": "ダウンロード"
+  },
+  "agents_downloadFolderZip": {
+    "message": "フォルダーを ZIP でダウンロード"
+  },
+  "agents_refresh": {
+    "message": "更新"
+  },
+  "agents_backupAgent": {
+    "message": "バックアップ"
+  },
+  "agents_restoreAgent": {
+    "message": "復元"
+  },
+  "agents_restoreConfirm": {
+    "message": "エージェント「$1」をバックアップ「$2」で上書きします。すべてのワークスペースファイルと設定が置き換えられます。続行しますか？"
+  },
+  "agents_backupSuccess": {
+    "message": "エージェントのバックアップが完了しました"
+  },
+  "agents_restoreSuccess": {
+    "message": "エージェントの復元が完了しました"
+  },
+  "agents_restoreFailed": {
+    "message": "エージェントの復元に失敗しました"
+  },
+  "agents_backupFailed": {
+    "message": "エージェントのバックアップに失敗しました"
+  },
+  "agents_invalidBackup": {
+    "message": "無効なバックアップファイル"
+  },
+  "optionsPage_title": {
+    "message": "AskTab 設定"
+  },
+  "provider_openai": {
+    "message": "OpenAI"
+  },
+  "tabGroup_control": {
+    "message": "コントロール"
+  },
+  "tabGroup_agent": {
+    "message": "エージェント"
+  },
+  "tabGroup_settings": {
+    "message": "設定"
+  },
+  "tab_channels": {
+    "message": "チャンネル"
+  },
+  "tab_cronJobs": {
+    "message": "定期タスク"
+  },
+  "tab_sessions": {
+    "message": "セッション"
+  },
+  "tab_usage": {
+    "message": "使用量"
+  },
+  "tab_agents": {
+    "message": "エージェント"
+  },
+  "tab_tools": {
+    "message": "ツール"
+  },
+  "tab_skills": {
+    "message": "スキル"
+  },
+  "tab_general": {
+    "message": "一般"
+  },
+  "tab_models": {
+    "message": "モデル"
+  },
+  "tab_actions": {
+    "message": "アクション"
+  },
+  "tab_logs": {
+    "message": "ログ"
+  },
+  "whatsapp_title": {
+    "message": "WhatsApp"
+  },
+  "whatsapp_description": {
+    "message": "WhatsApp を接続して、スマートフォンから AI アシスタントとチャットできます。WhatsApp Web プロトコルを使用——外部サーバー不要。"
+  },
+  "whatsapp_connection": {
+    "message": "接続"
+  },
+  "whatsapp_connect": {
+    "message": "接続"
+  },
+  "whatsapp_disconnect": {
+    "message": "切断"
+  },
+  "whatsapp_disconnected": {
+    "message": "切断済み"
+  },
+  "whatsapp_connecting": {
+    "message": "QR コードのスキャンを待っています..."
+  },
+  "whatsapp_connected": {
+    "message": "接続済み"
+  },
+  "whatsapp_reconnecting": {
+    "message": "再接続中..."
+  },
+  "whatsapp_loggedOut": {
+    "message": "ログアウト済み"
+  },
+  "whatsapp_scanQr": {
+    "message": "WhatsApp でスキャン"
+  },
+  "whatsapp_scanInstructions": {
+    "message": "スマートフォンで WhatsApp を開く → 設定 → リンクされたデバイス → デバイスをリンク"
+  },
+  "whatsapp_connectedMsg": {
+    "message": "WhatsApp が接続され、メッセージを受信しています"
+  },
+  "whatsapp_reconnectingMsg": {
+    "message": "WhatsApp に再接続中..."
+  },
+  "whatsapp_allowedNumbers": {
+    "message": "許可する電話番号"
+  },
+  "whatsapp_numbersHint": {
+    "message": "これらの電話番号からのメッセージのみ処理されます。国番号付きで入力してください（例：+819012345678）。"
+  },
+  "whatsapp_noNumbers": {
+    "message": "許可された番号がありません。メッセージの受信を開始するには、少なくとも 1 つの電話番号を追加してください。"
+  },
+  "whatsapp_messageDirection": {
+    "message": "メッセージの方向"
+  },
+  "whatsapp_directionHint": {
+    "message": "AI アシスタントが処理するメッセージを制御します。"
+  },
+  "whatsapp_processMyMessages": {
+    "message": "自分のメッセージを処理"
+  },
+  "whatsapp_processOthers": {
+    "message": "他のユーザーからのメッセージを処理"
+  },
+  "whatsapp_connectionFailed": {
+    "message": "接続に失敗しました"
+  },
+  "whatsapp_disconnectFailed": {
+    "message": "切断に失敗しました"
+  },
+  "whatsapp_saveFailed": {
+    "message": "保存に失敗しました"
+  },
+  "whatsapp_loadFailed": {
+    "message": "設定の読み込みに失敗しました"
+  },
+  "cron_title": {
+    "message": "定期タスク"
+  },
+  "cron_description": {
+    "message": "AI エージェントが作成した自動タスクを管理"
+  },
+  "cron_active": {
+    "message": "実行中"
+  },
+  "cron_stopped": {
+    "message": "停止中"
+  },
+  "cron_noJobs": {
+    "message": "定期タスクはまだありません。AI にタスクのスケジュールを依頼してください。"
+  },
+  "cron_runHistory": {
+    "message": "実行履歴"
+  },
+  "cron_noRuns": {
+    "message": "実行履歴はまだありません"
+  },
+  "usage_title": {
+    "message": "使用量"
+  },
+  "usage_description": {
+    "message": "全セッションのトークン使用状況"
+  },
+  "usage_sessions": {
+    "message": "セッション数"
+  },
+  "usage_totalTokens": {
+    "message": "合計トークン数"
+  },
+  "usage_input": {
+    "message": "入力"
+  },
+  "usage_output": {
+    "message": "出力"
+  },
+  "usage_average": {
+    "message": "平均：$COUNT$ トークン/セッション",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "usage_sessionsByUsage": {
+    "message": "使用量別セッション"
+  },
+  "usage_compacted": {
+    "message": "$COUNT$ 回圧縮済み",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "usage_moreSessionsCount": {
+    "message": "...他 $COUNT$ セッション",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "actions_title": {
+    "message": "おすすめアクション"
+  },
+  "actions_description": {
+    "message": "空のチャット画面に表示するスタータープロンプトをカスタマイズ（最大 $MAX$ 個）",
+    "placeholders": {
+      "max": {
+        "content": "$1"
+      }
+    }
+  },
+  "actions_heading": {
+    "message": "アクション"
+  },
+  "actions_resetDefaults": {
+    "message": "デフォルトに戻す"
+  },
+  "actions_addAction": {
+    "message": "アクションを追加"
+  },
+  "actions_noActions": {
+    "message": "おすすめアクションが設定されていません。追加するか、デフォルトに戻してください。"
+  },
+  "actions_actionNumber": {
+    "message": "アクション $NUMBER$",
+    "placeholders": {
+      "number": {
+        "content": "$1"
+      }
+    }
+  },
+  "actions_moveUp": {
+    "message": "上に移動"
+  },
+  "actions_moveDown": {
+    "message": "下に移動"
+  },
+  "actions_remove": {
+    "message": "削除"
+  },
+  "actions_labelPlaceholder": {
+    "message": "ボタンラベル（チャット画面に表示）"
+  },
+  "actions_promptPlaceholder": {
+    "message": "クリック時に AI に送信される完全なプロンプト"
+  },
+  "tool_title": {
+    "message": "ツール設定"
+  },
+  "tool_description": {
+    "message": "AI ツールの有効化・無効化"
+  },
+  "tool_searchProvider": {
+    "message": "検索プロバイダー"
+  },
+  "tool_selectProvider": {
+    "message": "プロバイダーを選択"
+  },
+  "tool_searchEngine": {
+    "message": "検索エンジン"
+  },
+  "tool_selectEngine": {
+    "message": "エンジンを選択"
+  },
+  "tool_noApiKey": {
+    "message": "API キー不要 — ブラウザ自動化を使用"
+  },
+  "tool_subTopics": {
+    "message": "サブトピック"
+  },
+  "tool_iterationsPerTopic": {
+    "message": "トピックごとの反復回数"
+  },
+  "tool_sourcesPerSearch": {
+    "message": "検索ごとのソース数"
+  },
+  "tool_timeout": {
+    "message": "タイムアウト（秒）"
+  },
+  "tool_clientId": {
+    "message": "クライアント ID"
+  },
+  "tool_connectGoogle": {
+    "message": "Google アカウントを接続"
+  },
+  "tool_connecting": {
+    "message": "接続中..."
+  },
+  "tool_connectedAs": {
+    "message": "接続済み："
+  },
+  "tool_disconnect": {
+    "message": "切断"
+  },
+  "tool_failedToConnect": {
+    "message": "接続に失敗しました"
+  },
+  "tool_googleServices": {
+    "message": "Google サービス"
+  },
+  "tool_enableGoogleHint": {
+    "message": "Google アカウントを接続してこれらのツールを有効にしてください"
+  },
+  "tab_chat": {
+    "message": "チャット"
+  },
+  "log_title": {
+    "message": "ログ"
+  },
+  "log_description": {
+    "message": "拡張機能のデバッグログを表示します。ログはメモリに保存され、拡張機能の再起動時にクリアされます。"
+  },
+  "log_enableLogging": {
+    "message": "ログ記録を有効化"
+  },
+  "log_minLevel": {
+    "message": "最低レベル："
+  },
+  "log_allLevels": {
+    "message": "すべてのレベル"
+  },
+  "log_allCategories": {
+    "message": "すべてのカテゴリ"
+  },
+  "log_searchPlaceholder": {
+    "message": "メッセージを検索..."
+  },
+  "log_live": {
+    "message": "ライブ"
+  },
+  "log_stop": {
+    "message": "停止"
+  },
+  "log_clear": {
+    "message": "クリア"
+  },
+  "log_noEntries": {
+    "message": "ログエントリがありません"
+  },
+  "log_noMatch": {
+    "message": "フィルターに一致するエントリがありません"
+  },
+  "log_copyEntry": {
+    "message": "エントリをコピー"
+  },
+  "log_exportText": {
+    "message": "テキストをエクスポート"
+  },
+  "log_exportJson": {
+    "message": "JSON をエクスポート"
+  },
+  "log_copyAll": {
+    "message": "すべてコピー"
+  },
+  "log_copiedCount": {
+    "message": "$COUNT$ 件のエントリをクリップボードにコピーしました",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "log_entriesCount": {
+    "message": "$COUNT$ 件のエントリ",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "log_droppedCount": {
+    "message": "$COUNT$ 件がドロップされました",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "agents_title": {
+    "message": "エージェント"
+  },
+  "tab_speech": { "message": "音声" },
+  "greeting_hello": { "message": "こんにちは！" },
+  "greeting_help": { "message": "今日はどんなお手伝いができますか？" },
+  "firstRun_agentTemplate": { "message": "ペルソナを選択" },
+  "agent_tpl_ask_creature": { "message": "ブラウザ常駐タスクエージェント" },
+  "agent_tpl_ask_vibe": { "message": "機知に富み、慎重で、有能" },
+  "agent_tpl_ask_bestFor": { "message": "汎用" },
+  "agent_tpl_ask_strengths": { "message": "バランスの取れた判断、強力なツール使用、実践的な実行" },
+  "agent_tpl_ask_boundaries": { "message": "危険な操作の前に確認します" },
+  "agent_tpl_sage_creature": { "message": "思慮深いガイド" },
+  "agent_tpl_sage_vibe": { "message": "穏やか、内省的、賢明" },
+  "agent_tpl_sage_bestFor": { "message": "意思決定支援、コーチング、トレードオフの議論" },
+  "agent_tpl_sage_strengths": { "message": "良い質問、バランスの取れた提示" },
+  "agent_tpl_sage_boundaries": { "message": "ユーザーの自律性を尊重し、説教しません" },
+  "agent_tpl_slate_creature": { "message": "組み込みシステムの精霊" },
+  "agent_tpl_slate_vibe": { "message": "直接的、簡潔、効率的" },
+  "agent_tpl_slate_bestFor": { "message": "コーディング、実装、CLI系タスク" },
+  "agent_tpl_slate_strengths": { "message": "最小限の言葉、範囲限定の実行" },
+  "agent_tpl_slate_boundaries": { "message": "求められない限りスコープを広げません" },
+  "firstRun_agentCreature": { "message": "タイプ" },
+  "firstRun_agentVibe": { "message": "雰囲気" },
+  "firstRun_agentStrengths": { "message": "強み" },
+  "firstRun_agentBoundaries": { "message": "制約" }
+}

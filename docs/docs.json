@@ -1,0 +1,156 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "AskTab",
+  "description": "Browser extension for AI chat and browser tools, with a separate service for accounts and remote AI.",
+  "theme": "mint",
+  "icons": {
+    "library": "lucide"
+  },
+  "logo": {
+    "light": "/assets/asktab-logo.svg",
+    "dark": "/assets/asktab-logo.svg"
+  },
+  "favicon": "/assets/asktab-logo.svg",
+  "colors": {
+    "primary": "#7B7CF8",
+    "dark": "#7B7CF8",
+    "light": "#A5A6FB"
+  },
+  "styling": {
+    "codeblocks": {
+      "theme": {
+        "dark": "min-dark",
+        "light": "min-light"
+      }
+    }
+  },
+  "tabs": [
+    {
+      "tab": "Get Started",
+      "groups": [
+        {
+          "group": "Home",
+          "pages": ["index"]
+        },
+        {
+          "group": "First steps",
+          "pages": ["start/getting-started", "start/installation"]
+        }
+      ]
+    },
+    {
+      "tab": "Concepts",
+      "groups": [
+        {
+          "group": "Architecture",
+          "pages": ["concepts/architecture", "concepts/workspace-files"]
+        },
+        {
+          "group": "Sessions and memory",
+          "pages": ["concepts/session", "concepts/context", "concepts/memory"]
+        }
+      ]
+    },
+    {
+      "tab": "Channels",
+      "groups": [
+        {
+          "group": "Overview",
+          "pages": ["channels/index"]
+        },
+        {
+          "group": "Messaging platforms",
+          "pages": ["channels/whatsapp", "channels/telegram"]
+        }
+      ]
+    },
+    {
+      "tab": "Tools",
+      "groups": [
+        {
+          "group": "Overview",
+          "pages": ["tools/index"]
+        },
+        {
+          "group": "Built-in tools",
+          "pages": [
+            "tools/web-search",
+            "tools/browser",
+            "tools/google",
+            "tools/documents",
+            "tools/deep-research",
+            "tools/execute-js",
+            "tools/memory",
+            "tools/workspace"
+          ]
+        },
+        {
+          "group": "Custom tools",
+          "pages": ["tools/custom-tools"]
+        }
+      ]
+    },
+    {
+      "tab": "Providers",
+      "groups": [
+        {
+          "group": "Overview",
+          "pages": ["providers/index"]
+        },
+        {
+          "group": "Local inference",
+          "pages": ["providers/local-llm"]
+        }
+      ]
+    },
+    {
+      "tab": "Voice",
+      "groups": [
+        {
+          "group": "Overview",
+          "pages": ["voice/index"]
+        },
+        {
+          "group": "Engines",
+          "pages": ["voice/tts", "voice/stt"]
+        }
+      ]
+    },
+    {
+      "tab": "Agents",
+      "groups": [
+        {
+          "group": "Multi-agent system",
+          "pages": ["agents/index"]
+        }
+      ]
+    },
+    {
+      "tab": "Automation",
+      "groups": [
+        {
+          "group": "Automation",
+          "pages": ["automation/scheduler", "automation/skills"]
+        }
+      ]
+    },
+    {
+      "tab": "Development",
+      "groups": [
+        {
+          "group": "Development",
+          "pages": ["development/index", "development/firefox"]
+        }
+      ]
+    },
+    {
+      "tab": "Reference",
+      "groups": [
+        {
+          "group": "Reference",
+          "pages": ["reference/keyboard-shortcuts"]
+        }
+      ]
+    }
+  ]
+}

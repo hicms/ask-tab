@@ -1,0 +1,10 @@
+packages:
+  - chrome-extension
+  - pages/*
+  - packages/*
+
+onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - '@swc/core'
+  - esbuild
+  - unrs-resolver

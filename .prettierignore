@@ -1,0 +1,15 @@
+dist/
+**/build/
+node_modules/
+**/coverage/
+**/.turbo/
+.plan/
+# Third-party bundles are maintained upstream.
+packages/baileys/
+**/vendor/
+*.min.js
+*.md
+.github/
+pnpm-lock.yaml
+test-results/
+playwright-report/

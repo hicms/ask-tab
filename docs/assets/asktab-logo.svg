@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="asktab-logo-gradient" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#39b6ff"/>
+      <stop offset="1" stop-color="#bd45fb"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#asktab-logo-gradient)"/>
+  <g fill="#ffffff">
+    <path d="M22 60 V44 Q22 30 36 30 H58 Q65 30 68 37 L72 46 H42 V60 Z"/>
+    <rect x="22" y="42" width="84" height="48" rx="12"/>
+    <path d="M36 86 L30 106 L58 86 Z"/>
+  </g>
+  <g fill="#7b7cf8">
+    <circle cx="46" cy="66" r="6.5"/>
+    <circle cx="64" cy="66" r="6.5"/>
+    <circle cx="82" cy="66" r="6.5"/>
+  </g>
+</svg>

@@ -1,0 +1,25 @@
+{
+  "name": "@extension/baileys",
+  "version": "0.1.0",
+  "description": "Local fork of @whiskeysockets/baileys for browser debugging",
+  "private": true,
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "dependencies": {
+    "@adiwajshing/keyed-db": "^0.2.4",
+    "@hapi/boom": "^9.1.3",
+    "async-lock": "^1.4.1",
+    "audio-decode": "^2.1.3",
+    "axios": "^1.6.0",
+    "cache-manager": "^5.7.6",
+    "curve25519-js": "^0.0.4",
+    "libphonenumber-js": "^1.10.20",
+    "lodash": "^4.17.21",
+    "music-metadata": "^7.12.3",
+    "@cacheable/node-cache": "^1.4.0",
+    "pino": "^9.6",
+    "protobufjs": "^7.2.4",
+    "uuid": "^10.0.0",
+    "ws": "^8.13.0"
+  }
+}
