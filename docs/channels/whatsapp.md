@@ -1,5 +1,5 @@
 ---
-summary: "WhatsApp channel — connect via QR code pairing with Baileys WebSocket, sender control, voice messages, and message formatting."
+summary: "WhatsApp channel — connect via QR code pairing on the AskTab service, sender control, voice messages, and message formatting."
 read_when:
   - Setting up WhatsApp integration
   - Troubleshooting WhatsApp connection
@@ -9,14 +9,14 @@ title: "WhatsApp"
 
 # WhatsApp
 
-AskTab connects to WhatsApp via the Baileys WebSocket client, running in the offscreen document. Messages are received in real time and routed through the agent system.
+AskTab connects to WhatsApp through the AskTab service, which maintains the WhatsApp WebSocket session and queues inbound messages. The extension leases messages from that queue and routes them through the agent system; no WhatsApp credentials are stored in the browser.
 
 ## Setup
 
 1. Open the **Options** page → **Channels** → **WhatsApp**
-2. Enable the WhatsApp channel
+2. Click **Connect**
 3. A QR code will appear — scan it with your WhatsApp mobile app (Settings → Linked Devices → Link a Device)
-4. Once linked, the status will show "WhatsApp linked"
+4. Once linked, the status will show "Connected" with your phone number
 5. Add allowed sender IDs to the allowlist
 
 ### Allowed senders
@@ -54,12 +54,12 @@ Each inbound message includes:
 ### Voice messages
 
 - Inbound voice messages are detected via the `isAudio` flag
-- Audio is decrypted and transcribed using the configured STT engine
+- The extension downloads the audio from the service queue and transcribes it using the configured STT engine
 - The transcript replaces the audio in the message body sent to the agent
 
 When TTS is enabled for outbound messages:
 - Responses are synthesized using the configured TTS engine
-- Audio is sent back as a WhatsApp PTT (Push-to-Talk) voice message via the offscreen document
+- Audio is sent back as a WhatsApp PTT (Push-to-Talk) voice message via the AskTab service
 
 ### Message formatting
 
@@ -81,14 +81,14 @@ Messages longer than 4,096 characters are automatically split at natural boundar
 
 ## Connection model
 
-WhatsApp uses a **push-based** WebSocket connection maintained by the Baileys library in the offscreen document:
+The AskTab service maintains the **push-based** WhatsApp WebSocket connection and queues inbound messages:
 
-- No polling needed — messages arrive in real time
-- Auth credentials stored in `chrome.storage.local` at key `wa-auth-creds`
-- Connection persists as long as the offscreen document is alive
+- The WhatsApp session lives on the service — unlinking or relinking is done from the Options page
+- The extension leases queued messages from the service (short wait when idle, longer wait while a conversation is active) and acknowledges each item once handled
+- Direction settings (`acceptFromMe` / `acceptFromOthers`) are applied by the service before queueing
 
 <Warning>
-Chrome may reclaim the offscreen document under memory pressure, which will disconnect WhatsApp. The watchdog alarm recreates it automatically, but there may be a brief gap in message delivery.
+While the extension is not polling (browser closed or service worker idle between alarms), messages wait in the service queue and are processed on the next poll.
 </Warning>
 
 ## Bot commands

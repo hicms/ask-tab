@@ -1,5 +1,5 @@
 ---
-summary: "Memory tools — search and retrieve from the hybrid memory system (BM25 + vector embeddings)."
+summary: "Memory tools — search and retrieve from the server-side hybrid memory system."
 read_when:
   - Using memory search in conversations
   - Understanding memory tool parameters
@@ -13,13 +13,13 @@ Two tools for accessing the [memory system](/concepts/memory) during conversatio
 
 ## memory_search
 
-Search across all indexed memory chunks using BM25 full-text search and optional vector embeddings.
+Search the agent's memory files (`MEMORY.md`, `memory/*`) and past conversation transcripts. The extension syncs changed memory files to the AskTab service before each search; the service ranks the results. Requires an AskTab account sign-in.
 
 ### Parameters
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `query` | string | (required) | Keyword search query |
+| `query` | string | (required) | Search query |
 | `maxResults` | number | 10 | Maximum results (up to 30) |
 | `minScore` | number | 0.0 | Minimum relevance score threshold |
 
@@ -29,10 +29,9 @@ Ranked results with:
 - **path** — Source file path (e.g., `memory/2024-03-15.md`)
 - **startLine / endLine** — Line range within the file
 - **score** — Relevance score
-- **snippet** — First 700 characters of the matching chunk
-- **citation** — Formatted citation string
+- **snippet** — Up to 700 characters of the matching chunk
 
-Results are ranked using the full hybrid pipeline: BM25 + vector scores are fused, temporal decay is applied, and MMR re-ranking reduces redundancy.
+Each result is formatted as `[n] path#Lstart-Lend (score: x.xx)` followed by the snippet. The service ranks results with BM25 blended with vector scores when an embedding model is available, applies temporal decay to dated entries, and uses MMR re-ranking to reduce redundancy. See [Memory](/concepts/memory) for details.
 
 ### Example usage
 
@@ -81,4 +80,4 @@ The agent uses memory tools when:
 - The agent needs context that isn't in the current conversation
 - Workspace instructions reference stored knowledge
 
-Memory tools are always available (they use BM25 at minimum). Vector search is used automatically when an embedding provider is configured.
+`memory_search` needs a signed-in AskTab account. The service falls back to BM25 when it has no embedding model. `memory_get` reads local files and works offline.

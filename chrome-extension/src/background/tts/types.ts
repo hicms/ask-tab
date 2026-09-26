@@ -2,14 +2,12 @@ import type { AskSession } from '@extension/storage';
 
 // ── TTS Types ─────────────────────────────────────────
 
-type TtsProvider = 'kokoro' | 'openai';
+type TtsProvider = 'openai';
 type TtsAutoMode = 'off' | 'always' | 'inbound';
 
 interface TtsSynthesizeOptions {
   voice?: string;
   model?: string;
-  speed?: number;
-  adaptiveChunking?: boolean;
   session?: AskSession;
 }
 
@@ -24,38 +22,9 @@ interface TtsSynthesizeResult {
   voiceCompatible: boolean;
 }
 
-/** A single chunk of streamed TTS audio (one sentence or segment). */
-interface TtsStreamChunk {
-  chunkIndex: number;
-  text: string;
-  audio: ArrayBuffer;
-  contentType: string;
-  sampleRate?: number;
-  voiceCompatible: boolean;
-}
-
-/** Callback invoked for each streamed TTS chunk. */
-type TtsStreamCallback = (chunk: TtsStreamChunk) => void;
-
-/** Callback for batched streaming — receives a single encoded audio blob. */
-type TtsBatchedChunkCallback = (chunk: TtsSynthesizeResult) => void;
-
 interface TtsProviderImpl {
   id: TtsProvider;
   synthesize: (text: string, options: TtsSynthesizeOptions) => Promise<TtsSynthesizeResult>;
-  /** Optional streaming synthesis — yields audio per-sentence via callback. */
-  synthesizeStream?: (
-    text: string,
-    options: TtsSynthesizeOptions,
-    onChunk: TtsStreamCallback,
-  ) => Promise<void>;
-  /** Optional batched streaming — sends first chunk immediately, remainder as a single blob. */
-  synthesizeBatchedStream?: (
-    text: string,
-    options: TtsSynthesizeOptions,
-    onFirstChunk: TtsBatchedChunkCallback,
-    onRemainder: TtsBatchedChunkCallback,
-  ) => Promise<void>;
 }
 
 interface TtsConfig {
@@ -71,14 +40,6 @@ interface TtsConfig {
   summaryTimeout: number;
   /** Auto-play TTS audio in the browser chat UI (side panel / full-page chat) */
   chatUiAutoPlay: boolean;
-  /** Kokoro local TTS settings */
-  kokoro: {
-    model: string;
-    voice: string;
-    speed: number;
-    /** Split remainder into adaptive time-based chunks instead of one large blob */
-    adaptiveChunking: boolean;
-  };
   /** OpenAI TTS settings */
   openai: {
     modelId: string;
@@ -99,9 +60,6 @@ export type {
   TtsAutoMode,
   TtsSynthesizeOptions,
   TtsSynthesizeResult,
-  TtsStreamChunk,
-  TtsStreamCallback,
-  TtsBatchedChunkCallback,
   TtsProviderImpl,
   TtsConfig,
   TtsApplyResult,

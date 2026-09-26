@@ -1,6 +1,6 @@
 import type { AskSession } from '@extension/storage';
 
-type MediaEngine = 'auto' | 'off' | 'openai' | 'transformers' | 'sensevoice';
+type MediaEngine = 'auto' | 'off' | 'openai';
 
 interface TranscribeOptions {
   model?: string;

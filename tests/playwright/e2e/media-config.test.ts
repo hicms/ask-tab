@@ -20,17 +20,14 @@ const selectEngine = async (page: Page, label: string) => {
 };
 
 test.describe('Speech settings and server model catalog', () => {
-  test('local transcription remains available without an account', async ({
-    context,
-    extensionId,
-  }) => {
+  test('only offers off and server transcription engines', async ({ context, extensionId }) => {
     const page = await context.newPage();
     await openSpeechTab(page, extensionId);
 
     await expect(page.locator('#stt-engine')).toContainText('Off');
-    await selectEngine(page, 'Whisper (Local)');
-    await expect(page.locator('#stt-local-model')).toBeVisible();
-    await expect(page.locator('#stt-download-model')).toBeVisible();
+    await page.locator('#stt-engine').click();
+    await expect(page.locator('[role="option"]')).toHaveText(['Off', 'AskTab server']);
+    await page.keyboard.press('Escape');
     await expect(page.locator('#stt-api-key, #stt-base-url')).toHaveCount(0);
 
     await page.close();
@@ -82,7 +79,7 @@ test.describe('Speech settings and server model catalog', () => {
     await page.close();
   });
 
-  test('speech and embedding panels use server models without credential fields', async ({
+  test('speech panel uses server models without credential fields', async ({
     context,
     extensionId,
   }) => {
@@ -94,12 +91,6 @@ test.describe('Speech settings and server model catalog', () => {
     await page.locator('[role="option"]', { hasText: 'AskTab server' }).click();
     await expect(page.locator('#tts-openai-model')).toContainText('Test TTS');
     await expect(page.locator('#tts-api-key, #tts-base-url')).toHaveCount(0);
-
-    await page.locator('nav button', { hasText: 'Tools' }).click();
-    await page.locator('#embedding-provider').click();
-    await page.locator('[role="option"]', { hasText: 'AskTab server' }).click();
-    await expect(page.locator('#embedding-model')).toContainText('Test Embedding');
-    await expect(page.locator('#embedding-api-key, #embedding-base-url')).toHaveCount(0);
 
     await page.close();
   });

@@ -22,19 +22,17 @@ asktab/
 │       ├── heartbeat/             # Autonomous agent wake-ups (HEARTBEAT.md)
 │       ├── logging/               # Logging utilities
 │       ├── media-understanding/   # Speech-to-text, media transcription
-│       ├── memory/                # BM25 + embedding hybrid search, memory journal
+│       ├── memory/                # Memory service sync/search client, memory journal
 │       ├── network/               # Online/offline status
 │       ├── tools/                 # All tool implementations
-│       ├── tts/                   # Text-to-speech (OpenAI, Kokoro)
+│       ├── tts/                   # Text-to-speech (server TTS)
 │       ├── utils/                 # Service worker keep-alive
 │       └── ask-service/           # JWT session and public model catalog
 ├── pages/
 │   ├── side-panel/                # Primary chat UI (overlay sidebar mode)
 │   ├── full-page-chat/            # Full-page chat (push sidebar mode)
-│   ├── offscreen-channels/        # Offscreen page for channel message handling
 │   └── options/                   # Settings page (tabbed, see below)
 ├── packages/
-│   ├── baileys/                   # WhatsApp (Baileys) integration
 │   ├── config-panels/             # Options page tab panels and tab group definitions
 │   ├── dev-utils/                 # Dev utilities
 │   ├── env/                       # Build-time CEB_* environment variables
@@ -92,24 +90,24 @@ Side Panel / Full-Page Chat
   → useLLMStream hook (chrome.runtime.Port)
   → Background Service Worker (stream-handler.ts)
   → Model Adapter (chatModelToPiModel) → pi-mono streamSimple()
-  → AskTab Rust relay (remote) or offscreen worker (local)
+  → AskTab Rust relay
   → SSE stream back through Port → UI updates
 ```
 
 ### Storage
 - **Chrome storage (local/session)**: Settings, tool configs
-- **IndexedDB via Dexie.js** (`asktab` database, v16): agents, chats, messages, artifacts, workspaceFiles, memoryChunks, scheduledTasks, taskRunLogs, embeddingCache, heartbeatState, heartbeatLocks, modelTranscripts
+- **IndexedDB via Dexie.js** (`asktab` database, schema v1): agents, chats, messages, artifacts, workspaceFiles, scheduledTasks, taskRunLogs, heartbeatState, heartbeatLocks, modelTranscripts
 - Models are also stored in IndexedDB (`DbChatModel` type)
 - `modelTranscripts` keeps the lossless provider-side history used for replay; UI messages are only a display projection
 
 ### Key components
 - **Background SW** (`chrome-extension/src/background/`): LLM streaming with tool calling, context compaction, memory search, auto-titling, channels, cron, TTS, media understanding
 - **Agents** (`background/agents/`): Multiple agent personas with per-agent workspace files, memory, model config. Model adapter (`model-adapter.ts`) converts ChatModel to pi-mono `Model<Api>`, routing to providers based on model config
-- **Channels** (`background/channels/`): Telegram + WhatsApp messaging bridges. Flow: poller → message-bridge → agent-handler → LLM → reply. Offscreen page (`offscreen-channels`) handles message I/O
+- **Channels** (`background/channels/`): Telegram + WhatsApp messaging bridges. Flow: poller leases queued updates from the AskTab service → message-bridge → agent-handler → LLM → reply sent through the service. The service owns bot tokens and the WhatsApp session
 - **Cron/Scheduler** (`background/cron/`): Persistent scheduled tasks with run logs stored in IndexedDB
-- **TTS** (`background/tts/`): Text-to-speech with multiple providers (OpenAI, Kokoro)
-- **Media understanding** (`background/media-understanding/`): Speech-to-text / media transcription via offscreen
-- **Memory** (`background/memory/`): Hybrid search (BM25 + cosine similarity via embeddings), memory journal, transcript indexing, temporal decay
+- **TTS** (`background/tts/`): Text-to-speech through the AskTab server TTS relay
+- **Media understanding** (`background/media-understanding/`): Speech-to-text / media transcription through the AskTab server STT relay
+- **Memory** (`background/memory/`): `memory-service.ts` syncs memory files (MEMORY.md, memory/*) and chat transcripts to the AskTab service and calls its search; the service owns chunking, embeddings and hybrid ranking. Also memory journal and pre-compaction flush
 - **Tools** (`background/tools/`): Browser, CDP/Debugger, Deep Research, Execute JS, Web Search, Web Fetch, Documents, Memory, Workspace, Scheduler, Subagent, Agents List, Google (Gmail/Calendar/Drive), Image Sanitization. Browser runs for an agent are grouped into their own tab group
 - **AskTab service** (`background/ask-service/`): JWT session and public model catalog; all remote AI requests use the Rust relay.
 - **Heartbeat** (`background/heartbeat/`): Periodic autonomous agent runs driven by each agent's HEARTBEAT.md, with a Dexie TTL lock and coalescing wake queue
@@ -141,7 +139,6 @@ Set in `.env` at the repo root, created from the tracked `.example.env` template
 
 ```bash
 CEB_GOOGLE_CLIENT_ID=            # Google OAuth2 client ID (for Gmail/Calendar/Drive)
-CEB_ENABLE_WEBGPU_MODELS=false   # Enable WebGPU local models
 CEB_DEV_LOCALE=                  # Force locale for dev
 CEB_CI=                          # CI mode flag
 ```
@@ -174,9 +171,8 @@ type ChatMessagePart =
 interface ChatModel {
   id: string; name: string;
   dbId?: string;
-  provider: 'custom' | 'anthropic' | 'local';
+  provider: 'custom' | 'anthropic';
   description?: string;
-  localDevice?: 'webgpu' | 'wasm';
   supportsTools?: boolean; supportsReasoning?: boolean;
   toolTimeoutSeconds?: number;
   contextWindow?: number;
@@ -197,8 +193,8 @@ interface SubagentProgressInfo { runId: string; chatId: string; task: string; st
 3. **Context compaction**: Adaptive compaction when token count approaches model limits — supports summary-based and sliding-window strategies. Retry mechanism with `LLMStreamRetry` for context overflow recovery.
 4. **Workspace context**: Enabled workspace files are injected into the system prompt as context for the LLM. Files are scoped per agent.
 5. **Agents**: Multiple agent personas, each with separate workspace files, memory, model config. Agents are stored in IndexedDB and managed via the Agents settings tab.
-6. **Channels**: Telegram/WhatsApp messaging bridges — poller fetches new messages → message-bridge normalizes → agent-handler routes to LLM → reply sent back through channel. Uses offscreen page for I/O.
+6. **Channels**: Telegram/WhatsApp messaging bridges — poller leases queued messages from the AskTab service → message-bridge normalizes → agent-handler routes to LLM → reply sent back through the service, then the queue item is acked. The service owns all channel I/O (bot token, WhatsApp session); the extension stores only allowlists and per-channel settings.
 7. **Cron/Scheduler**: Persistent scheduled tasks with configurable schedules. Run logs tracked in IndexedDB. Tasks can trigger LLM prompts.
 8. **Subagent tool**: Spawns a nested LLM call with its own tool set for complex sub-tasks. Progress streamed to UI via `SubagentProgressInfo`.
 9. **Tool loop detection**: Prevents infinite tool-calling loops in the background service worker.
-10. **Memory**: Hybrid retrieval combining BM25 keyword search with cosine-similarity vector search (embeddings). Memory journal auto-curates MEMORY.md. Transcript indexing links memory chunks to chat sessions.
+10. **Memory**: No local index. Each `memory_search` syncs changed memory files by `updatedAt`, then the AskTab service ranks results (BM25 + vector blend, temporal decay, MMR). Memory journal auto-curates MEMORY.md. Transcripts are uploaded per chat under `transcript/YYYY-MM-DD/` and pruned when the chat is deleted.

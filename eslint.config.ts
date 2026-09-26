@@ -39,9 +39,6 @@ export default defineConfig(
       'playwright-report/**',
       '.plan/**',
       'chrome-extension/manifest.js',
-      // Vendored third-party code (~8 MB); linting it dominates run time.
-      'packages/baileys/**',
-      '**/vendor/**',
     ],
   },
   {

@@ -409,29 +409,34 @@ const Step2ChannelSetup = ({
   const [saving, setSaving] = useState(false);
   const [enableChannel, setEnableChannel] = useState(true);
 
+  /** The server checks the token with Telegram and keeps it; the extension never stores it. */
+  const connectBot = useCallback(async (): Promise<boolean> => {
+    const response = (await chrome.runtime.sendMessage({
+      type: 'CHANNEL_CONNECT',
+      channelId: 'telegram',
+      botToken: botToken.trim(),
+    })) as { view?: { identity: string | null }; error?: string } | undefined;
+    if (!response?.view) {
+      setError(response?.error ?? t('telegram_invalidToken'));
+      return false;
+    }
+    setValidated(true);
+    setBotUsername(response.view.identity ?? '');
+    return true;
+  }, [botToken, t]);
+
   const handleValidate = useCallback(async () => {
     if (!botToken.trim()) return;
     setValidating(true);
     setError('');
     try {
-      const response = (await chrome.runtime.sendMessage({
-        type: 'CHANNEL_VALIDATE_AUTH',
-        channelId: 'telegram',
-        credentials: { botToken: botToken.trim() },
-      })) as { valid: boolean; identity?: string; error?: string };
-
-      if (response.valid) {
-        setValidated(true);
-        setBotUsername(response.identity ?? '');
-      } else {
-        setError(response.error ?? t('telegram_invalidToken'));
-      }
+      await connectBot();
     } catch {
       setError(t('telegram_validationFailed'));
     } finally {
       setValidating(false);
     }
-  }, [botToken, t]);
+  }, [botToken, connectBot, t]);
 
   const handleNext = useCallback(async () => {
     if (!botToken.trim()) {
@@ -441,25 +446,26 @@ const Step2ChannelSetup = ({
     setSaving(true);
     setError('');
     try {
+      if (!validated && !(await connectBot())) return;
+
       const userIds = allowedUsers
         .split(',')
         .map(s => s.trim())
         .filter(Boolean);
 
-      await chrome.runtime.sendMessage({
+      const saved = (await chrome.runtime.sendMessage({
         type: 'CHANNEL_SAVE_CONFIG',
         channelId: 'telegram',
-        config: {
-          credentials: { botToken: botToken.trim(), botUsername: botUsername.replace('@', '') },
-          allowedSenderIds: userIds,
-        },
-      });
-      if (enableChannel) {
-        await chrome.runtime.sendMessage({
-          type: 'CHANNEL_TOGGLE',
+        config: { allowedSenderIds: userIds },
+      })) as { error?: string } | undefined;
+      if (saved?.error) throw new Error(saved.error);
+      if (!enableChannel) {
+        const disabled = (await chrome.runtime.sendMessage({
+          type: 'CHANNEL_SET_ENABLED',
           channelId: 'telegram',
-          enabled: true,
-        });
+          enabled: false,
+        })) as { error?: string } | undefined;
+        if (disabled?.error) throw new Error(disabled.error);
       }
       onNext();
     } catch {
@@ -467,7 +473,7 @@ const Step2ChannelSetup = ({
     } finally {
       setSaving(false);
     }
-  }, [botToken, allowedUsers, botUsername, enableChannel, onNext, t]);
+  }, [botToken, validated, connectBot, allowedUsers, enableChannel, onNext, t]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

@@ -41,21 +41,21 @@ describe('createMergingStorage', () => {
 
   it('deep-merges nested keys', async () => {
     const defaults = {
-      engine: 'kokoro' as const,
-      kokoro: { model: 'default-model', voice: 'af_heart', speed: 1.0 },
+      engine: 'openai' as const,
+      primary: { model: 'default-model', voice: 'af_heart', speed: 1.0 },
       openai: { model: 'tts-1', voice: 'nova' },
     };
-    // Stored value is missing kokoro.speed and openai entirely
+    // Stored value is missing primary.speed and openai entirely
     const stored = {
-      engine: 'kokoro' as const,
-      kokoro: { model: 'custom-model', voice: 'bf_emma' },
+      engine: 'openai' as const,
+      primary: { model: 'custom-model', voice: 'bf_emma' },
       openai: undefined,
     } as unknown as typeof defaults;
     const raw = fakeRawStorage(stored);
-    const storage = createMergingStorage(raw, defaults, ['kokoro', 'openai']);
+    const storage = createMergingStorage(raw, defaults, ['primary', 'openai']);
 
     const result = await storage.get();
-    expect(result.kokoro).toEqual({ model: 'custom-model', voice: 'bf_emma', speed: 1.0 });
+    expect(result.primary).toEqual({ model: 'custom-model', voice: 'bf_emma', speed: 1.0 });
     expect(result.openai).toEqual({ model: 'tts-1', voice: 'nova' });
   });
 
@@ -87,10 +87,10 @@ describe('createMergingStorage', () => {
 
   it('deep-merges nested keys in getSnapshot', () => {
     const defaults = {
-      engine: 'kokoro' as const,
+      engine: 'openai' as const,
       openai: { model: 'tts-1', voice: 'nova' },
     };
-    const stored = { engine: 'kokoro' as const, openai: undefined } as unknown as typeof defaults;
+    const stored = { engine: 'openai' as const, openai: undefined } as unknown as typeof defaults;
     const raw = fakeRawStorage(stored);
     const storage = createMergingStorage(raw, defaults, ['openai']);
 

@@ -16,11 +16,11 @@ This repository contains the extension. The AskTab service is a separate compone
 
 ## Key capabilities
 
-- **Multi-provider LLM support** — server-published models and local on-device models
+- **Multi-provider LLM support** — server-published models relayed by the AskTab service
 - **Streaming responses** — Real-time text and reasoning deltas with markdown rendering
-- **Messaging channels** — WhatsApp (Baileys WebSocket) and Telegram (Bot API long-polling)
-- **Voice** — TTS (Kokoro local ONNX + OpenAI cloud), STT (Whisper local + OpenAI cloud)
-- **Memory system** — BM25 full-text search + optional vector embeddings with MMR re-ranking and temporal decay
+- **Messaging channels** — WhatsApp and Telegram, relayed by the AskTab service (it owns the bot token and WhatsApp session)
+- **Voice** — TTS and STT through server-published models
+- **Memory system** — Memory files and transcripts searched by the AskTab service with BM25, vector embeddings, MMR re-ranking, and temporal decay
 - **Multi-agent system** — Named agents with per-agent models, tools, workspace files, and custom JS tools
 - **31 built-in tools** — Web search, documents, browser automation (CDP), Google services, deep research, and more
 - **Browser automation** — Chrome DevTools Protocol with DOM snapshots, click/type, screenshots, JS evaluation
@@ -54,7 +54,7 @@ Side Panel / Full-Page Chat
   → useLLMStream hook (chrome.runtime.Port)
   → Background Service Worker
   → Model Adapter → pi-mono streamSimple()
-  → AskTab Rust relay (remote) or offscreen worker (local)
+  → AskTab Rust relay
   → SSE stream back through Port → UI updates
 ```
 

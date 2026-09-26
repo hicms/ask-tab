@@ -1,3 +1,4 @@
+import { sendChannelMessage, STATUS_DOT_COLOR, useChannelState } from './use-channel-state';
 import { useT } from '@extension/i18n';
 import {
   Button,
@@ -19,165 +20,105 @@ import {
   LoaderIcon,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ChannelStatus, ChannelView } from './use-channel-state';
+import type { MessageKeyType } from '@extension/i18n';
 
-interface TelegramChannelConfig {
-  channelId: string;
-  enabled: boolean;
-  allowedSenderIds: string[];
-  status: string;
-  lastError?: string;
-  lastActivityAt?: number;
-  modelId?: string;
-  credentials: Record<string, string>;
-}
+const STATUS_LABEL: Record<ChannelStatus, MessageKeyType> = {
+  disabled: 'common_disabled',
+  connecting: 'channels_statusConnecting',
+  pairing: 'channels_statusConnecting',
+  connected: 'channels_statusConnected',
+  logged_out: 'channels_statusError',
+  error: 'channels_statusError',
+};
 
 const TelegramConfig = () => {
   const t = useT();
-  const [config, setConfig] = useState<TelegramChannelConfig | null>(null);
+  const { config, view, setView, signedIn, loadError, saveConfig } = useChannelState('telegram');
   const [botToken, setBotToken] = useState('');
-  const [validating, setValidating] = useState(false);
-  const [botIdentity, setBotIdentity] = useState<string | null>(null);
-  const [isValidated, setIsValidated] = useState(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [newUserId, setNewUserId] = useState('');
   const [saved, setSaved] = useState(false);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // F22: Load config on mount with error handling
-  useEffect(() => {
-    chrome.runtime
-      .sendMessage({ type: 'CHANNEL_GET_CONFIG', channelId: 'telegram' })
-      .then((response: Record<string, unknown>) => {
-        const cfg = response.config as TelegramChannelConfig;
-        setConfig(cfg);
-        setBotToken(cfg.credentials?.botToken ?? '');
-        if (cfg.credentials?.botUsername) {
-          setBotIdentity(`@${cfg.credentials.botUsername}`);
-          setIsValidated(true);
-        }
-      })
-      .catch(err => {
-        setLoadError(err instanceof Error ? err.message : t('telegram_loadFailed'));
-      });
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
-  }, [t]);
-
-  const handleValidate = useCallback(async () => {
-    if (!botToken.trim()) return;
-    setValidating(true);
-    setValidationError(null);
-    setBotIdentity(null);
-    setIsValidated(false);
-
-    try {
-      const response = (await chrome.runtime.sendMessage({
-        type: 'CHANNEL_VALIDATE_AUTH',
-        channelId: 'telegram',
-        credentials: { botToken },
-      })) as { valid: boolean; identity?: string; error?: string };
-
-      if (response.valid) {
-        // F15b: Store identity separately from validation gate
-        setBotIdentity(response.identity ?? null);
-        setIsValidated(true);
-        setValidationError(null);
-      } else {
-        setValidationError(response.error ?? t('telegram_invalidToken'));
-      }
-    } catch (err) {
-      setValidationError(err instanceof Error ? err.message : t('telegram_validationFailed'));
-    } finally {
-      setValidating(false);
-    }
-  }, [botToken, t]);
-
-  const triggerSaved = useCallback(() => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  }, []);
-
-  const doSave = useCallback(
-    async (cfg: TelegramChannelConfig, token: string, identity: string | null) => {
-      try {
-        await chrome.runtime.sendMessage({
-          type: 'CHANNEL_SAVE_CONFIG',
-          channelId: 'telegram',
-          config: {
-            credentials: { botToken: token, botUsername: identity?.replace('@', '') ?? '' },
-            allowedSenderIds: cfg.allowedSenderIds,
-            modelId: cfg.modelId,
-          },
-        });
-        triggerSaved();
-      } catch (err) {
-        setValidationError(err instanceof Error ? err.message : t('telegram_saveFailed'));
-      }
+  useEffect(
+    () => () => {
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
     },
-    [t, triggerSaved],
+    [],
   );
 
-  const debouncedSave = useCallback(
-    (cfg: TelegramChannelConfig, token: string, identity: string | null) => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => {
-        doSave(cfg, token, identity);
-      }, 500);
+  const showSaved = useCallback(() => {
+    setSaved(true);
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
+  }, []);
+
+  const runAction = useCallback(async (action: () => Promise<void>, fallback: string) => {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await action();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : fallback);
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const handleConnect = useCallback(
+    () =>
+      runAction(async () => {
+        const result = await sendChannelMessage<{ view: ChannelView }>('CHANNEL_CONNECT', {
+          channelId: 'telegram',
+          botToken: botToken.trim(),
+        });
+        setView(result.view);
+        setBotToken('');
+      }, t('telegram_connectFailed')),
+    [botToken, runAction, setView, t],
+  );
+
+  const handleToggle = useCallback(() => {
+    if (!view) return;
+    void runAction(async () => {
+      const result = await sendChannelMessage<{ view: ChannelView }>('CHANNEL_SET_ENABLED', {
+        channelId: 'telegram',
+        enabled: !view.enabled,
+      });
+      setView(result.view);
+    }, t('telegram_toggleFailed'));
+  }, [runAction, setView, t, view]);
+
+  const handleRemove = useCallback(
+    () =>
+      runAction(async () => {
+        await sendChannelMessage('CHANNEL_REMOVE', { channelId: 'telegram' });
+        setView(null);
+      }, t('telegram_saveFailed')),
+    [runAction, setView, t],
+  );
+
+  const updateAllowedSenders = useCallback(
+    async (allowedSenderIds: string[]) => {
+      if (!config) return;
+      try {
+        await saveConfig({ ...config, allowedSenderIds });
+        showSaved();
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : t('telegram_saveFailed'));
+      }
     },
-    [doSave],
+    [config, saveConfig, showSaved, t],
   );
 
   const handleAddUserId = useCallback(() => {
     const trimmed = newUserId.trim();
-    if (!trimmed || !config) return;
-    // F15: Validate that the input is a numeric Telegram user ID
-    if (!/^\d+$/.test(trimmed)) return;
-    if (config.allowedSenderIds.includes(trimmed)) return;
-
-    const updated = { ...config, allowedSenderIds: [...config.allowedSenderIds, trimmed] };
-    setConfig(updated);
+    if (!config || !/^\d+$/.test(trimmed) || config.allowedSenderIds.includes(trimmed)) return;
     setNewUserId('');
-    doSave(updated, botToken, botIdentity);
-  }, [newUserId, config, doSave, botToken, botIdentity]);
-
-  const handleRemoveUserId = useCallback(
-    (id: string) => {
-      if (!config) return;
-      const updated = {
-        ...config,
-        allowedSenderIds: config.allowedSenderIds.filter(s => s !== id),
-      };
-      setConfig(updated);
-      doSave(updated, botToken, botIdentity);
-    },
-    [config, doSave, botToken, botIdentity],
-  );
-
-  // R7: Wrap toggle in try/catch, only update UI state on success
-  const handleToggle = useCallback(
-    async (enabled: boolean) => {
-      if (!config) return;
-
-      try {
-        await doSave(config, botToken, botIdentity);
-
-        await chrome.runtime.sendMessage({
-          type: 'CHANNEL_TOGGLE',
-          channelId: 'telegram',
-          enabled,
-        });
-
-        setConfig(prev =>
-          prev ? { ...prev, enabled, status: enabled ? 'passive' : 'idle' } : prev,
-        );
-      } catch (err) {
-        setValidationError(err instanceof Error ? err.message : t('telegram_toggleFailed'));
-      }
-    },
-    [config, doSave, botToken, botIdentity, t],
-  );
+    void updateAllowedSenders([...config.allowedSenderIds, trimmed]);
+  }, [config, newUserId, updateAllowedSenders]);
 
   if (loadError) {
     return (
@@ -193,12 +134,7 @@ const TelegramConfig = () => {
 
   if (!config) return null;
 
-  const statusColor: Record<string, string> = {
-    idle: 'bg-gray-400',
-    passive: 'bg-yellow-400',
-    active: 'bg-green-400',
-    error: 'bg-red-400',
-  };
+  const statusText = view ? t(STATUS_LABEL[view.status]) : t('channels_statusNotConnected');
 
   return (
     <Card>
@@ -208,29 +144,58 @@ const TelegramConfig = () => {
           <CardTitle>{t('telegram_title')}</CardTitle>
           <div
             data-testid="tg-status-dot"
-            className={`h-2.5 w-2.5 rounded-full ${statusColor[config.status] ?? 'bg-gray-400'}`}
-            title={`Status: ${config.status}`}
+            className={`h-2.5 w-2.5 rounded-full ${view ? STATUS_DOT_COLOR[view.status] : 'bg-gray-400'}`}
+            title={statusText}
           />
         </div>
         <CardDescription>{t('telegram_description')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Enable/Disable Toggle */}
-        <div className="flex items-center justify-between">
-          <Label>{t('telegram_enableBot')}</Label>
-          <Button
-            data-testid="tg-enable-toggle"
-            onClick={() => handleToggle(!config.enabled)}
-            disabled={!botToken.trim() || !isValidated || config.allowedSenderIds.length === 0}
-            variant={config.enabled ? 'default' : 'outline'}
-            size="sm">
-            {config.enabled ? t('common_enabled') : t('common_disabled')}
-          </Button>
-        </div>
+        {!signedIn && (
+          <p
+            data-testid="tg-sign-in-required"
+            className="text-sm text-amber-600 dark:text-amber-400">
+            {t('channels_signInRequired')}
+          </p>
+        )}
 
-        {/* Bot Token */}
+        {view && (
+          <div className="flex items-center justify-between gap-2">
+            <div className="space-y-0.5">
+              <Label>{t('telegram_enableBot')}</Label>
+              <p data-testid="tg-status-text" className="text-muted-foreground text-xs">
+                {view.identity && (
+                  <span data-testid="tg-bot-identity" className="mr-1 font-medium">
+                    {view.identity}
+                  </span>
+                )}
+                {statusText}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                data-testid="tg-enable-toggle"
+                onClick={handleToggle}
+                disabled={busy}
+                variant={view.enabled ? 'default' : 'outline'}
+                size="sm">
+                {view.enabled ? t('common_enabled') : t('common_disabled')}
+              </Button>
+              <Button
+                data-testid="tg-remove-btn"
+                onClick={handleRemove}
+                disabled={busy}
+                variant="outline"
+                size="sm">
+                {t('actions_remove')}
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-2">
           <Label htmlFor="tg-token">{t('telegram_botToken')}</Label>
+          <p className="text-muted-foreground text-xs">{t('telegram_tokenHint')}</p>
           <div className="flex gap-2">
             <Input
               id="tg-token"
@@ -239,53 +204,31 @@ const TelegramConfig = () => {
               placeholder="123456:ABC-DEF..."
               value={botToken}
               onChange={e => {
-                const token = e.target.value;
-                setBotToken(token);
-                setBotIdentity(null);
-                setIsValidated(false);
-                setValidationError(null);
-                if (config) debouncedSave(config, token, null);
+                setBotToken(e.target.value);
+                setActionError(null);
               }}
+              onKeyDown={e => e.key === 'Enter' && botToken.trim() && !busy && handleConnect()}
               className="flex-1"
             />
             <Button
-              data-testid="tg-validate-btn"
-              onClick={handleValidate}
-              disabled={!botToken.trim() || validating}
+              data-testid="tg-connect-btn"
+              onClick={handleConnect}
+              disabled={!signedIn || !botToken.trim() || busy}
               variant="outline"
               size="sm">
-              {validating ? (
-                <LoaderIcon className="h-4 w-4 animate-spin" />
-              ) : (
-                t('telegram_validate')
-              )}
+              {busy ? <LoaderIcon className="h-4 w-4 animate-spin" /> : t('telegram_connect')}
             </Button>
           </div>
-          {botIdentity && (
+          {actionError && (
             <p
-              data-testid="tg-bot-identity"
-              className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
-              <CheckCircle2Icon className="h-3.5 w-3.5" />
-              {botIdentity}
-            </p>
-          )}
-          {isValidated && !botIdentity && (
-            <p className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
-              <CheckCircle2Icon className="h-3.5 w-3.5" />
-              {t('telegram_tokenValid')}
-            </p>
-          )}
-          {validationError && (
-            <p
-              data-testid="tg-validation-error"
+              data-testid="tg-action-error"
               className="flex items-center gap-1 text-sm text-red-600 dark:text-red-400">
               <AlertCircleIcon className="h-3.5 w-3.5" />
-              {validationError}
+              {actionError}
             </p>
           )}
         </div>
 
-        {/* Allowed User IDs */}
         <div className="space-y-2">
           <Label>{t('telegram_allowedUserIds')}</Label>
           <p className="text-muted-foreground text-xs">{t('telegram_userIdsHint')}</p>
@@ -301,19 +244,21 @@ const TelegramConfig = () => {
             <Button
               data-testid="tg-add-user-btn"
               onClick={handleAddUserId}
-              disabled={!newUserId.trim() || !/^\d+$/.test(newUserId.trim())}
+              disabled={!/^\d+$/.test(newUserId.trim())}
               variant="outline"
               size="sm">
               <PlusIcon className="h-4 w-4" />
             </Button>
           </div>
-          {config.allowedSenderIds.length > 0 && (
+          {config.allowedSenderIds.length > 0 ? (
             <div data-testid="tg-user-badges" className="flex flex-wrap gap-1.5 pt-1">
               {config.allowedSenderIds.map(id => (
                 <Badge key={id} variant="secondary" className="gap-1">
                   {id}
                   <button
-                    onClick={() => handleRemoveUserId(id)}
+                    onClick={() =>
+                      void updateAllowedSenders(config.allowedSenderIds.filter(s => s !== id))
+                    }
                     className="hover:text-destructive ml-0.5"
                     type="button">
                     <XIcon className="h-3 w-3" />
@@ -321,8 +266,7 @@ const TelegramConfig = () => {
                 </Badge>
               ))}
             </div>
-          )}
-          {config.allowedSenderIds.length === 0 && (
+          ) : (
             <p
               data-testid="tg-no-users-warning"
               className="text-xs text-amber-600 dark:text-amber-400">
@@ -331,10 +275,9 @@ const TelegramConfig = () => {
           )}
         </div>
 
-        {/* Error display */}
-        {config.status === 'error' && config.lastError && (
+        {view?.lastError && (
           <div className="rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
-            <strong>Error:</strong> {config.lastError}
+            <strong>{t('channels_statusError')}:</strong> {view.lastError}
           </div>
         )}
 

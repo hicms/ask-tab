@@ -547,6 +547,10 @@ const AgentsConfig = () => {
               await activeAgentStorage.set('main');
             }
             await deleteAgent(id);
+            // Best effort: the agent is already gone locally, and a failure here only leaves server-side memory behind.
+            chrome.runtime
+              .sendMessage({ type: 'MEMORY_FORGET_AGENT', agentId: id })
+              .catch(() => {});
             setSelectedAgentId('main');
             await loadAgents();
             toast.success(t('agents_agentDeleted'));

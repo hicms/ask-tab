@@ -9,14 +9,14 @@ title: "Telegram"
 
 # Telegram
 
-AskTab connects to Telegram via the Bot API with HTTP long-polling. It supports real-time draft streaming (editing messages as the LLM generates), typing indicators, message reactions, and voice messages.
+AskTab connects to Telegram through the AskTab service, which holds the bot token and calls the Bot API. It supports real-time draft streaming (editing messages as the LLM generates), typing indicators, message reactions, and voice messages.
 
 ## Setup
 
 1. Create a Telegram bot via [@BotFather](https://t.me/botfather) and copy the bot token
 2. Open the **Options** page → **Channels** → **Telegram**
-3. Enable the Telegram channel
-4. Paste your bot token — AskTab validates it by calling the `getMe` API
+3. Paste your bot token and click **Connect** — the AskTab service validates and keeps the token (it is not stored in the browser)
+4. The status shows the connected bot identity once the service confirms it
 5. Add allowed sender IDs to the allowlist
 
 ### Getting sender IDs
@@ -49,7 +49,7 @@ AskTab uses emoji reactions for receipt acknowledgment:
 
 ### Inbound
 - Voice messages are detected via the `voice` field in Telegram updates
-- AskTab downloads the audio using `getFile` + `downloadFile` from the Bot API
+- AskTab resolves the file with `getFile` and downloads the audio through the AskTab service relay
 - The audio is transcribed using the configured STT engine
 - The transcript is used as the message body for the agent
 
@@ -74,14 +74,14 @@ AskTab converts LLM markdown output to Telegram HTML:
 
 ## Polling modes
 
-Telegram operates in two modes:
+The AskTab service receives bot updates and queues them. The extension polls that queue with a single Chrome alarm (every 30 seconds):
 
-| Mode | Polling | Timeout | Latency |
-|------|---------|---------|---------|
-| **Passive** | Chrome alarm (every 30s) | 0 (short-poll) | Up to 30s |
-| **Active** | Offscreen document | 25s (long-poll) | Near-instant |
+| State | Wait | Latency |
+|-------|------|---------|
+| **Idle** | Short wait (~5s) | Up to ~35s |
+| **Active** | Long wait (~20s), for 5 minutes after the last message | Near-instant |
 
-The channel starts in passive mode and upgrades to active on first valid message. After 10 minutes of inactivity, it downgrades back to passive.
+Each leased update is acknowledged once handled, so a service worker restart at most re-delivers the in-flight update.
 
 ## Bot commands
 
@@ -102,7 +102,8 @@ The `/tts` command is Telegram-only and controls when responses are spoken:
 
 | Setting | Description |
 |---------|-------------|
-| `enabled` | Enable/disable the channel |
-| `credentials.botToken` | Telegram Bot API token |
+| `enabled` | Enable/disable the channel (server-side) |
 | `allowedSenderIds` | Telegram user IDs allowed to interact |
 | `modelId` | Override default model for this channel |
+
+The bot token itself is held by the AskTab service and never persisted in the extension.

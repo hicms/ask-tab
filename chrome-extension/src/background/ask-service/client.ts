@@ -15,8 +15,10 @@ class AskServiceError extends Error {
 
 const serverMessage = async (response: Response): Promise<string> => {
   try {
-    const body = (await response.json()) as { error?: unknown };
+    const body = (await response.json()) as { error?: unknown; description?: unknown };
     if (typeof body.error === 'string' && body.error) return body.error;
+    // Proxied Telegram Bot API errors keep Telegram's own body shape.
+    if (typeof body.description === 'string' && body.description) return body.description;
   } catch {
     // Non-JSON error bodies fall back to the status line.
   }

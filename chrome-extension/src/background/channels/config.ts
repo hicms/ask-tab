@@ -25,52 +25,29 @@ const getChannelConfig = async (channelId: string): Promise<ChannelConfig | unde
   return configs.find(c => c.channelId === channelId);
 };
 
-/** Save (upsert) a channel config — serialized to prevent concurrent write clobber */
-const saveChannelConfig = (config: ChannelConfig): Promise<void> =>
-  withConfigLock(async () => {
-    const configs = await getChannelConfigs();
-    const idx = configs.findIndex(c => c.channelId === config.channelId);
-    if (idx >= 0) {
-      configs[idx] = config;
-    } else {
-      configs.push(config);
-    }
-    await chrome.storage.local.set({ [STORAGE_KEY]: configs });
-  });
+/** Create a default ChannelConfig for a given channel */
+const createDefaultChannelConfig = (channelId: string): ChannelConfig => ({
+  channelId,
+  allowedSenderIds: [],
+});
 
-/** Update specific fields on a channel config — serialized to prevent concurrent write clobber */
-const updateChannelConfig = (channelId: string, updates: Partial<ChannelConfig>): Promise<void> =>
+/**
+ * Merge fields into a channel config, creating it from defaults when missing.
+ * Serialized to prevent concurrent write clobber.
+ */
+const updateChannelConfig = (
+  channelId: string,
+  updates: Partial<Omit<ChannelConfig, 'channelId'>>,
+): Promise<void> =>
   withConfigLock(async () => {
     const configs = await getChannelConfigs();
     const idx = configs.findIndex(c => c.channelId === channelId);
     if (idx >= 0) {
       configs[idx] = { ...configs[idx], ...updates };
-      await chrome.storage.local.set({ [STORAGE_KEY]: configs });
+    } else {
+      configs.push({ ...createDefaultChannelConfig(channelId), ...updates });
     }
+    await chrome.storage.local.set({ [STORAGE_KEY]: configs });
   });
 
-/** Delete a channel config */
-const deleteChannelConfig = (channelId: string): Promise<void> =>
-  withConfigLock(async () => {
-    const configs = await getChannelConfigs();
-    const filtered = configs.filter(c => c.channelId !== channelId);
-    await chrome.storage.local.set({ [STORAGE_KEY]: filtered });
-  });
-
-/** Create a default ChannelConfig for a given channel */
-const createDefaultChannelConfig = (channelId: string): ChannelConfig => ({
-  channelId,
-  enabled: false,
-  allowedSenderIds: [],
-  status: 'idle',
-  credentials: {},
-});
-
-export {
-  getChannelConfigs,
-  getChannelConfig,
-  saveChannelConfig,
-  updateChannelConfig,
-  deleteChannelConfig,
-  createDefaultChannelConfig,
-};
+export { getChannelConfigs, getChannelConfig, updateChannelConfig, createDefaultChannelConfig };

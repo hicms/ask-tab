@@ -1,56 +1,34 @@
 ---
-summary: "Speech-to-text engines — Whisper local (Transformers.js) and OpenAI cloud transcription."
+summary: "Speech-to-text through an STT model published by the AskTab server."
 read_when:
   - Configuring speech-to-text
   - Understanding voice input options
-  - Choosing between local and cloud STT
 title: "Speech-to-Text (STT)"
 ---
 
 # Speech-to-Text (STT)
 
-AskTab supports two STT engines for transcribing voice input and voice messages from channels.
+AskTab transcribes voice input and channel voice messages with an STT model published by the AskTab server.
 
-## Whisper (local)
+## Server STT
 
-On-device transcription using Whisper ONNX models via Transformers.js. No API key required.
-
-### Features
-
-- **Models**: Whisper tiny, base, and small
-- **Runs in**: Offscreen document Web Worker
-- **Audio processing**: Resampled to 16kHz mono PCM
-- **Language selection**: Supports multiple languages
-- **No API calls**: Fully offline transcription
-
-### First use
-
-The first time you use local STT, the Whisper model weights are downloaded and cached in the browser. Subsequent uses load from cache.
-
----
-
-## OpenAI Whisper (cloud)
-
-Cloud-based transcription uses a published server STT model. The extension sends audio and its AskTab JWT to the Rust relay; the service holds the upstream model and API key.
+Transcription uses a published server STT model. The extension sends audio and its AskTab JWT to the Rust relay; the service holds the upstream model and API key.
 
 ### Features
 
-- **Endpoint**: `/audio/transcriptions`
+- **Endpoint**: `/api/audio/{model}/transcriptions` on the AskTab service
 - **Format detection**: Uses the recorded audio MIME type
 - **Language support**: Supports language specification for better accuracy
-- **Compatible**: Works with any OpenAI-compatible transcription API
+- **Compatible**: The server can relay to any OpenAI-compatible transcription API
 
 ---
 
 ## Engine selection
 
-AskTab auto-detects the best engine based on configuration:
-
 | Mode | Behavior |
 |------|----------|
-| `auto` | Use a published STT model while signed in; otherwise use local Whisper |
+| `auto` | Same as `openai` |
 | `openai` | Use the selected server STT model; show a configuration error when unavailable |
-| `transformers` | Always use local Whisper |
 | `off` | Disable STT |
 
 ## Usage
@@ -61,8 +39,6 @@ Click the microphone button in the chat input to record audio. The recording is 
 
 ### Channel voice messages
 
-Voice messages received via WhatsApp or Telegram are automatically transcribed:
+Voice messages received via Telegram are transcribed and the transcript replaces the audio content in the message sent to the agent. Voice audio is downloaded via the Bot API (`getFile` + `downloadFile`).
 
-- **Telegram**: Voice audio downloaded via Bot API (`getFile` + `downloadFile`)
-- **WhatsApp**: Voice audio decrypted from the WhatsApp message
-- The transcript replaces the audio content in the message sent to the agent
+WhatsApp voice messages are currently delivered to the agent as a `[Voice message]` or `[Audio]` placeholder without a transcript.

@@ -17,7 +17,6 @@ vi.mock('@extension/env', () => ({
   IS_DEV: false,
   IS_PROD: true,
   IS_CI: false,
-  WEBGPU_MODELS_ENABLED: false,
   default: {},
 }));
 

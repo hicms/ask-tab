@@ -1,8 +1,6 @@
 import { getActiveAgentId, getWorkspaceFile } from './tool-utils';
-import { invalidateMemoryIndex } from '../memory/memory-sync';
 import {
   createWorkspaceFile,
-  deleteMemoryChunksByFileId,
   deleteWorkspaceFile,
   listWorkspaceFiles,
   updateWorkspaceFile,
@@ -38,7 +36,6 @@ const executeWrite = async (args: WriteArgs, agentIdOverride?: string): Promise<
       mode === 'append' && existing.content && !existing.content.endsWith('\n') ? '\n' : '';
     const newContent = mode === 'append' ? existing.content + separator + content : content;
     await updateWorkspaceFile(existing.id, { content: newContent });
-    invalidateMemoryIndex(agentId);
     return `Updated ${path} (${mode}, ${newContent.length} chars)`;
   }
 
@@ -56,7 +53,6 @@ const executeWrite = async (args: WriteArgs, agentIdOverride?: string): Promise<
     agentId,
   };
   await createWorkspaceFile(file);
-  invalidateMemoryIndex(agentId);
   return `Created ${path} (${content.length} chars)`;
 };
 
@@ -111,7 +107,6 @@ const executeEdit = async (args: EditArgs, agentIdOverride?: string): Promise<st
 
   const newContent = existing.content.replace(oldText, newText);
   await updateWorkspaceFile(existing.id, { content: newContent });
-  invalidateMemoryIndex(agentId);
   return `Edited ${path} (${newContent.length} chars)`;
 };
 
@@ -147,15 +142,11 @@ const executeDelete = async (args: DeleteArgs): Promise<string> => {
   }
 
   try {
-    if (file.name === 'MEMORY.md' || file.name.startsWith('memory/')) {
-      await deleteMemoryChunksByFileId(file.id);
-    }
     await deleteWorkspaceFile(file.id);
   } catch (err) {
     return `Error: ${err instanceof Error ? err.message : String(err)}`;
   }
 
-  invalidateMemoryIndex(agentId);
   return `Deleted ${args.path}`;
 };
 
@@ -189,7 +180,6 @@ const executeRename = async (args: RenameArgs): Promise<string> => {
   }
 
   await updateWorkspaceFile(file.id, { name: newPath });
-  invalidateMemoryIndex(agentId);
   return `Renamed ${path} → ${newPath}`;
 };
 

@@ -1,261 +1,177 @@
-import { getChannelConfig, updateChannelConfig } from './config';
-import { handleChannelUpdates } from './message-bridge';
+import { ackUpdates, pullUpdates } from './gateway';
+import { handleQueuedUpdate } from './message-bridge';
 import {
-  getPassiveAlarmName,
+  CHANNEL_POLL_ALARM,
   isChannelPollAlarm,
-  channelIdFromAlarmName,
-  createPassiveAlarm,
-  clearPassiveAlarm,
-  handlePassivePollAlarm,
+  runPollCycle,
+  setChannelPolling,
+  stopChannelPolling,
 } from './poller';
-import { getUpdatesShortPoll } from './telegram/bot-api';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ChannelConfig } from './types';
+import { AskServiceError } from '../ask-service/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { QueuedUpdate } from './gateway';
 
-// ── Chrome alarms mock ──
-const chromeAlarmsMock = { create: vi.fn(), clear: vi.fn(async () => true) };
-vi.stubGlobal('chrome', { alarms: chromeAlarmsMock });
-
-// ── Dependency mocks ──
-vi.mock('./config', () => ({
-  getChannelConfig: vi.fn(),
-  updateChannelConfig: vi.fn(async () => {}),
+vi.mock('./gateway', () => ({
+  pullUpdates: vi.fn(),
+  ackUpdates: vi.fn(async () => {}),
 }));
+
 vi.mock('./message-bridge', () => ({
-  handleChannelUpdates: vi.fn(async () => undefined),
+  handleQueuedUpdate: vi.fn(async () => false),
 }));
-vi.mock('./telegram/bot-api', () => ({
-  getUpdatesShortPoll: vi.fn(async () => []),
-}));
+
+vi.mock('../ask-service/client', () => {
+  class AskServiceError extends Error {
+    constructor(
+      message: string,
+      readonly status: number,
+    ) {
+      super(message);
+    }
+  }
+  return { AskServiceError };
+});
+
 vi.mock('../logging/logger-buffer', () => ({
   createLogger: () => ({
+    trace: vi.fn(),
     debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
-    trace: vi.fn(),
   }),
 }));
 
-const mockedGetChannelConfig = vi.mocked(getChannelConfig);
-const mockedUpdateChannelConfig = vi.mocked(updateChannelConfig);
-const mockedHandleChannelUpdates = vi.mocked(handleChannelUpdates);
-const mockedGetUpdatesShortPoll = vi.mocked(getUpdatesShortPoll);
-
-const makeConfig = (overrides: Partial<ChannelConfig> = {}): ChannelConfig => ({
-  channelId: 'telegram',
-  enabled: true,
-  allowedSenderIds: ['123'],
-  status: 'passive',
-  credentials: { botToken: '123:abc' },
-  lastPollOffset: 0,
-  ...overrides,
+const alarms = vi.hoisted(() => {
+  const mock = {
+    get: vi.fn(async (): Promise<{ name: string; scheduledTime: number } | undefined> => undefined),
+    create: vi.fn(async () => {}),
+    clear: vi.fn(async () => true),
+  };
+  vi.stubGlobal('chrome', { alarms: mock });
+  return mock;
 });
 
-describe('poller', () => {
+const item = (id: string): QueuedUpdate => ({
+  id,
+  channel: 'telegram',
+  update: {},
+  mediaType: null,
+});
+
+const pulls = vi.mocked(pullUpdates);
+
+let now = Date.UTC(2026, 0, 1);
+
+describe('channel poller', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    pulls.mockResolvedValue([]);
+    // Each test starts well past the previous test's conversation window.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    now += 60 * 60_000;
+    vi.setSystemTime(now);
   });
 
-  // ── Pure helper tests ──
-
-  it('getPassiveAlarmName returns correct prefix', () => {
-    expect(getPassiveAlarmName('telegram')).toBe('channel-poll-telegram');
-    expect(getPassiveAlarmName('whatsapp')).toBe('channel-poll-whatsapp');
+  afterEach(async () => {
+    await stopChannelPolling();
+    vi.useRealTimers();
   });
 
-  it('isChannelPollAlarm returns true for matching prefix', () => {
-    expect(isChannelPollAlarm('channel-poll-telegram')).toBe(true);
-    expect(isChannelPollAlarm('channel-poll-whatsapp')).toBe(true);
+  it('recognizes its alarm', () => {
+    expect(isChannelPollAlarm(CHANNEL_POLL_ALARM)).toBe(true);
+    expect(isChannelPollAlarm('channel-poll-telegram')).toBe(false);
   });
 
-  it('isChannelPollAlarm returns false for non-matching names', () => {
-    expect(isChannelPollAlarm('some-other-alarm')).toBe(false);
-    expect(isChannelPollAlarm('channel-telegram')).toBe(false);
-    expect(isChannelPollAlarm('')).toBe(false);
+  it('pulls briefly when idle and stops once the queue is empty', async () => {
+    await runPollCycle();
+
+    expect(pulls).toHaveBeenCalledOnce();
+    expect(pulls).toHaveBeenCalledWith(5, expect.any(AbortSignal));
   });
 
-  it('channelIdFromAlarmName extracts channel id', () => {
-    expect(channelIdFromAlarmName('channel-poll-telegram')).toBe('telegram');
-    expect(channelIdFromAlarmName('channel-poll-whatsapp')).toBe('whatsapp');
+  it('handles and acks each item, even when handling throws', async () => {
+    pulls.mockResolvedValueOnce([item('a'), item('b')]).mockResolvedValue([]);
+    vi.mocked(handleQueuedUpdate).mockRejectedValueOnce(new Error('boom'));
+
+    await runPollCycle();
+
+    expect(handleQueuedUpdate).toHaveBeenCalledTimes(2);
+    expect(ackUpdates).toHaveBeenNthCalledWith(1, ['a']);
+    expect(ackUpdates).toHaveBeenNthCalledWith(2, ['b']);
   });
 
-  // ── Alarm create/clear ──
-
-  it('createPassiveAlarm calls chrome.alarms.create with correct params', () => {
-    createPassiveAlarm('telegram');
-
-    expect(chromeAlarmsMock.create).toHaveBeenCalledWith('channel-poll-telegram', {
-      periodInMinutes: 0.5,
-    });
-  });
-
-  it('clearPassiveAlarm calls chrome.alarms.clear', async () => {
-    await clearPassiveAlarm('telegram');
-
-    expect(chromeAlarmsMock.clear).toHaveBeenCalledWith('channel-poll-telegram');
-  });
-
-  // ── handlePassivePollAlarm ──
-
-  it('skips poll when channel config not found', async () => {
-    mockedGetChannelConfig.mockResolvedValue(undefined);
-
-    await handlePassivePollAlarm('telegram');
-
-    expect(mockedGetUpdatesShortPoll).not.toHaveBeenCalled();
-  });
-
-  it('skips poll when channel is not enabled', async () => {
-    mockedGetChannelConfig.mockResolvedValue(makeConfig({ enabled: false }));
-
-    await handlePassivePollAlarm('telegram');
-
-    expect(mockedGetUpdatesShortPoll).not.toHaveBeenCalled();
-  });
-
-  it('skips poll when channel is in active mode', async () => {
-    mockedGetChannelConfig.mockResolvedValue(makeConfig({ status: 'active' }));
-
-    await handlePassivePollAlarm('telegram');
-
-    expect(mockedGetUpdatesShortPoll).not.toHaveBeenCalled();
-  });
-
-  it('skips poll when already polling (concurrent guard)', async () => {
-    // Set up a slow poll that blocks for a moment
-    let resolveSlowPoll: () => void;
-    const slowPollPromise = new Promise<void>(r => {
-      resolveSlowPoll = r;
+  it('long-polls while a conversation is active', async () => {
+    pulls.mockResolvedValueOnce([item('a')]);
+    vi.mocked(handleQueuedUpdate).mockResolvedValueOnce(true);
+    let stop!: () => void;
+    const stopped = new Promise<void>(resolve => (stop = resolve));
+    pulls.mockImplementationOnce(async (wait, signal) => {
+      expect(wait).toBe(20);
+      stop();
+      return new Promise((_resolve, reject) =>
+        signal?.addEventListener('abort', () => reject(new Error('aborted'))),
+      );
     });
 
-    mockedGetChannelConfig.mockImplementation(async () => {
-      await slowPollPromise;
-      return makeConfig();
-    });
+    const cycle = runPollCycle();
+    await stopped;
+    await stopChannelPolling();
+    await cycle;
 
-    // Start first poll (will be blocked on the slow poll)
-    const firstPoll = handlePassivePollAlarm('telegram');
-
-    // Start second poll immediately (should be skipped due to concurrent guard)
-    const secondPoll = handlePassivePollAlarm('telegram');
-
-    // Wait for second poll to complete (it skips immediately)
-    await secondPoll;
-
-    // Release the first poll
-    resolveSlowPoll!();
-    await firstPoll;
-
-    // getChannelConfig should have been called only once (first poll)
-    // because the second poll was skipped before reaching it
-    expect(mockedGetChannelConfig).toHaveBeenCalledTimes(1);
+    expect(pulls).toHaveBeenCalledTimes(2);
   });
 
-  it('advances offset after processing updates', async () => {
-    const config = makeConfig({ lastPollOffset: 5 });
-    mockedGetChannelConfig.mockResolvedValue(config);
-    mockedGetUpdatesShortPoll.mockResolvedValue([
-      {
-        update_id: 10,
-        message: { message_id: 1, chat: { id: 123, type: 'private' }, date: 1000, text: 'hello' },
-      },
-      {
-        update_id: 12,
-        message: { message_id: 2, chat: { id: 123, type: 'private' }, date: 1001, text: 'world' },
-      },
-    ]);
-    mockedHandleChannelUpdates.mockResolvedValue(12);
+  it('joins a cycle that is already running', async () => {
+    let release!: (items: QueuedUpdate[]) => void;
+    pulls.mockImplementationOnce(() => new Promise(resolve => (release = resolve)));
 
-    await handlePassivePollAlarm('telegram');
+    const first = runPollCycle();
+    const second = runPollCycle();
+    release([]);
+    await Promise.all([first, second]);
 
-    // New offset should be maxUpdateId + 1 = 13, which is > current offset 5
-    expect(mockedUpdateChannelConfig).toHaveBeenCalledWith('telegram', { lastPollOffset: 13 });
+    expect(pulls).toHaveBeenCalledOnce();
   });
 
-  it('does not advance offset when new offset <= current', async () => {
-    const config = makeConfig({ lastPollOffset: 20 });
-    // First call returns config with offset 20 (initial check), second returns same (fresh read)
-    mockedGetChannelConfig.mockResolvedValue(config);
-    mockedGetUpdatesShortPoll.mockResolvedValue([
-      {
-        update_id: 10,
-        message: { message_id: 3, chat: { id: 123, type: 'private' }, date: 1002, text: 'old' },
-      },
-    ]);
-    mockedHandleChannelUpdates.mockResolvedValue(10);
+  it('stops polling when the session is rejected', async () => {
+    pulls.mockRejectedValueOnce(new AskServiceError('Unauthorized', 401));
 
-    await handlePassivePollAlarm('telegram');
+    await runPollCycle();
 
-    // newOffset = 10 + 1 = 11, which is <= currentOffset 20, so no update
-    expect(mockedUpdateChannelConfig).not.toHaveBeenCalledWith(
-      'telegram',
-      expect.objectContaining({ lastPollOffset: expect.any(Number) }),
-    );
+    expect(alarms.clear).toHaveBeenCalledWith(CHANNEL_POLL_ALARM);
   });
 
-  it('skips poll when no bot token configured', async () => {
-    mockedGetChannelConfig.mockResolvedValue(makeConfig({ credentials: { botToken: '' } }));
+  it('keeps the alarm after a transient pull failure', async () => {
+    pulls.mockRejectedValueOnce(new Error('network down'));
 
-    await handlePassivePollAlarm('telegram');
+    await runPollCycle();
 
-    expect(mockedGetUpdatesShortPoll).not.toHaveBeenCalled();
+    expect(alarms.clear).not.toHaveBeenCalledWith(CHANNEL_POLL_ALARM);
+    expect(ackUpdates).not.toHaveBeenCalled();
   });
 
-  it('sets error status on 401 Unauthorized', async () => {
-    mockedGetChannelConfig.mockResolvedValue(makeConfig());
-    mockedGetUpdatesShortPoll.mockRejectedValue(new Error('getUpdates failed: 401 Unauthorized'));
+  it('creates the alarm and polls when enabled', async () => {
+    await setChannelPolling(true);
+    await runPollCycle();
 
-    await handlePassivePollAlarm('telegram');
-
-    expect(mockedUpdateChannelConfig).toHaveBeenCalledWith('telegram', {
-      status: 'error',
-      lastError: expect.stringContaining('401'),
-    });
+    expect(alarms.create).toHaveBeenCalledWith(CHANNEL_POLL_ALARM, { periodInMinutes: 0.5 });
+    expect(pulls).toHaveBeenCalledOnce();
   });
 
-  it('does not set error status on non-auth errors', async () => {
-    mockedGetChannelConfig.mockResolvedValue(makeConfig());
-    mockedGetUpdatesShortPoll.mockRejectedValue(new Error('Network timeout'));
+  it('keeps an existing alarm', async () => {
+    alarms.get.mockResolvedValueOnce({ name: CHANNEL_POLL_ALARM, scheduledTime: 0 });
 
-    await handlePassivePollAlarm('telegram');
+    await setChannelPolling(true);
+    await runPollCycle();
 
-    // Should NOT have set error status (only 401/Unauthorized triggers that)
-    expect(mockedUpdateChannelConfig).not.toHaveBeenCalledWith(
-      'telegram',
-      expect.objectContaining({ status: 'error' }),
-    );
+    expect(alarms.create).not.toHaveBeenCalled();
   });
 
-  it('clears error status on successful poll', async () => {
-    mockedGetChannelConfig.mockResolvedValue(makeConfig({ status: 'error' }));
-    mockedGetUpdatesShortPoll.mockResolvedValue([]);
+  it('clears the alarm when disabled', async () => {
+    await setChannelPolling(false);
 
-    await handlePassivePollAlarm('telegram');
-
-    expect(mockedUpdateChannelConfig).toHaveBeenCalledWith('telegram', {
-      status: 'passive',
-      lastError: undefined,
-    });
-  });
-
-  it('warns on unknown channel for passive poll', async () => {
-    mockedGetChannelConfig.mockResolvedValue(makeConfig({ channelId: 'unknown-channel' }));
-
-    await handlePassivePollAlarm('unknown-channel');
-
-    expect(mockedGetUpdatesShortPoll).not.toHaveBeenCalled();
-  });
-
-  it('handles undefined lastPollOffset gracefully', async () => {
-    mockedGetChannelConfig.mockResolvedValue(
-      makeConfig({ lastPollOffset: undefined as unknown as number }),
-    );
-    mockedGetUpdatesShortPoll.mockResolvedValue([]);
-
-    await handlePassivePollAlarm('telegram');
-
-    // getUpdatesShortPoll should have been called with undefined offset
-    expect(mockedGetUpdatesShortPoll).toHaveBeenCalledWith('123:abc', undefined);
+    expect(alarms.clear).toHaveBeenCalledWith(CHANNEL_POLL_ALARM);
+    expect(pulls).not.toHaveBeenCalled();
   });
 });

@@ -30,14 +30,8 @@ describe('chatModelToPiModel', () => {
     expect(chatModelToPiModel(model({ id: 'a/b' })).model.baseUrl).toMatch(/\/api\/llm\/a%2Fb$/);
   });
 
-  it('keeps local inference separate from the server relay', () => {
-    const resolved = chatModelToPiModel(model({ provider: 'local', contextWindow: 4096 }));
-    expect(resolved.model.baseUrl).toBe('');
-    expect(resolved.model.provider).toBe('local');
-  });
-
-  it('rejects retired direct and web providers', () => {
-    for (const provider of ['openai', 'google', 'azure', 'web'] as const) {
+  it('rejects retired direct, web, and local providers', () => {
+    for (const provider of ['openai', 'google', 'azure', 'web', 'local'] as const) {
       expect(() => chatModelToPiModel(model({ provider }))).toThrow(
         'Unsupported remote model provider',
       );

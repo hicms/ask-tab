@@ -291,11 +291,11 @@ const runSessionJournal = async (options: SessionJournalOptions): Promise<Journa
       });
     }
 
-    // Best-effort transcript indexing — index conversation into memory search
+    // Best-effort transcript indexing — upload the conversation for memory search
     try {
-      const indexResult = await indexSessionTranscript(chatId, options.agentId);
-      if (indexResult.chunksCreated > 0) {
-        journalLog.debug('Transcript indexed', { chatId, chunks: indexResult.chunksCreated });
+      const indexResult = await indexSessionTranscript(chatId);
+      if (indexResult.indexed) {
+        journalLog.debug('Transcript indexed', { chatId });
       }
     } catch (err) {
       journalLog.debug('Transcript indexing skipped', {

@@ -1,8 +1,7 @@
-import { kokoroTtsProvider } from './kokoro';
 import { openaiTtsProvider } from './openai-tts';
 import type { TtsProviderImpl } from '../types';
 
-const PROVIDERS: TtsProviderImpl[] = [kokoroTtsProvider, openaiTtsProvider];
+const PROVIDERS: TtsProviderImpl[] = [openaiTtsProvider];
 
 const registry = new Map<string, TtsProviderImpl>();
 for (const p of PROVIDERS) registry.set(p.id, p);

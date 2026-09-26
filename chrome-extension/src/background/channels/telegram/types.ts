@@ -83,19 +83,6 @@ interface TgUpdate {
   message?: TgMessage;
 }
 
-interface TgGetMeResponse {
-  ok: boolean;
-  result?: TgUser;
-  description?: string;
-}
-
-interface TgGetUpdatesResponse {
-  ok: boolean;
-  result?: TgUpdate[];
-  description?: string;
-  parameters?: { retry_after?: number };
-}
-
 interface TgSendMessageResponse {
   ok: boolean;
   result?: TgMessage;
@@ -113,8 +100,6 @@ export type {
   TgFile,
   TgMessage,
   TgUpdate,
-  TgGetMeResponse,
-  TgGetUpdatesResponse,
   TgGetFileResponse,
   TgSendMessageResponse,
 };

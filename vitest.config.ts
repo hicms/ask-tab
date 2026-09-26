@@ -42,8 +42,6 @@ export default defineConfig({
         'chrome-extension/src/background/agents/model-adapter.ts',
         'chrome-extension/src/background/agents/model-compat.ts',
         'chrome-extension/src/background/agents/stream-bridge.ts',
-        // local-llm-bridge.ts excluded — Chrome runtime messaging IPC with offscreen document,
-        // covered with runtime mocks in local-llm-bridge.test.ts, not a real offscreen E2E.
 
         // Background — context
         'chrome-extension/src/background/context/compaction.ts',
@@ -77,11 +75,12 @@ export default defineConfig({
         'chrome-extension/src/background/channels/message-bridge.ts',
         'chrome-extension/src/background/channels/poller.ts',
         'chrome-extension/src/background/channels/config.ts',
+        'chrome-extension/src/background/channels/gateway.ts',
         'chrome-extension/src/background/channels/telegram/bot-api.ts',
 
         // Memory
-        'chrome-extension/src/background/memory/memory-search.ts',
-        'chrome-extension/src/background/memory/memory-chunker.ts',
+        'chrome-extension/src/background/memory/memory-service.ts',
+        'chrome-extension/src/background/memory/transcript-indexing.ts',
         'chrome-extension/src/background/memory/memory-journal.ts',
         'chrome-extension/src/background/memory/serialize-transcript.ts',
 

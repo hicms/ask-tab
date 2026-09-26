@@ -1,18 +1,12 @@
 import { createStorage, StorageEnum } from '../base/index.js';
 
 interface TtsConfig {
-  engine: 'off' | 'kokoro' | 'openai';
+  engine: 'off' | 'openai';
   autoMode: 'off' | 'always' | 'inbound';
   maxChars: number;
   summarize: boolean;
   summaryTimeout: number;
   chatUiAutoPlay: boolean;
-  kokoro: {
-    model: string;
-    voice: string;
-    speed: number;
-    adaptiveChunking: boolean;
-  };
   openai: {
     modelId: string;
     voice: string;
@@ -26,12 +20,6 @@ const defaultTtsConfig: TtsConfig = {
   summarize: true,
   summaryTimeout: 15000,
   chatUiAutoPlay: false,
-  kokoro: {
-    model: 'onnx-community/Kokoro-82M-v1.0-ONNX',
-    voice: 'af_heart',
-    speed: 1.0,
-    adaptiveChunking: true,
-  },
   openai: {
     modelId: '',
     voice: 'nova',

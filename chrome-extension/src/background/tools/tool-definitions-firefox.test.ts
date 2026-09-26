@@ -14,7 +14,6 @@ vi.mock('@extension/env', () => ({
   IS_DEV: false,
   IS_PROD: true,
   IS_CI: false,
-  WEBGPU_MODELS_ENABLED: false,
   default: {},
 }));
 
@@ -40,12 +39,6 @@ Object.defineProperty(globalThis, 'chrome', {
       create: vi.fn(),
       clear: vi.fn(() => Promise.resolve()),
       onAlarm: { addListener: vi.fn() },
-    },
-    offscreen: {
-      hasDocument: vi.fn(() => Promise.resolve(false)),
-      createDocument: vi.fn(() => Promise.resolve()),
-      closeDocument: vi.fn(() => Promise.resolve()),
-      Reason: { WORKERS: 'WORKERS' },
     },
     declarativeNetRequest: {
       getSessionRules: vi.fn(() => Promise.resolve([])),
@@ -102,20 +95,6 @@ vi.mock('../logging/logger-buffer', () => ({
     error: vi.fn(),
   }),
   configReady: Promise.resolve(),
-}));
-
-// ── Transitive dependency mocks ──
-vi.mock('../channels/config', () => ({
-  getChannelConfig: vi.fn(() => Promise.resolve(null)),
-  getChannelConfigs: vi.fn(() => Promise.resolve([])),
-  updateChannelConfig: vi.fn(() => Promise.resolve()),
-}));
-vi.mock('../channels/message-bridge', () => ({
-  handleChannelUpdates: vi.fn(() => Promise.resolve(undefined)),
-}));
-vi.mock('../channels/poller', () => ({
-  createPassiveAlarm: vi.fn(),
-  clearPassiveAlarm: vi.fn(() => Promise.resolve()),
 }));
 
 // The first dynamic import loads the whole tool registry and can exceed

@@ -1,5 +1,5 @@
 ---
-summary: "Remote models are published by the AskTab Rust service; local models run in the browser."
+summary: "Models are published by the AskTab Rust service and relayed through it."
 read_when:
   - Choosing a model
   - Understanding provider routing
@@ -18,8 +18,6 @@ Remote chat uses these protocols through the Rust relay:
 | Anthropic | `anthropic-messages` |
 
 The service stores each upstream model ID, Base URL, and API key, then publishes a public model ID to the extension. Import models using the six-column CSV format documented in the Rust service README. Custom OpenAI-compatible endpoints must support `/chat/completions` and standard streaming responses when streaming is needed. The service also publishes separate STT, TTS, and Embedding models. The extension has no upstream credential form.
-
-[Local models](/providers/local-llm) run on device with Transformers.js. They do not use the server relay for inference.
 
 | Setting | Meaning |
 |---|---|

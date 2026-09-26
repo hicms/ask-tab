@@ -100,38 +100,6 @@ interface DbChatModel {
   contextWindow?: number;
 }
 
-/** DB-level memory chunk for BM25 search */
-interface DbMemoryChunk {
-  id: string;
-  fileId: string;
-  filePath: string;
-  startLine: number;
-  endLine: number;
-  text: string;
-  fileUpdatedAt: number;
-  agentId?: string;
-  // ── Embedding support (v12) ──
-  contentHash?: string; // SHA-256 of chunk text
-  embedding?: number[]; // vector embedding (e.g. 1536 floats)
-  embeddingProvider?: string; // e.g. 'openai-compatible'
-  embeddingModel?: string; // e.g. 'text-embedding-3-small'
-  embeddingSpaceId?: string;
-  // ── Transcript indexing (v13) ──
-  chatId?: string; // Links transcript chunks to a chat session
-}
-
-/** Persistent embedding cache — avoids re-embedding unchanged text */
-interface DbEmbeddingCache {
-  id: string; // composite key: `${embeddingSpaceId}:${contentHash}`
-  provider: string;
-  model: string;
-  embeddingSpaceId: string;
-  contentHash: string; // SHA-256 of the text that was embedded
-  embedding: number[]; // the cached vector
-  dims: number; // vector length, for validation
-  updatedAt: number; // timestamp, for LRU eviction
-}
-
 /** Agent identity (avatar, theme, etc.) */
 interface AgentIdentity {
   name?: string;
@@ -238,10 +206,8 @@ const chatDb = new Dexie('asktab') as InstanceType<typeof Dexie> & {
   modelTranscripts: EntityTable<DbModelTranscript, 'chatId'>;
   artifacts: EntityTable<DbArtifact, 'id'>;
   workspaceFiles: EntityTable<DbWorkspaceFile, 'id'>;
-  memoryChunks: EntityTable<DbMemoryChunk, 'id'>;
   scheduledTasks: EntityTable<DbScheduledTask, 'id'>;
   taskRunLogs: EntityTable<DbTaskRunLog, 'id'>;
-  embeddingCache: EntityTable<DbEmbeddingCache, 'id'>;
   heartbeatState: EntityTable<DbHeartbeatState, 'agentId'>;
   heartbeatLocks: EntityTable<DbHeartbeatLock, 'agentId'>;
 };
@@ -253,10 +219,8 @@ chatDb.version(1).stores({
   modelTranscripts: 'chatId',
   artifacts: 'id, chatId',
   workspaceFiles: 'id, owner, agentId',
-  memoryChunks: 'id, fileId, filePath, agentId, chatId',
   scheduledTasks: 'id, enabled',
   taskRunLogs: 'id, taskId, timestamp',
-  embeddingCache: 'id, contentHash, updatedAt',
   heartbeatState: 'agentId, lastRunAtMs',
   heartbeatLocks: 'agentId, expiresAt',
 });
@@ -283,14 +247,12 @@ export type {
   DbArtifact,
   DbChatModel,
   DbWorkspaceFile,
-  DbMemoryChunk,
   AgentConfig,
   AgentIdentity,
   AgentModelConfig,
   CustomToolDef,
   DbScheduledTask,
   DbTaskRunLog,
-  DbEmbeddingCache,
   DbHeartbeatState,
   DbHeartbeatLock,
 };

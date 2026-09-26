@@ -14,6 +14,7 @@ interface ChannelInboundMessage {
   chatType: 'direct' | 'group';
   fromMe?: boolean;
   replyToId?: string;
+  /** Channel-specific handle passed to `ChannelAdapter.downloadMedia`. */
   mediaFileId?: string;
   mediaMimeType?: string;
 }
@@ -39,89 +40,26 @@ interface ChannelAdapter {
   readonly label: string;
   readonly maxMessageLength: number;
 
-  /** Validate credentials (bot token, session, etc.) */
-  validateAuth(): Promise<{ valid: boolean; identity?: string; error?: string }>;
-
   /** Send a text message */
   sendMessage(msg: ChannelOutboundMessage): Promise<ChannelSendResult>;
+
+  /** Download the audio attached to an inbound message (requires `mediaFileId`). */
+  downloadMedia(msg: ChannelInboundMessage): Promise<ArrayBuffer>;
 
   /** Get display name for a sender */
   formatSenderDisplay(msg: ChannelInboundMessage): string;
 }
 
-/** Channel config — stored per channel in chrome.storage.local */
+/**
+ * Local per-channel settings in chrome.storage.local. Connection state and
+ * credentials live on the AskTab server.
+ */
 interface ChannelConfig {
   channelId: string;
-  enabled: boolean;
   allowedSenderIds: string[];
-  lastPollOffset?: number;
-  status: 'idle' | 'active' | 'passive' | 'error';
-  lastError?: string;
-  lastActivityAt?: number;
   modelId?: string;
-  acceptFromMe?: boolean;
-  acceptFromOthers?: boolean;
-  credentials: Record<string, string>;
+  lastActivityAt?: number;
 }
-
-// F18: ChannelMeta is defined in @extension/shared — import from there, not duplicated here
-
-// ──────────────────────────────────────────────
-// Internal Message Protocol (Offscreen <-> SW)
-// ──────────────────────────────────────────────
-
-interface ChannelUpdatesMessage {
-  type: 'CHANNEL_UPDATES';
-  channelId: string;
-  updates: unknown[];
-}
-
-interface ChannelErrorMessage {
-  type: 'CHANNEL_ERROR';
-  channelId: string;
-  error: string;
-  retryable: boolean;
-}
-
-interface ChannelStartWorkerMessage {
-  type: 'CHANNEL_START_WORKER';
-  channelId: string;
-  offset?: number;
-  // F6: credentials removed — offscreen reads from storage to avoid broadcast exposure
-}
-
-interface ChannelStopWorkerMessage {
-  type: 'CHANNEL_STOP_WORKER';
-  channelId: string;
-}
-
-interface ChannelAckOffsetMessage {
-  type: 'CHANNEL_ACK_OFFSET';
-  channelId: string;
-  offset: number;
-}
-
-/** Options page -> SW messages */
-interface ChannelValidateAuthMessage {
-  type: 'CHANNEL_VALIDATE_AUTH';
-  channelId: string;
-  credentials: Record<string, string>;
-}
-
-interface ChannelToggleMessage {
-  type: 'CHANNEL_TOGGLE';
-  channelId: string;
-  enabled: boolean;
-}
-
-type ChannelMessage =
-  | ChannelUpdatesMessage
-  | ChannelErrorMessage
-  | ChannelStartWorkerMessage
-  | ChannelStopWorkerMessage
-  | ChannelAckOffsetMessage
-  | ChannelValidateAuthMessage
-  | ChannelToggleMessage;
 
 export type {
   ChannelInboundMessage,
@@ -129,12 +67,4 @@ export type {
   ChannelSendResult,
   ChannelAdapter,
   ChannelConfig,
-  ChannelUpdatesMessage,
-  ChannelErrorMessage,
-  ChannelStartWorkerMessage,
-  ChannelStopWorkerMessage,
-  ChannelAckOffsetMessage,
-  ChannelValidateAuthMessage,
-  ChannelToggleMessage,
-  ChannelMessage,
 };

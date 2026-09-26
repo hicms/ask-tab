@@ -1,10 +1,8 @@
-import { updateChannelConfig } from './config';
+import { sendWhatsAppAudio, setWhatsAppTyping } from './gateway';
 import {
   sendChatAction,
   sendHtmlMessage,
   editMessageText,
-  getFile,
-  downloadFile,
   setMessageReaction,
   removeMessageReaction,
   sendVoiceMessage,
@@ -12,7 +10,6 @@ import {
   formatTelegramHtml,
   MAX_TG_MESSAGE_LENGTH,
 } from './telegram/bot-api';
-import { sendAudioViaOffscreen } from './whatsapp/adapter';
 import { dbModelToChatModel, runAgent } from '../agents/agent-setup';
 import { chatMessagesToPiMessages, makeConvertToLlm } from '../agents/message-adapter';
 import {
@@ -24,7 +21,7 @@ import { createTransformContext } from '../context/transform';
 import { createLogger } from '../logging/logger-buffer';
 import { resolveTranscription } from '../media-understanding';
 import { getToolConfig, getImplementedToolNames } from '../tools';
-import { maybeApplyTtsBatchedStream } from '../tts';
+import { maybeApplyTts } from '../tts';
 import { createKeepAliveManager } from '../utils/keep-alive';
 import { IS_FIREFOX } from '@extension/env';
 import { buildSystemPrompt, resolveToolPromptHints, resolveToolListings } from '@extension/shared';
@@ -46,6 +43,7 @@ import {
 } from '@extension/storage';
 import { nanoid } from 'nanoid';
 import type { ChannelAdapter, ChannelConfig, ChannelInboundMessage } from './types';
+import type { TtsApplyResult } from '../tts';
 import type { ChatMessage, ChatModel } from '@extension/shared';
 import type { DbChat } from '@extension/storage';
 
@@ -173,14 +171,14 @@ const handleChannelMessageInner = async (
 
     const isTelegram = adapter.id === 'telegram';
     const isWhatsApp = adapter.id === 'whatsapp';
-    const botToken = isTelegram ? config.credentials.botToken : undefined;
-    const inboundMessageId = msg.channelMessageId ? Number(msg.channelMessageId) : undefined;
+    const inboundMessageId =
+      isTelegram && msg.channelMessageId ? Number(msg.channelMessageId) : undefined;
 
     try {
       // 0. React to the message to indicate receipt
-      if (isTelegram && botToken && inboundMessageId) {
+      if (inboundMessageId) {
         try {
-          await setMessageReaction(botToken, msg.channelChatId, inboundMessageId, '👀');
+          await setMessageReaction(msg.channelChatId, inboundMessageId, '👀');
         } catch {
           // Reactions may not be supported in all chats
         }
@@ -212,35 +210,28 @@ const handleChannelMessageInner = async (
 
       // 3. Start typing indicator
       let typingInterval: ReturnType<typeof setInterval> | undefined;
-      if (isTelegram && botToken) {
-        await sendChatAction(botToken, msg.channelChatId).catch(() => {});
+      if (isTelegram) {
+        await sendChatAction(msg.channelChatId).catch(() => {});
         typingInterval = setInterval(() => {
-          if (botToken) {
-            sendChatAction(botToken, msg.channelChatId).catch(() => {});
-          }
+          sendChatAction(msg.channelChatId).catch(() => {});
         }, TYPING_INTERVAL_MS);
       } else if (isWhatsApp) {
-        chrome.runtime
-          .sendMessage({ type: 'WA_SET_TYPING', jid: msg.channelChatId, isTyping: true })
-          .catch(() => {});
+        setWhatsAppTyping(msg.channelChatId, true).catch(() => {});
         typingInterval = setInterval(() => {
-          chrome.runtime
-            .sendMessage({ type: 'WA_SET_TYPING', jid: msg.channelChatId, isTyping: true })
-            .catch(() => {});
+          setWhatsAppTyping(msg.channelChatId, true).catch(() => {});
         }, TYPING_INTERVAL_MS);
       }
 
       try {
         // 4. Handle voice transcription if needed
         let userText = msg.body;
-        if (msg.mediaFileId && botToken) {
+        if (msg.mediaFileId) {
           channelLog.info('Voice message detected, transcribing', {
             fileId: msg.mediaFileId,
             mimeType: msg.mediaMimeType,
           });
           try {
-            const fileInfo = await getFile(botToken, msg.mediaFileId);
-            const audioBuffer = await downloadFile(botToken, fileInfo.filePath);
+            const audioBuffer = await adapter.downloadMedia(msg);
             let transcript: string;
             try {
               transcript = await resolveTranscription(
@@ -285,9 +276,6 @@ const handleChannelMessageInner = async (
         };
         await addMessage(userMessage);
         await touchChat(chat.id);
-
-        // R15: Update lastActivityAt so watchdog doesn't downgrade during LLM streaming
-        await updateChannelConfig(config.channelId, { lastActivityAt: Date.now() });
 
         // 5b. Show notification
         try {
@@ -388,25 +376,25 @@ const handleChannelMessageInner = async (
 
         // 10. Draft streaming state (Telegram only)
         let currentStepText = '';
-        const draft = isTelegram && botToken ? createDraftState() : null;
+        const draft = isTelegram ? createDraftState() : null;
         let draftPromise = Promise.resolve();
 
         /** Flush pending draft edits + send final text for the current turn.
          *  Callers must ensure prior draftPromise chain has resolved before calling. */
         const flushDraft = async (): Promise<void> => {
-          if (!draft || !botToken) return;
+          if (!draft) return;
 
           if (draft.sentMessageId && currentStepText !== draft.lastSentText) {
             // Final edit for current turn's message
             const editableText = currentStepText.slice(draft.currentMsgStartOffset);
             const html = formatTelegramHtml(editableText);
-            await editMessageText(botToken, msg.channelChatId, draft.sentMessageId, html).catch(
+            await editMessageText(msg.channelChatId, draft.sentMessageId, html).catch(
               (err: unknown) => channelLog.warn('Draft flush edit failed', { error: String(err) }),
             );
           } else if (!draft.sentMessageId && currentStepText.length > 0) {
             // Turn produced text too short for draft threshold — send it now
             const html = formatTelegramHtml(currentStepText);
-            await sendHtmlMessage(botToken, msg.channelChatId, html).catch((err: unknown) =>
+            await sendHtmlMessage(msg.channelChatId, html).catch((err: unknown) =>
               channelLog.warn('Draft flush send failed', { error: String(err) }),
             );
             draft.everSent = true;
@@ -428,9 +416,9 @@ const handleChannelMessageInner = async (
             broadcast({ type: 'CHANNEL_STREAM_CHUNK', chatId: chat.id, delta });
 
             // Draft streaming: send/edit message in Telegram as text accumulates
-            if (draft && botToken) {
+            if (draft) {
               draftPromise = draftPromise.then(() =>
-                updateDraft(draft, currentStepText, botToken, msg.channelChatId).then(() => {
+                updateDraft(draft, currentStepText, msg.channelChatId).then(() => {
                   if (draft.sentMessageId && typingInterval) {
                     clearInterval(typingInterval);
                     typingInterval = undefined;
@@ -542,50 +530,24 @@ const handleChannelMessageInner = async (
           }
         }
 
-        // 17. TTS voice reply — batched streaming (first-chunk-fast, non-fatal)
-        const shouldTts = (isTelegram && botToken) || isWhatsApp;
-        if (shouldTts) {
+        // 17. TTS voice reply (non-fatal)
+        if (isTelegram || isWhatsApp) {
           try {
-            const inboundHadAudio = !!msg.mediaFileId;
-            const ttsChatId = msg.channelChatId;
-
-            const sendTtsChunk = async (
-              chunk: {
-                audio: ArrayBuffer;
-                contentType: string;
-                voiceCompatible: boolean;
-                provider: string;
-              },
-              label: string,
-            ) => {
-              if (isTelegram && botToken) {
-                if (chunk.voiceCompatible) {
-                  await sendVoiceMessage(botToken, ttsChatId, chunk.audio);
-                } else {
-                  await sendAudioMessage(botToken, ttsChatId, chunk.audio, {
-                    contentType: chunk.contentType,
-                    filename: `reply.${chunk.contentType === 'audio/wav' ? 'wav' : 'audio'}`,
-                  });
-                }
-              } else if (isWhatsApp) {
-                await sendAudioViaOffscreen(ttsChatId, chunk.audio, chunk.voiceCompatible);
-              }
-              channelLog.info(`TTS ${label} sent`, {
-                channel: adapter.id,
-                provider: chunk.provider,
-                audioSize: chunk.audio.byteLength,
-                voiceCompatible: chunk.voiceCompatible,
-              });
-            };
-
-            await maybeApplyTtsBatchedStream({
+            const tts = await maybeApplyTts({
               text: result.responseText,
               config: ttsConfig,
-              inboundHadAudio,
+              inboundHadAudio: !!msg.mediaFileId,
               modelConfig: model,
-              onFirstChunk: chunk => sendTtsChunk(chunk, 'first chunk'),
-              onRemainder: chunk => sendTtsChunk(chunk, 'remainder'),
             });
+            if (tts) {
+              await sendVoiceReply(adapter.id, msg.channelChatId, tts);
+              channelLog.info('TTS voice reply sent', {
+                channel: adapter.id,
+                provider: tts.provider,
+                audioSize: tts.audio.byteLength,
+                voiceCompatible: tts.voiceCompatible,
+              });
+            }
           } catch (ttsErr) {
             // TTS failure is non-fatal — text reply was already sent
             channelLog.warn('TTS voice reply failed (non-fatal)', { error: String(ttsErr) });
@@ -593,9 +555,9 @@ const handleChannelMessageInner = async (
         }
 
         // 18. Remove the receipt reaction
-        if (isTelegram && botToken && inboundMessageId) {
+        if (inboundMessageId) {
           try {
-            await removeMessageReaction(botToken, msg.channelChatId, inboundMessageId);
+            await removeMessageReaction(msg.channelChatId, inboundMessageId);
           } catch {
             // Reaction removal may not be supported
           }
@@ -609,9 +571,7 @@ const handleChannelMessageInner = async (
         }
         // Clear WhatsApp composing indicator
         if (isWhatsApp) {
-          chrome.runtime
-            .sendMessage({ type: 'WA_SET_TYPING', jid: msg.channelChatId, isTyping: false })
-            .catch(() => {});
+          setWhatsAppTyping(msg.channelChatId, false).catch(() => {});
         }
       }
     } catch (err) {
@@ -628,8 +588,8 @@ const handleChannelMessageInner = async (
       }
 
       // Remove the receipt reaction on error path too
-      if (isTelegram && botToken && inboundMessageId) {
-        await removeMessageReaction(botToken, msg.channelChatId, inboundMessageId).catch(() => {});
+      if (inboundMessageId) {
+        await removeMessageReaction(msg.channelChatId, inboundMessageId).catch(() => {});
       }
     }
   } finally {
@@ -640,12 +600,7 @@ const handleChannelMessageInner = async (
 // ── Draft Streaming Helpers ─────────────────────
 
 /** Update the draft message in Telegram: send initial or edit existing */
-const updateDraft = async (
-  draft: DraftState,
-  stepText: string,
-  botToken: string,
-  chatId: string,
-): Promise<void> => {
+const updateDraft = async (draft: DraftState, stepText: string, chatId: string): Promise<void> => {
   const now = Date.now();
 
   if (!draft.sentMessageId) {
@@ -653,7 +608,7 @@ const updateDraft = async (
     if (stepText.length >= DRAFT_INITIAL_THRESHOLD) {
       const html = formatTelegramHtml(stepText);
       try {
-        const messageId = await sendHtmlMessage(botToken, chatId, html);
+        const messageId = await sendHtmlMessage(chatId, html);
         if (messageId) {
           draft.sentMessageId = messageId;
           draft.lastSentText = stepText;
@@ -679,7 +634,7 @@ const updateDraft = async (
     if (overflowText.length >= DRAFT_INITIAL_THRESHOLD) {
       const html = formatTelegramHtml(overflowText);
       try {
-        const messageId = await sendHtmlMessage(botToken, chatId, html);
+        const messageId = await sendHtmlMessage(chatId, html);
         if (messageId) {
           draft.sentMessageId = messageId;
           draft.lastSentText = stepText;
@@ -696,7 +651,7 @@ const updateDraft = async (
   // Normal edit — only send the portion for the current message
   const editHtml = formatTelegramHtml(currentMsgText);
   try {
-    await editMessageText(botToken, chatId, draft.sentMessageId, editHtml);
+    await editMessageText(chatId, draft.sentMessageId, editHtml);
     draft.lastSentText = stepText;
     draft.lastSentAt = now;
   } catch (err) {
@@ -705,6 +660,26 @@ const updateDraft = async (
     if (!errMsg.includes('not modified')) {
       channelLog.warn('Draft edit failed', { error: errMsg });
     }
+  }
+};
+
+/** Send synthesized speech as a voice note when the format allows, otherwise as audio. */
+const sendVoiceReply = async (
+  channelId: string,
+  chatId: string,
+  tts: TtsApplyResult,
+): Promise<void> => {
+  if (channelId === 'whatsapp') {
+    await sendWhatsAppAudio(chatId, tts.audio, tts.contentType, tts.voiceCompatible);
+    return;
+  }
+  if (tts.voiceCompatible) {
+    await sendVoiceMessage(chatId, tts.audio);
+  } else {
+    await sendAudioMessage(chatId, tts.audio, {
+      contentType: tts.contentType,
+      filename: `reply.${tts.contentType === 'audio/wav' ? 'wav' : 'audio'}`,
+    });
   }
 };
 

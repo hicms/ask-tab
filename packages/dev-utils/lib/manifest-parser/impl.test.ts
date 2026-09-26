@@ -2,7 +2,7 @@
  * Tests for manifest-parser/impl.ts — Firefox manifest conversion.
  *
  * These tests verify the current behavior AND the upcoming Firefox compatibility
- * changes (filtering offscreen/debugger permissions, removing oauth2).
+ * changes (filtering sidePanel/debugger permissions, removing oauth2).
  * Tests marked "Firefox compat" will fail until the implementation is updated.
  */
 import { ManifestParserImpl } from './impl.js';
@@ -23,7 +23,6 @@ const buildTestManifest = (overrides?: Partial<ManifestType>): ManifestType =>
       'sidePanel',
       'alarms',
       'debugger',
-      'offscreen',
       'identity',
       'declarativeNetRequest',
     ],
@@ -35,8 +34,7 @@ const buildTestManifest = (overrides?: Partial<ManifestType>): ManifestType =>
       default_path: 'side-panel/index.html',
     },
     content_security_policy: {
-      extension_pages:
-        "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; img-src 'self' https: data: blob:",
+      extension_pages: "script-src 'self'; object-src 'self'; img-src 'self' https: data: blob:",
     },
     oauth2: {
       client_id: 'test-client-id.apps.googleusercontent.com',
@@ -59,13 +57,12 @@ const parseResult = (manifest: ManifestType, isFirefox: boolean): Record<string,
   JSON.parse(ManifestParserImpl.convertManifestToString(manifest, isFirefox));
 
 describe('ManifestParserImpl — Firefox conversion', () => {
-  it('removes sidePanel, offscreen, and debugger from permissions', () => {
+  it('removes sidePanel and debugger from permissions', () => {
     const manifest = buildTestManifest();
     const result = parseResult(manifest, true);
     const permissions = result.permissions as string[];
 
     expect(permissions).not.toContain('sidePanel');
-    expect(permissions).not.toContain('offscreen');
     expect(permissions).not.toContain('debugger');
   });
 
@@ -129,7 +126,7 @@ describe('ManifestParserImpl — Firefox conversion', () => {
     const result = parseResult(manifest, true);
     const csp = result.content_security_policy as { extension_pages: string };
 
-    expect(csp.extension_pages).toBe("script-src 'self' 'wasm-unsafe-eval'; object-src 'self'");
+    expect(csp.extension_pages).toBe("script-src 'self'; object-src 'self'");
     expect(csp.extension_pages).not.toContain('img-src');
   });
 
@@ -157,7 +154,6 @@ describe('ManifestParserImpl — Chrome passthrough', () => {
     // Chrome keeps all permissions
     const permissions = result.permissions as string[];
     expect(permissions).toContain('sidePanel');
-    expect(permissions).toContain('offscreen');
     expect(permissions).toContain('debugger');
 
     // Chrome keeps oauth2

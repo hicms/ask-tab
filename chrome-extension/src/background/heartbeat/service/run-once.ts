@@ -15,7 +15,7 @@
 // orchestrator) owns lock acquisition, alarm scheduling, and retry.
 
 import { runHeadlessLLM, resolveDefaultModel, dbModelToChatModel } from '../../agents/agent-setup';
-import { getChannelConfigs } from '../../channels/config';
+import { findActiveChannel } from '../../channels/active-channel';
 import { getChannelAdapter } from '../../channels/registry';
 import { isWithinActiveHours } from '../active-hours';
 import { loadHeartbeatConfig } from '../config';
@@ -121,12 +121,8 @@ const deliverToChannel = async (
   let to: string | undefined;
 
   if (target === 'last') {
-    // Auto-resolve: pick first active channel with allowed senders
-    const configs = await getChannelConfigs();
-    const active = configs.find(
-      c => c.enabled && c.status !== 'idle' && c.allowedSenderIds.length > 0,
-    );
-    if (!active) return; // No active channel — silently skip
+    const active = await findActiveChannel();
+    if (!active) return;
     channelId = active.channelId;
     to = config.to ?? active.allowedSenderIds[0];
   } else {
@@ -136,7 +132,7 @@ const deliverToChannel = async (
 
   if (!channelId || !to) return;
 
-  const adapter = await getChannelAdapter(channelId);
+  const adapter = getChannelAdapter(channelId);
   if (!adapter) {
     log?.warn?.('heartbeat channel delivery: no adapter', { channelId });
     return;

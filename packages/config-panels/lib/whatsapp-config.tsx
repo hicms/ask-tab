@@ -1,3 +1,4 @@
+import { sendChannelMessage, STATUS_DOT_COLOR, useChannelState } from './use-channel-state';
 import { useT } from '@extension/i18n';
 import { diagnostics } from '@extension/shared/lib/diagnostics.js';
 import {
@@ -17,197 +18,181 @@ import {
   XIcon,
   CheckCircle2Icon,
   AlertCircleIcon,
-  LoaderIcon,
   QrCodeIcon,
 } from 'lucide-react';
 import { toCanvas } from 'qrcode';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ChannelStatus, ChannelView } from './use-channel-state';
+import type { MessageKeyType } from '@extension/i18n';
 
-interface WhatsAppChannelConfig {
-  channelId: string;
-  enabled: boolean;
-  allowedSenderIds: string[];
-  status: string;
-  lastError?: string;
-  lastActivityAt?: number;
-  modelId?: string;
-  acceptFromMe?: boolean;
-  acceptFromOthers?: boolean;
-  credentials: Record<string, string>;
+interface Direction {
+  acceptFromMe: boolean;
+  acceptFromOthers: boolean;
 }
 
-type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'logged_out';
+const STATUS_LABEL: Record<ChannelStatus, MessageKeyType> = {
+  disabled: 'common_disabled',
+  connecting: 'channels_statusConnecting',
+  pairing: 'whatsapp_connecting',
+  connected: 'whatsapp_connected',
+  logged_out: 'whatsapp_loggedOut',
+  error: 'channels_statusError',
+};
+
+/** The server runs a WhatsApp session for this account right now. */
+const isLive = (view: ChannelView | null): boolean =>
+  !!view &&
+  view.enabled &&
+  (view.status === 'connecting' || view.status === 'pairing' || view.status === 'connected');
+
+/** 12345@s.whatsapp.net → +12345 */
+const formatJid = (jid: string): string => `+${jid.split('@')[0]}`;
 
 const WhatsAppConfig = () => {
   const t = useT();
-  const [config, setConfig] = useState<WhatsAppChannelConfig | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
-  const [qrData, setQrData] = useState<string | null>(null);
+  const { config, view, setView, signedIn, loadError, saveConfig } = useChannelState('whatsapp');
+  const [direction, setDirection] = useState<Direction>({
+    acceptFromMe: true,
+    acceptFromOthers: false,
+  });
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [newUserId, setNewUserId] = useState('');
   const [saved, setSaved] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Load config on mount
+  const serverAcceptFromMe = view?.acceptFromMe;
+  const serverAcceptFromOthers = view?.acceptFromOthers;
   useEffect(() => {
-    chrome.runtime
-      .sendMessage({ type: 'CHANNEL_GET_CONFIG', channelId: 'whatsapp' })
-      .then((response: Record<string, unknown>) => {
-        const cfg = response.config as WhatsAppChannelConfig;
-        setConfig(cfg);
-        if (cfg.status === 'active') {
-          setConnectionStatus('connected');
-        } else if (cfg.status === 'error') {
-          setConnectionStatus('disconnected');
-        }
-      })
-      .catch(err => {
-        setLoadError(err instanceof Error ? err.message : t('whatsapp_loadFailed'));
-      });
-  }, [t]);
+    if (serverAcceptFromMe === undefined || serverAcceptFromOthers === undefined) return;
+    setDirection({ acceptFromMe: serverAcceptFromMe, acceptFromOthers: serverAcceptFromOthers });
+  }, [serverAcceptFromMe, serverAcceptFromOthers]);
 
-  // Listen for QR code and connection status messages from SW
+  useEffect(
+    () => () => {
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    },
+    [],
+  );
+
+  const qr = view?.status === 'pairing' ? view.qr : null;
   useEffect(() => {
-    const handler = (message: Record<string, unknown>) => {
-      if (message.type === 'WA_QR_CODE') {
-        setQrData(message.qr as string);
-        setConnectionStatus('connecting');
-      } else if (message.type === 'WA_CONNECTION_STATUS') {
-        const status = message.status as ConnectionStatus;
-        setConnectionStatus(status);
-        if (status === 'connected') {
-          setQrData(null); // Clear QR on successful connection
-          // Update local config status
-          setConfig(prev => (prev ? { ...prev, status: 'active' } : prev));
-        } else if (status === 'logged_out') {
-          setQrData(null);
-          setConfig(prev =>
-            prev ? { ...prev, status: 'error', lastError: 'Logged out — re-scan QR code' } : prev,
-          );
-        }
-      }
-    };
-
-    chrome.runtime.onMessage.addListener(handler);
-    return () => chrome.runtime.onMessage.removeListener(handler);
-  }, []);
-
-  // Render QR code to canvas when qrData changes
-  useEffect(() => {
-    if (!qrData || !canvasRef.current) return;
-
-    toCanvas(canvasRef.current, qrData, {
+    if (!qr || !canvasRef.current) return;
+    toCanvas(canvasRef.current, qr, {
       width: 256,
       margin: 2,
-      color: {
-        dark: '#000000',
-        light: '#ffffff',
-      },
-    }).catch((err: unknown) => {
-      diagnostics.error('QR render failed:', err);
-    });
-  }, [qrData]);
+      color: { dark: '#000000', light: '#ffffff' },
+    }).catch((err: unknown) => diagnostics.error('QR render failed:', err));
+  }, [qr]);
 
-  const triggerSaved = useCallback(() => {
+  const showSaved = useCallback(() => {
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
   }, []);
 
-  const doSave = useCallback(
-    async (cfg: WhatsAppChannelConfig) => {
-      try {
-        await chrome.runtime.sendMessage({
-          type: 'CHANNEL_SAVE_CONFIG',
+  const runAction = useCallback(async (action: () => Promise<void>, fallback: string) => {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await action();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : fallback);
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const connect = useCallback(async (next: Direction) => {
+    const result = await sendChannelMessage<{ view: ChannelView }>('CHANNEL_CONNECT', {
+      channelId: 'whatsapp',
+      ...next,
+    });
+    return result.view;
+  }, []);
+
+  const handleConnect = useCallback(
+    () =>
+      runAction(async () => {
+        // A disabled but still linked account resumes its session; anything else links anew.
+        if (view && !view.enabled && view.identity) {
+          let next = (
+            await sendChannelMessage<{ view: ChannelView }>('CHANNEL_SET_ENABLED', {
+              channelId: 'whatsapp',
+              enabled: true,
+            })
+          ).view;
+          if (
+            next.acceptFromMe !== direction.acceptFromMe ||
+            next.acceptFromOthers !== direction.acceptFromOthers
+          ) {
+            next = await connect(direction);
+          }
+          setView(next);
+          return;
+        }
+        setView(await connect(direction));
+      }, t('whatsapp_connectionFailed')),
+    [connect, direction, runAction, setView, t, view],
+  );
+
+  const handleDisconnect = useCallback(
+    () =>
+      runAction(async () => {
+        const result = await sendChannelMessage<{ view: ChannelView }>('CHANNEL_SET_ENABLED', {
           channelId: 'whatsapp',
-          config: {
-            credentials: {},
-            allowedSenderIds: cfg.allowedSenderIds,
-            modelId: cfg.modelId,
-            acceptFromMe: cfg.acceptFromMe,
-            acceptFromOthers: cfg.acceptFromOthers,
-          },
+          enabled: false,
         });
-        triggerSaved();
+        setView(result.view);
+      }, t('whatsapp_disconnectFailed')),
+    [runAction, setView, t],
+  );
+
+  const handleUnlink = useCallback(
+    () =>
+      runAction(async () => {
+        await sendChannelMessage('CHANNEL_REMOVE', { channelId: 'whatsapp' });
+        setView(null);
+      }, t('whatsapp_disconnectFailed')),
+    [runAction, setView, t],
+  );
+
+  const handleDirectionChange = useCallback(
+    (patch: Partial<Direction>) => {
+      const next = { ...direction, ...patch };
+      setDirection(next);
+      // Only a running session accepts direction changes; otherwise they apply on connect.
+      if (!isLive(view)) return;
+      void runAction(async () => {
+        setView(await connect(next));
+        showSaved();
+      }, t('whatsapp_saveFailed'));
+    },
+    [connect, direction, runAction, setView, showSaved, t, view],
+  );
+
+  const updateAllowedSenders = useCallback(
+    async (allowedSenderIds: string[]) => {
+      if (!config) return;
+      try {
+        await saveConfig({ ...config, allowedSenderIds });
+        showSaved();
       } catch (err) {
         setActionError(err instanceof Error ? err.message : t('whatsapp_saveFailed'));
       }
     },
-    [t, triggerSaved],
+    [config, saveConfig, showSaved, t],
   );
-
-  const handleConnect = useCallback(async () => {
-    setActionError(null);
-    try {
-      // Save config first (allowlist)
-      if (config) {
-        await doSave(config);
-      }
-
-      // Enable the channel — this starts the offscreen document with Baileys
-      await chrome.runtime.sendMessage({
-        type: 'CHANNEL_TOGGLE',
-        channelId: 'whatsapp',
-        enabled: true,
-      });
-
-      setConnectionStatus('connecting');
-      setConfig(prev => (prev ? { ...prev, enabled: true } : prev));
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : t('whatsapp_connectionFailed'));
-    }
-  }, [config, doSave, t]);
-
-  const handleDisconnect = useCallback(async () => {
-    setActionError(null);
-    try {
-      await chrome.runtime.sendMessage({
-        type: 'CHANNEL_TOGGLE',
-        channelId: 'whatsapp',
-        enabled: false,
-      });
-
-      setConnectionStatus('disconnected');
-      setQrData(null);
-      setConfig(prev => (prev ? { ...prev, enabled: false, status: 'idle' } : prev));
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : t('whatsapp_disconnectFailed'));
-    }
-  }, [t]);
 
   const handleAddUserId = useCallback(() => {
     const trimmed = newUserId.trim();
-    if (!trimmed || !config) return;
-    // WhatsApp phone numbers: accept digits, optionally with + prefix
-    if (!/^\+?\d{7,15}$/.test(trimmed)) return;
-    // Store as JID format: number@s.whatsapp.net
-    const jid = trimmed.replace(/^\+/, '') + '@s.whatsapp.net';
+    if (!config || !/^\+?\d{7,15}$/.test(trimmed)) return;
+    const jid = `${trimmed.replace(/^\+/, '')}@s.whatsapp.net`;
     if (config.allowedSenderIds.includes(jid)) return;
-
-    const updated = { ...config, allowedSenderIds: [...config.allowedSenderIds, jid] };
-    setConfig(updated);
     setNewUserId('');
-    doSave(updated);
-  }, [newUserId, config, doSave]);
-
-  const handleRemoveUserId = useCallback(
-    (id: string) => {
-      if (!config) return;
-      const updated = {
-        ...config,
-        allowedSenderIds: config.allowedSenderIds.filter(s => s !== id),
-      };
-      setConfig(updated);
-      doSave(updated);
-    },
-    [config, doSave],
-  );
-
-  /** Format a JID for display: 12345@s.whatsapp.net → +12345 */
-  const formatJid = (jid: string): string => {
-    const num = jid.split('@')[0];
-    return `+${num}`;
-  };
+    void updateAllowedSenders([...config.allowedSenderIds, jid]);
+  }, [config, newUserId, updateAllowedSenders]);
 
   if (loadError) {
     return (
@@ -223,20 +208,8 @@ const WhatsAppConfig = () => {
 
   if (!config) return null;
 
-  const statusColor: Record<string, string> = {
-    idle: 'bg-gray-400',
-    passive: 'bg-yellow-400',
-    active: 'bg-green-400',
-    error: 'bg-red-400',
-  };
-
-  const statusLabel: Record<ConnectionStatus, string> = {
-    disconnected: t('whatsapp_disconnected'),
-    connecting: t('whatsapp_connecting'),
-    connected: t('whatsapp_connected'),
-    reconnecting: t('whatsapp_reconnecting'),
-    logged_out: t('whatsapp_loggedOut'),
-  };
+  const live = isLive(view);
+  const statusText = view ? t(STATUS_LABEL[view.status]) : t('channels_statusNotConnected');
 
   return (
     <Card>
@@ -245,72 +218,89 @@ const WhatsAppConfig = () => {
           <MessageCircleIcon className="h-5 w-5 text-green-500" />
           <CardTitle>{t('whatsapp_title')}</CardTitle>
           <div
-            className={`h-2.5 w-2.5 rounded-full ${statusColor[config.status] ?? 'bg-gray-400'}`}
-            title={`Status: ${config.status}`}
+            data-testid="wa-status-dot"
+            className={`h-2.5 w-2.5 rounded-full ${view ? STATUS_DOT_COLOR[view.status] : 'bg-gray-400'}`}
+            title={statusText}
           />
         </div>
         <CardDescription>{t('whatsapp_description')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Connection Status */}
-        <div className="flex items-center justify-between">
+        {!signedIn && (
+          <p
+            data-testid="wa-sign-in-required"
+            className="text-sm text-amber-600 dark:text-amber-400">
+            {t('channels_signInRequired')}
+          </p>
+        )}
+
+        <div className="flex items-center justify-between gap-2">
           <div className="space-y-0.5">
             <Label>{t('whatsapp_connection')}</Label>
-            <p className="text-muted-foreground text-xs">{statusLabel[connectionStatus]}</p>
+            <p data-testid="wa-status-text" className="text-muted-foreground text-xs">
+              {view?.identity && <span className="mr-1 font-medium">{view.identity}</span>}
+              {statusText}
+            </p>
           </div>
-          {!config.enabled ||
-          connectionStatus === 'disconnected' ||
-          connectionStatus === 'logged_out' ? (
-            <Button
-              onClick={handleConnect}
-              disabled={config.allowedSenderIds.length === 0}
-              variant="default"
-              size="sm">
-              {t('whatsapp_connect')}
-            </Button>
-          ) : (
-            <Button onClick={handleDisconnect} variant="outline" size="sm">
-              {t('whatsapp_disconnect')}
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {live ? (
+              <Button
+                data-testid="wa-disconnect-btn"
+                onClick={handleDisconnect}
+                disabled={busy}
+                variant="outline"
+                size="sm">
+                {t('whatsapp_disconnect')}
+              </Button>
+            ) : (
+              <Button
+                data-testid="wa-connect-btn"
+                onClick={handleConnect}
+                disabled={!signedIn || busy}
+                variant="default"
+                size="sm">
+                {t('whatsapp_connect')}
+              </Button>
+            )}
+            {view && (
+              <Button
+                data-testid="wa-unlink-btn"
+                onClick={handleUnlink}
+                disabled={busy}
+                variant="outline"
+                size="sm">
+                {t('whatsapp_unlink')}
+              </Button>
+            )}
+          </div>
         </div>
 
-        {/* QR Code Display */}
-        {qrData && (connectionStatus === 'connecting' || connectionStatus === 'reconnecting') && (
+        {qr && (
           <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed p-4">
             <div className="flex items-center gap-2 text-sm font-medium">
               <QrCodeIcon className="h-4 w-4" />
               {t('whatsapp_scanQr')}
             </div>
-            <canvas ref={canvasRef} className="rounded-md" />
+            <canvas data-testid="wa-qr-canvas" ref={canvasRef} className="rounded-md" />
             <p className="text-muted-foreground text-center text-xs">
               {t('whatsapp_scanInstructions')}
             </p>
           </div>
         )}
 
-        {/* Connected indicator */}
-        {connectionStatus === 'connected' && (
+        {view?.enabled && view.status === 'connected' && (
           <div className="flex items-center gap-2 rounded-md bg-green-50 p-3 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-400">
             <CheckCircle2Icon className="h-4 w-4" />
             {t('whatsapp_connectedMsg')}
           </div>
         )}
 
-        {/* Reconnecting indicator */}
-        {connectionStatus === 'reconnecting' && (
-          <div className="flex items-center gap-2 rounded-md bg-yellow-50 p-3 text-sm text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400">
-            <LoaderIcon className="h-4 w-4 animate-spin" />
-            {t('whatsapp_reconnectingMsg')}
-          </div>
-        )}
-
-        {/* Allowed Phone Numbers */}
         <div className="space-y-2">
           <Label>{t('whatsapp_allowedNumbers')}</Label>
           <p className="text-muted-foreground text-xs">{t('whatsapp_numbersHint')}</p>
           <div className="flex gap-2">
             <Input
+              data-testid="wa-number-input"
               placeholder="e.g. +1234567890"
               value={newUserId}
               onChange={e => setNewUserId(e.target.value)}
@@ -318,20 +308,23 @@ const WhatsAppConfig = () => {
               className="flex-1"
             />
             <Button
+              data-testid="wa-add-number-btn"
               onClick={handleAddUserId}
-              disabled={!newUserId.trim() || !/^\+?\d{7,15}$/.test(newUserId.trim())}
+              disabled={!/^\+?\d{7,15}$/.test(newUserId.trim())}
               variant="outline"
               size="sm">
               <PlusIcon className="h-4 w-4" />
             </Button>
           </div>
-          {config.allowedSenderIds.length > 0 && (
+          {config.allowedSenderIds.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 pt-1">
               {config.allowedSenderIds.map(id => (
                 <Badge key={id} variant="secondary" className="gap-1">
                   {formatJid(id)}
                   <button
-                    onClick={() => handleRemoveUserId(id)}
+                    onClick={() =>
+                      void updateAllowedSenders(config.allowedSenderIds.filter(s => s !== id))
+                    }
                     className="hover:text-destructive ml-0.5"
                     type="button">
                     <XIcon className="h-3 w-3" />
@@ -339,41 +332,33 @@ const WhatsAppConfig = () => {
                 </Badge>
               ))}
             </div>
-          )}
-          {config.allowedSenderIds.length === 0 && (
+          ) : (
             <p className="text-xs text-amber-600 dark:text-amber-400">{t('whatsapp_noNumbers')}</p>
           )}
         </div>
 
-        {/* Message Direction */}
         <div className="space-y-2">
           <Label>{t('whatsapp_messageDirection')}</Label>
           <p className="text-muted-foreground text-xs">{t('whatsapp_directionHint')}</p>
           <div className="space-y-2 pt-1">
             <label htmlFor="wa-accept-from-me" className="flex items-center gap-2 text-sm">
               <input
-                checked={config.acceptFromMe ?? true}
+                checked={direction.acceptFromMe}
                 className="accent-primary size-4"
+                disabled={busy}
                 id="wa-accept-from-me"
-                onChange={e => {
-                  const updated = { ...config, acceptFromMe: e.target.checked };
-                  setConfig(updated);
-                  doSave(updated);
-                }}
+                onChange={e => handleDirectionChange({ acceptFromMe: e.target.checked })}
                 type="checkbox"
               />
               {t('whatsapp_processMyMessages')}
             </label>
             <label htmlFor="wa-accept-from-others" className="flex items-center gap-2 text-sm">
               <input
-                checked={config.acceptFromOthers ?? false}
+                checked={direction.acceptFromOthers}
                 className="accent-primary size-4"
+                disabled={busy}
                 id="wa-accept-from-others"
-                onChange={e => {
-                  const updated = { ...config, acceptFromOthers: e.target.checked };
-                  setConfig(updated);
-                  doSave(updated);
-                }}
+                onChange={e => handleDirectionChange({ acceptFromOthers: e.target.checked })}
                 type="checkbox"
               />
               {t('whatsapp_processOthers')}
@@ -381,20 +366,20 @@ const WhatsAppConfig = () => {
           </div>
         </div>
 
-        {/* Error display */}
-        {config.status === 'error' && config.lastError && (
+        {view?.lastError && (
           <div className="rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
             <div className="flex items-center gap-1">
               <AlertCircleIcon className="h-3.5 w-3.5" />
-              <strong>Error:</strong>
+              <strong>{t('channels_statusError')}:</strong>
             </div>
-            <span className="ml-5">{config.lastError}</span>
+            <span className="ml-5">{view.lastError}</span>
           </div>
         )}
 
-        {/* Action error */}
         {actionError && (
-          <p className="flex items-center gap-1 text-sm text-red-600 dark:text-red-400">
+          <p
+            data-testid="wa-action-error"
+            className="flex items-center gap-1 text-sm text-red-600 dark:text-red-400">
             <AlertCircleIcon className="h-3.5 w-3.5" />
             {actionError}
           </p>

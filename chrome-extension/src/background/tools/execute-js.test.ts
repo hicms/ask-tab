@@ -6,12 +6,29 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // ---------------------------------------------------------------------------
 
 const SANDBOX_TAB_ID = 999;
+const SANDBOX_TARGET_ID = 'offscreen-sandbox';
+let sandboxExists = false;
 
 // In Node.js, `window` is not defined but the console capture code uses it.
 // Set window = globalThis so `window.__cc`, `window.__cl`, `window.__modules` work.
 vi.stubGlobal('window', globalThis);
 
-const tabsOnRemovedListeners: Array<(tabId: number) => void> = [];
+const mockOffscreenCreate = vi.fn(async () => {
+  sandboxExists = true;
+});
+const mockDebuggerGetTargets = vi.fn(async () =>
+  sandboxExists
+    ? [
+        {
+          id: SANDBOX_TARGET_ID,
+          url: 'chrome-extension://test-id/sandbox.html',
+          type: 'background_page',
+          attached: false,
+          title: 'sandbox',
+        },
+      ]
+    : [],
+);
 
 /**
  * CDP mock: for Runtime.evaluate, delegate to `new Function()` in Node.js
@@ -73,6 +90,7 @@ Object.defineProperty(globalThis, 'chrome', {
       attach: mockDebuggerAttach,
       detach: mockDebuggerDetach,
       sendCommand: mockDebuggerSendCommand,
+      getTargets: mockDebuggerGetTargets,
       onDetach: { addListener: vi.fn(), removeListener: vi.fn() },
       onEvent: { addListener: vi.fn(), removeListener: vi.fn() },
     },
@@ -81,12 +99,8 @@ Object.defineProperty(globalThis, 'chrome', {
       get: mockTabsGet,
       remove: mockTabsRemove,
       query: mockTabsQuery,
-      onRemoved: {
-        addListener: (fn: (tabId: number) => void) => {
-          tabsOnRemovedListeners.push(fn);
-        },
-      },
     },
+    offscreen: { createDocument: mockOffscreenCreate },
     runtime: {
       getURL: (path: string) => `chrome-extension://test-id/${path}`,
       lastError: undefined as { message: string } | undefined,
@@ -149,6 +163,7 @@ beforeEach(async () => {
   await seedTestAgent();
   _resetSandbox();
   vi.clearAllMocks();
+  sandboxExists = false;
 
   // Clean up globals set by console capture and module registry
   Reflect.deleteProperty(globalThis, '__cc');
@@ -159,8 +174,12 @@ beforeEach(async () => {
 // ── executeCode ─────────────────────────────────
 
 describe('executeCode', () => {
-  it('terminates a stopped sandbox script and allows another execution', async () => {
+  it('terminates a stopped script, closes its hidden runtime, and allows another execution', async () => {
     const controller = new AbortController();
+    const closeDocument = vi.fn(async () => {
+      sandboxExists = false;
+    });
+    Object.assign(chrome.offscreen, { closeDocument });
     const running = executeCode(
       'return new Promise(() => {})',
       undefined,
@@ -179,22 +198,21 @@ describe('executeCode', () => {
     controller.abort();
     await expect(running).rejects.toThrow();
     expect(mockDebuggerSendCommand).toHaveBeenCalledWith(
-      { tabId: SANDBOX_TAB_ID },
+      { targetId: SANDBOX_TARGET_ID },
       'Runtime.terminateExecution',
       {},
       expect.any(Function),
     );
-    expect(mockTabsRemove).toHaveBeenCalledWith(SANDBOX_TAB_ID);
+    expect(closeDocument).toHaveBeenCalledOnce();
     expect(await executeCode('return 42')).toBe('42');
   });
 
-  it('does not create a sandbox for an already stopped command', async () => {
+  it('does not create a sandbox for an already cancelled command', async () => {
     await expect(
       executeCode('return 42', undefined, undefined, undefined, undefined, AbortSignal.abort()),
     ).rejects.toThrow();
-    expect(mockTabsCreate).not.toHaveBeenCalled();
+    expect(mockOffscreenCreate).not.toHaveBeenCalled();
   });
-
   it('executes simple JS and returns result', async () => {
     const result = await executeCode('return 2 + 2');
     expect(result).toBe('4');
@@ -237,71 +255,92 @@ describe('executeCode', () => {
   });
 });
 
-// ── Sandbox tab lifecycle ───────────────────────
+// ── Hidden sandbox lifecycle ────────────────────
 
-describe('sandbox tab lifecycle', () => {
-  it('creates sandbox tab on first call', async () => {
-    await executeCode('return 1');
-    expect(mockTabsCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ url: expect.stringContaining('sandbox.html'), active: false }),
+describe('hidden sandbox lifecycle', () => {
+  it('executes in an offscreen target without creating a browser tab', async () => {
+    expect(await executeCode('return 42')).toBe('42');
+    expect(mockOffscreenCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ url: 'sandbox.html' }),
     );
-    expect(mockDebuggerAttach).toHaveBeenCalled();
-  });
-
-  it('reuses sandbox tab on subsequent calls', async () => {
-    await executeCode('return 1');
-    await executeCode('return 2');
-    // Only one tab.create call
-    expect(mockTabsCreate).toHaveBeenCalledTimes(1);
-  });
-
-  it('creates new sandbox tab if previous one was closed', async () => {
-    await executeCode('return 1');
-    expect(mockTabsCreate).toHaveBeenCalledTimes(1);
-
-    // Simulate tab closed: tabs.get rejects once, then succeeds
-    mockTabsGet.mockRejectedValueOnce(new Error('No tab with id'));
-
-    await executeCode('return 3');
-    expect(mockTabsCreate).toHaveBeenCalledTimes(2);
-  });
-
-  it('handles CDP attach error', async () => {
-    // Make tabs.query return no orphans so it falls through to create
-    mockTabsQuery.mockResolvedValueOnce([]);
-    mockDebuggerAttach.mockImplementationOnce(
-      (_target: unknown, _version: string, cb: () => void) => {
-        chrome.runtime.lastError = {
-          message: 'Cannot access tab',
-        } as typeof chrome.runtime.lastError;
-        cb();
-        chrome.runtime.lastError = undefined as unknown as typeof chrome.runtime.lastError;
-      },
-    );
-
-    // Reset sandbox state by simulating tab removal
-    for (const listener of tabsOnRemovedListeners) {
-      listener(SANDBOX_TAB_ID);
-    }
-
-    await expect(executeCode('return 1')).rejects.toThrow('Cannot access tab');
-  });
-
-  it('reuses orphan sandbox tab from previous SW lifecycle', async () => {
-    const ORPHAN_TAB_ID = 777;
-    // Return an existing sandbox tab from tabs.query
-    mockTabsQuery.mockResolvedValueOnce([{ id: ORPHAN_TAB_ID } as chrome.tabs.Tab]);
-
-    await executeCode('return 42');
-
-    // Should NOT have called tabs.create since it reused the orphan
-    expect(mockTabsCreate).not.toHaveBeenCalled();
-    // Should have attached to the orphan tab
     expect(mockDebuggerAttach).toHaveBeenCalledWith(
-      { tabId: ORPHAN_TAB_ID },
+      { targetId: SANDBOX_TARGET_ID },
       '1.3',
       expect.any(Function),
     );
+    expect(mockTabsCreate).not.toHaveBeenCalled();
+  });
+
+  it('reuses the document and modules across calls and worker restarts', async () => {
+    await executeCode('return {value: 42}', undefined, undefined, undefined, 'saved');
+    _resetSandbox();
+    expect(await executeCode('return window.__modules.saved.value')).toBe('42');
+    expect(mockOffscreenCreate).toHaveBeenCalledTimes(1);
+    expect(mockTabsCreate).not.toHaveBeenCalled();
+  });
+
+  it('creates only one document for concurrent first calls', async () => {
+    expect(await Promise.all([executeCode('return 1'), executeCode('return 2')])).toEqual([
+      '1',
+      '2',
+    ]);
+    expect(mockOffscreenCreate).toHaveBeenCalledTimes(1);
+    expect(mockTabsCreate).not.toHaveBeenCalled();
+  });
+
+  it('recreates a discarded hidden document without opening a tab', async () => {
+    await executeCode('return 1');
+    sandboxExists = false;
+    expect(await executeCode('return 2')).toBe('2');
+    expect(mockOffscreenCreate).toHaveBeenCalledTimes(2);
+    expect(mockTabsCreate).not.toHaveBeenCalled();
+  });
+
+  it('reports creation failure and allows a later retry without a visible fallback', async () => {
+    mockOffscreenCreate.mockRejectedValueOnce(new Error('Offscreen unavailable'));
+    await expect(executeCode('return 1')).rejects.toThrow('Offscreen unavailable');
+    expect(await executeCode('return 2')).toBe('2');
+    expect(mockTabsCreate).not.toHaveBeenCalled();
+  });
+
+  it('does not replace the document or close legacy tabs when attaching fails', async () => {
+    mockDebuggerAttach.mockImplementationOnce((_target, _version, cb) => {
+      chrome.runtime.lastError = { message: 'Cannot access target' };
+      cb();
+      chrome.runtime.lastError = undefined;
+    });
+    await expect(executeCode('return 1')).rejects.toThrow('Cannot access target');
+    expect(mockTabsRemove).not.toHaveBeenCalled();
+    expect(await executeCode('return 2')).toBe('2');
+    expect(mockOffscreenCreate).toHaveBeenCalledTimes(1);
+    expect(mockTabsCreate).not.toHaveBeenCalled();
+  });
+
+  it('removes legacy sandbox tabs after successful initialization', async () => {
+    mockTabsQuery.mockResolvedValueOnce([{ id: 777 }, { id: 778 }] as chrome.tabs.Tab[]);
+    mockTabsGet.mockResolvedValueOnce({
+      id: 777,
+      url: 'chrome-extension://test-id/sandbox.html',
+    } as chrome.tabs.Tab);
+    mockTabsGet.mockResolvedValueOnce({
+      id: 778,
+      url: 'chrome-extension://test-id/sandbox.html',
+    } as chrome.tabs.Tab);
+    expect(await executeCode('return 1')).toBe('1');
+    expect(mockTabsRemove.mock.calls).toEqual([[777], [778]]);
+    expect(mockTabsCreate).not.toHaveBeenCalled();
+  });
+
+  it('keeps legacy tabs that have navigated or are navigating elsewhere', async () => {
+    mockTabsQuery.mockResolvedValueOnce([{ id: 777 }, { id: 778 }] as chrome.tabs.Tab[]);
+    mockTabsGet.mockResolvedValueOnce({ id: 777, url: 'https://example.com' } as chrome.tabs.Tab);
+    mockTabsGet.mockResolvedValueOnce({
+      id: 778,
+      url: 'chrome-extension://test-id/sandbox.html',
+      pendingUrl: 'https://example.com',
+    } as chrome.tabs.Tab);
+    await executeCode('return 1');
+    expect(mockTabsRemove).not.toHaveBeenCalled();
   });
 });
 
@@ -807,8 +846,9 @@ describe('target tab (tabId)', () => {
       '1.3',
       expect.any(Function),
     );
-    // Should NOT have created a sandbox tab
+    // Page execution must not create a hidden document either
     expect(mockTabsCreate).not.toHaveBeenCalled();
+    expect(mockOffscreenCreate).not.toHaveBeenCalled();
   });
 
   it('throws error when tab not found', async () => {

@@ -2,7 +2,6 @@ import type { dynamicEnvValues } from './index.js';
 
 interface ICebEnv {
   readonly CEB_GOOGLE_CLIENT_ID: string;
-  readonly CEB_ENABLE_WEBGPU_MODELS: string;
   readonly CEB_DEV_LOCALE: string;
   readonly CEB_CI: string;
   readonly CEB_ASK_SERVICE_URL_DEVELOPMENT: string;

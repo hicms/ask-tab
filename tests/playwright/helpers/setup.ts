@@ -1,6 +1,23 @@
 import { expect } from '@playwright/test';
 import type { BrowserContext, Page } from '@playwright/test';
 
+interface MockTelegramView {
+  channel: 'telegram';
+  enabled: boolean;
+  status: string;
+  identity: string | null;
+  lastError: string | null;
+  qr: null;
+  acceptFromMe: boolean;
+  acceptFromOthers: boolean;
+}
+
+const json = (status: number, body: unknown) => ({
+  status,
+  contentType: 'application/json',
+  body: JSON.stringify(body),
+});
+
 /**
  * Waits for the extension page to finish loading React.
  * Resolves once either the FirstRunSetup or Chat UI is visible.
@@ -164,43 +181,56 @@ export const openChannelsTab = async (page: Page, extensionId: string) => {
 };
 
 /**
- * Mock Telegram Bot API responses at the network level for E2E tests.
- * Intercepts fetch calls to api.telegram.org from the service worker.
+ * Mock the AskTab server channel endpoints for E2E tests.
+ * Returns a mutable state handle so tests can inspect or steer the fake server.
  */
-export const mockTelegramApi = async (
-  context: BrowserContext,
-  overrides?: { valid?: boolean; username?: string },
-) => {
-  const { valid = true, username = 'test_e2e_bot' } = overrides ?? {};
+export const mockChannelApi = async (context: BrowserContext, username = 'test_e2e_bot') => {
+  const state = {
+    telegramView: null as MockTelegramView | null,
+    failConnect: false,
+  };
 
-  // Mock getMe (validate)
-  await context.route('**/api.telegram.org/**/getMe', route =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(
-        valid
-          ? { ok: true, result: { id: 99999, is_bot: true, first_name: 'TestBot', username } }
-          : { ok: false, description: 'Unauthorized' },
-      ),
-    }),
+  await context.route(/\/api\/channels\/updates/, route =>
+    route.fulfill(json(200, route.request().method() === 'GET' ? [] : { ok: true })),
   );
 
-  // Mock getUpdates (polling — return empty)
-  await context.route('**/api.telegram.org/**/getUpdates**', route =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ ok: true, result: [] }),
-    }),
+  await context.route(/\/api\/channels\/telegram\/bot\//, route =>
+    route.fulfill(json(200, { ok: true, result: true })),
   );
 
-  // Mock setMyCommands (enable channel)
-  await context.route('**/api.telegram.org/**/setMyCommands', route =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ ok: true, result: true }),
-    }),
+  await context.route(/\/api\/channels\/telegram\/enabled$/, async route => {
+    if (!state.telegramView) return route.fulfill(json(404, { error: 'Not connected' }));
+    const { enabled } = JSON.parse(route.request().postData() ?? '{}') as { enabled: boolean };
+    state.telegramView = { ...state.telegramView, enabled };
+    return route.fulfill(json(200, state.telegramView));
+  });
+
+  await context.route(/\/api\/channels\/telegram$/, route => {
+    const method = route.request().method();
+    if (method === 'PUT') {
+      if (state.failConnect) return route.fulfill(json(400, { error: 'Invalid bot token' }));
+      state.telegramView = {
+        channel: 'telegram',
+        enabled: true,
+        status: 'connected',
+        identity: `@${username}`,
+        lastError: null,
+        qr: null,
+        acceptFromMe: false,
+        acceptFromOthers: true,
+      };
+      return route.fulfill(json(200, state.telegramView));
+    }
+    if (method === 'DELETE') {
+      state.telegramView = null;
+      return route.fulfill(json(200, { ok: true }));
+    }
+    return route.fallback();
+  });
+
+  await context.route(/\/api\/channels$/, route =>
+    route.fulfill(json(200, state.telegramView ? [state.telegramView] : [])),
   );
+
+  return state;
 };

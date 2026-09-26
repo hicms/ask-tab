@@ -34,7 +34,7 @@ vi.mock('./serialize-transcript', () => ({
 }));
 
 vi.mock('./transcript-indexing', () => ({
-  indexSessionTranscript: vi.fn(async () => ({ chunksCreated: 0 })),
+  indexSessionTranscript: vi.fn(async () => ({ indexed: false })),
 }));
 
 vi.mock('@extension/storage', () => ({

@@ -97,7 +97,7 @@ interface SessionUsage {
 }
 
 /** Provider identifiers */
-type ModelProvider = 'anthropic' | 'custom' | 'local';
+type ModelProvider = 'anthropic' | 'custom';
 
 /** Model configuration */
 interface ChatModel {
@@ -109,7 +109,6 @@ interface ChatModel {
   description?: string;
   supportsTools?: boolean;
   supportsReasoning?: boolean;
-  localDevice?: 'webgpu' | 'wasm';
   /** Wall-clock timeout in seconds for tool-call execution (default: 300). */
   toolTimeoutSeconds?: number;
   /** Context window size in tokens. Overrides the built-in lookup when set. */

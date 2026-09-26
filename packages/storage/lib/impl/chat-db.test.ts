@@ -12,11 +12,15 @@ describe('fresh chat database', () => {
         'chats',
         'messages',
         'modelTranscripts',
-        'memoryChunks',
-        'embeddingCache',
         'heartbeatState',
         'heartbeatLocks',
       ]),
+    );
+    expect(chatDb.tables.map(table => table.name)).not.toEqual(
+      expect.arrayContaining(['memoryChunks']),
+    );
+    expect(chatDb.tables.map(table => table.name)).not.toEqual(
+      expect.arrayContaining(['embeddingCache']),
     );
     expect(await chatDb.agents.get('main')).toMatchObject({
       id: 'main',

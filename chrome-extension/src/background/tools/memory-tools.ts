@@ -1,6 +1,5 @@
 import { getActiveAgentId, getWorkspaceFile } from './tool-utils';
-import { hybridSearch } from '../memory/hybrid-search';
-import { syncMemoryIndex } from '../memory/memory-sync';
+import { searchMemory } from '../memory/memory-service';
 import { Type } from '@sinclair/typebox';
 import type { ToolRegistration } from './tool-registration';
 import type { Static } from '@sinclair/typebox';
@@ -8,7 +7,7 @@ import type { Static } from '@sinclair/typebox';
 // ── memory_search ───────────────────────────────
 
 const memorySearchSchema = Type.Object({
-  query: Type.String({ description: 'Search query for keyword matching over memory files' }),
+  query: Type.String({ description: 'Search query over memory files and past conversations' }),
   maxResults: Type.Optional(Type.Number({ description: 'Max results (default: 10, max: 30)' })),
   minScore: Type.Optional(Type.Number({ description: 'Min relevance score (default: 0.0)' })),
 });
@@ -23,8 +22,7 @@ const executeMemorySearch = async (args: MemorySearchArgs): Promise<string> => {
   }
 
   const agentId = await getActiveAgentId();
-  const { index, chunks } = await syncMemoryIndex(agentId);
-  const results = await hybridSearch(index, query, chunks, {
+  const results = await searchMemory(agentId, query, {
     maxResults: Math.min(maxResults ?? 10, 30),
     minScore: minScore ?? 0.0,
   });
@@ -34,7 +32,8 @@ const executeMemorySearch = async (args: MemorySearchArgs): Promise<string> => {
   }
 
   const lines = results.map(
-    (r, i) => `[${i + 1}] ${r.citation} (score: ${r.score.toFixed(2)})\n${r.snippet}`,
+    (r, i) =>
+      `[${i + 1}] ${r.path}#L${r.startLine}-L${r.endLine} (score: ${r.score.toFixed(2)})\n${r.snippet}`,
   );
   return lines.join('\n\n');
 };
@@ -85,7 +84,7 @@ const memoryToolDefs: ToolRegistration[] = [
     name: 'memory_search',
     label: 'Memory Search',
     description:
-      'Search memory files using keyword matching (BM25). Returns ranked results with file paths, line ranges, and snippets. Use this to recall prior work, decisions, preferences, or stored knowledge.',
+      'Search memory files (MEMORY.md, memory/*) and past conversation transcripts using hybrid semantic and keyword ranking that favors recent notes. Returns ranked results with file paths, line ranges, and snippets. Use this to recall prior work, decisions, preferences, or stored knowledge.',
     schema: memorySearchSchema,
     execute: args => executeMemorySearch(args as Parameters<typeof executeMemorySearch>[0]),
   },

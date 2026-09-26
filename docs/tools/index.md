@@ -23,7 +23,7 @@ AskTab includes 31 built-in tools that extend the agent's capabilities beyond co
 | **[Create Document](/tools/documents)** | Create text, code, spreadsheet, and image artifacts |
 | **[Deep Research](/tools/deep-research)** | Multi-step autonomous research with parallel search and synthesis |
 | **[Execute JavaScript](/tools/execute-js)** | Run JS in a sandboxed tab or specific browser tab |
-| **[Memory Search](/tools/memory)** | BM25 + vector search over memory chunks |
+| **[Memory Search](/tools/memory)** | Server-side hybrid search over memory files and transcripts |
 | **[Memory Get](/tools/memory#memory-get)** | Retrieve specific memory file content |
 | **[Workspace tools](/tools/workspace)** | Read, write, edit, list, delete, rename workspace files |
 | **[Scheduler](/tools/workspace#scheduler)** | Create one-shot, interval, and cron-expression tasks |

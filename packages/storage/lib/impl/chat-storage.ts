@@ -22,7 +22,6 @@ import type {
   DbModelTranscript,
   DbArtifact,
   DbWorkspaceFile,
-  DbMemoryChunk,
   AgentConfig,
   DbScheduledTask,
   DbTaskRunLog,
@@ -82,7 +81,6 @@ const deleteAgent = async (id: string): Promise<void> => {
       chatDb.modelTranscripts,
       chatDb.artifacts,
       chatDb.workspaceFiles,
-      chatDb.memoryChunks,
     ],
     async () => {
       // Delete all chats and their messages/artifacts
@@ -93,9 +91,8 @@ const deleteAgent = async (id: string): Promise<void> => {
         await chatDb.artifacts.where('chatId').equals(chat.id).delete();
       }
       await chatDb.chats.where('agentId').equals(id).delete();
-      // Delete workspace files and memory chunks
+      // Delete workspace files
       await chatDb.workspaceFiles.where('agentId').equals(id).delete();
-      await chatDb.memoryChunks.where('agentId').equals(id).delete();
       // Delete the agent
       await chatDb.agents.delete(id);
     },
@@ -126,14 +123,12 @@ const updateChatTitle = async (id: string, title: string): Promise<void> => {
 const deleteChat = async (id: string): Promise<void> => {
   await chatDb.transaction(
     'rw',
-    [chatDb.chats, chatDb.messages, chatDb.modelTranscripts, chatDb.artifacts, chatDb.memoryChunks],
+    [chatDb.chats, chatDb.messages, chatDb.modelTranscripts, chatDb.artifacts],
     async () => {
       await chatDb.chats.delete(id);
       await chatDb.messages.where('chatId').equals(id).delete();
       await chatDb.modelTranscripts.delete(id);
       await chatDb.artifacts.where('chatId').equals(id).delete();
-      // Clean up transcript chunks linked to this chat
-      await chatDb.memoryChunks.where('chatId').equals(id).delete();
     },
   );
 };
@@ -559,31 +554,6 @@ const copyGlobalSkillsToAllAgents = async (): Promise<void> => {
   }
 };
 
-// ── Memory Chunk CRUD ────────────────────────
-
-const bulkPutMemoryChunks = async (chunks: DbMemoryChunk[]): Promise<void> => {
-  await chatDb.memoryChunks.bulkPut(chunks);
-};
-
-const deleteMemoryChunksByFileId = async (fileId: string): Promise<void> => {
-  await chatDb.memoryChunks.where('fileId').equals(fileId).delete();
-};
-
-const getAllMemoryChunks = async (agentId?: string): Promise<DbMemoryChunk[]> => {
-  if (agentId) {
-    return chatDb.memoryChunks.where('agentId').equals(agentId).toArray();
-  }
-  return chatDb.memoryChunks.toArray();
-};
-
-const deleteMemoryChunksByChatId = async (chatId: string): Promise<void> => {
-  await chatDb.memoryChunks.where('chatId').equals(chatId).delete();
-};
-
-const clearAllMemoryChunks = async (): Promise<void> => {
-  await chatDb.memoryChunks.clear();
-};
-
 // ── Skill File Helpers ────────────────────────
 
 /** Returns all skill files (both enabled and disabled), optionally scoped to an agent.
@@ -739,11 +709,6 @@ export {
   seedPredefinedWorkspaceFiles,
   copyGlobalSkillsToAgent,
   copyGlobalSkillsToAllAgents,
-  bulkPutMemoryChunks,
-  deleteMemoryChunksByFileId,
-  deleteMemoryChunksByChatId,
-  getAllMemoryChunks,
-  clearAllMemoryChunks,
   listSkillFiles,
   listToolScriptFiles,
   getEnabledSkills,

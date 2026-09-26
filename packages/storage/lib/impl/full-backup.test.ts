@@ -1,6 +1,5 @@
 import 'fake-indexeddb/auto';
 import { chatDb } from './chat-db';
-import { defaultEmbeddingConfig } from './embedding-config-storage';
 import { captureFullBackup, restoreFullBackup, validateFullBackup } from './full-backup';
 import { defaultTtsConfig } from './tts-config-storage';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -18,16 +17,7 @@ beforeEach(async () => {
       email: 'user@example.com',
       expiresAt: 9999999999999,
     },
-    channelConfigs: [
-      {
-        channelId: 'telegram',
-        enabled: true,
-        status: 'active',
-        credentials: { botToken: 'bot-secret' },
-      },
-    ],
-    'wa-auth-creds': 'wa-secret',
-    'wa-auth-keys:session:abc': 'signal-secret',
+    channelConfigs: [{ channelId: 'telegram', allowedSenderIds: ['42'], lastActivityAt: 1 }],
     'heartbeat.main': { enabled: true },
     'backup-settings': { enabled: true, lastSuccessAt: 1 },
   };
@@ -52,10 +42,8 @@ beforeEach(async () => {
     chatDb.modelTranscripts.clear(),
     chatDb.artifacts.clear(),
     chatDb.workspaceFiles.clear(),
-    chatDb.memoryChunks.clear(),
     chatDb.scheduledTasks.clear(),
     chatDb.taskRunLogs.clear(),
-    chatDb.embeddingCache.clear(),
     chatDb.heartbeatState.clear(),
     chatDb.heartbeatLocks.clear(),
   ]);
@@ -114,16 +102,6 @@ beforeEach(async () => {
     createdAt: 1,
     updatedAt: 1,
   });
-  await chatDb.memoryChunks.put({
-    id: 'chunk-1',
-    fileId: 'file-1',
-    filePath: 'MEMORY.md',
-    startLine: 1,
-    endLine: 1,
-    text: 'memory',
-    fileUpdatedAt: 1,
-    agentId: 'main',
-  });
   await chatDb.scheduledTasks.put({
     id: 'task-1',
     name: 'Daily',
@@ -135,16 +113,6 @@ beforeEach(async () => {
     state: { runningAtMs: 1, nextRunAtMs: 2 },
   });
   await chatDb.taskRunLogs.put({ id: 'run-1', taskId: 'task-1', timestamp: 1, status: 'ok' });
-  await chatDb.embeddingCache.put({
-    id: 'embed-1',
-    provider: 'test',
-    model: 'test',
-    embeddingSpaceId: 'space-a',
-    contentHash: 'hash',
-    embedding: [0.1],
-    dims: 1,
-    updatedAt: 1,
-  });
   await chatDb.heartbeatState.put({ agentId: 'main', lastRunAtMs: 1 });
   await chatDb.heartbeatLocks.put({ agentId: 'main', acquiredAt: 1, expiresAt: 2 });
 });
@@ -158,11 +126,9 @@ describe('full backup', () => {
       (await chatDb.modelTranscripts.get('chat-1'))?.messages,
     );
     expect(backup.tables.workspaceFiles[0]?.enabled).toBe(false);
-    expect(backup.tables.memoryChunks).toHaveLength(1);
     expect(backup.tables.scheduledTasks).toHaveLength(1);
-    expect(backup.tables.embeddingCache).toHaveLength(1);
     expect(backup.local['suggested-actions']).toEqual(local['suggested-actions']);
-    expect(backup.local['wa-auth-keys:session:abc']).toBe('signal-secret');
+    expect(backup.local.channelConfigs).toEqual(local.channelConfigs);
     expect(backup.local['server-models']).toBeUndefined();
     expect(backup.local['ask-session']).toBeUndefined();
     expect(backup.local['backup-settings']).toBeUndefined();
@@ -234,7 +200,7 @@ describe('full backup', () => {
     expect((await chatDb.scheduledTasks.get('task-1'))?.state.runningAtMs).toBeUndefined();
     expect(await chatDb.heartbeatLocks.count()).toBe(0);
     expect(local['suggested-actions']).toEqual(backup.local['suggested-actions']);
-    expect((local['channelConfigs'] as { enabled: boolean }[])[0]?.enabled).toBe(false);
+    expect(local['channelConfigs']).toEqual(backup.local['channelConfigs']);
     expect(local['server-models']).toEqual([
       { id: 'ask:model-1', modelId: 'model-1', name: 'Model', provider: 'custom' },
     ]);
@@ -305,6 +271,36 @@ describe('full backup', () => {
     expect(() =>
       validateFullBackup({ ...backup, local: { ...backup.local, 'backup-settings': {} } }),
     ).toThrow('Invalid backup storage key');
+    expect(() =>
+      validateFullBackup({ ...backup, local: { ...backup.local, 'embedding-config': {} } }),
+    ).toThrow('Invalid backup storage key: embedding-config');
+    expect(() =>
+      validateFullBackup({ ...backup, local: { ...backup.local, 'wa-auth-creds': 'wa-secret' } }),
+    ).toThrow('Invalid backup storage key: wa-auth-creds');
+  });
+
+  it('rejects channel credentials in channel configs', async () => {
+    const backup = await captureFullBackup();
+    expect(() =>
+      validateFullBackup({
+        ...backup,
+        local: {
+          ...backup.local,
+          channelConfigs: [
+            { channelId: 'telegram', allowedSenderIds: [], credentials: { botToken: 'secret' } },
+          ],
+        },
+      }),
+    ).toThrow('Invalid backup configuration: channelConfigs');
+    expect(() =>
+      validateFullBackup({
+        ...backup,
+        local: {
+          ...backup.local,
+          channelConfigs: [{ channelId: 'telegram', allowedSenderIds: [1] }],
+        },
+      }),
+    ).toThrow('Invalid backup configuration: channelConfigs');
   });
 
   it('rejects hidden AI credentials in nested preferences', async () => {
@@ -316,23 +312,11 @@ describe('full backup', () => {
           ...backup.local,
           'tts-config': {
             ...defaultTtsConfig,
-            kokoro: { ...defaultTtsConfig.kokoro, apiKey: 'sk-synthetic' },
+            openai: { ...defaultTtsConfig.openai, apiKey: 'sk-synthetic' },
           },
         },
       }),
-    ).toThrow('Invalid backup configuration: tts-config.kokoro');
-    expect(() =>
-      validateFullBackup({
-        ...backup,
-        local: {
-          ...backup.local,
-          'embedding-config': {
-            ...defaultEmbeddingConfig,
-            search: { ...defaultEmbeddingConfig.search, apiKey: 'sk-synthetic' },
-          },
-        },
-      }),
-    ).toThrow('Invalid backup configuration: embedding-config.search');
+    ).toThrow('Invalid backup configuration: tts-config.openai');
     expect(() =>
       validateFullBackup({
         ...backup,

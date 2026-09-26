@@ -1,50 +1,31 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { handleChannelMessage } from './agent-handler';
+import { getChannelConfig, updateChannelConfig } from './config';
+import { handleQueuedUpdate } from './message-bridge';
+import { getChannelAdapter } from './registry';
+import { handleBotCommand } from './telegram/commands';
+import { handleWhatsAppCommand } from './whatsapp/commands';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { QueuedUpdate } from './gateway';
 
-// Mock chrome.storage.local
-const mockStorage: Record<string, unknown> = {};
-
-beforeAll(() => {
-  const makeStorageArea = () => ({
-    get: vi.fn((keys: string | string[]) => {
-      const result: Record<string, unknown> = {};
-      const keyList = typeof keys === 'string' ? [keys] : keys;
-      for (const k of keyList) {
-        if (k in mockStorage) result[k] = mockStorage[k];
-      }
-      return Promise.resolve(result);
-    }),
-    set: vi.fn((items: Record<string, unknown>) => {
-      Object.assign(mockStorage, items);
-      return Promise.resolve();
-    }),
-    onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
-  });
-
-  Object.defineProperty(globalThis, 'chrome', {
-    value: {
-      storage: {
-        local: makeStorageArea(),
-        session: makeStorageArea(),
-      },
-      runtime: { getURL: vi.fn((p: string) => `chrome-ext://id/${p}`) },
-      notifications: { create: vi.fn() },
-    },
-    writable: true,
-  });
-});
-
-// Mock the agent handler so we don't need full LLM stack
 vi.mock('./agent-handler', () => ({
-  handleChannelMessage: vi.fn(() => Promise.resolve()),
+  handleChannelMessage: vi.fn(async () => {}),
 }));
 
-// Mock the command handler
+vi.mock('./config', () => ({
+  getChannelConfig: vi.fn(),
+  updateChannelConfig: vi.fn(async () => {}),
+}));
+
 vi.mock('./telegram/commands', () => ({
-  isBotCommand: vi.fn((body: string) => body.startsWith('/') && /^\/[a-z]+/.test(body)),
-  handleBotCommand: vi.fn(() => Promise.resolve(true)),
+  isBotCommand: (body: string) => /^\/[a-z]+/.test(body),
+  handleBotCommand: vi.fn(async () => true),
 }));
 
-// Mock the logger
+vi.mock('./whatsapp/commands', () => ({
+  isWhatsAppCommand: (body: string) => /^\/[a-z]+/.test(body),
+  handleWhatsAppCommand: vi.fn(async () => true),
+}));
+
 vi.mock('../logging/logger-buffer', () => ({
   createLogger: () => ({
     trace: vi.fn(),
@@ -55,219 +36,184 @@ vi.mock('../logging/logger-buffer', () => ({
   }),
 }));
 
-// Mock the registry
-const mockAdapter = {
+const adapter = {
   id: 'telegram',
   label: 'Telegram',
   maxMessageLength: 4096,
-  validateAuth: vi.fn(),
-  sendMessage: vi.fn().mockResolvedValue({ ok: true }),
-  formatSenderDisplay: (msg: { senderName?: string }) => msg.senderName ?? 'User',
+  sendMessage: vi.fn(async () => ({ ok: true })),
+  downloadMedia: vi.fn(),
+  formatSenderDisplay: () => 'User',
 };
 
 vi.mock('./registry', () => ({
-  getChannelAdapter: vi.fn(() => Promise.resolve(mockAdapter)),
+  getChannelAdapter: vi.fn(() => adapter),
 }));
 
-describe('handleChannelUpdates', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let handleChannelUpdates: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let handleChannelMessage: any;
+let nextId = 1;
 
-  beforeEach(async () => {
-    // Set up a valid config
-    for (const key of Object.keys(mockStorage)) delete mockStorage[key];
-    mockStorage.channelConfigs = [
-      {
-        channelId: 'telegram',
-        enabled: true,
-        allowedSenderIds: ['456'],
-        status: 'passive',
-        credentials: { botToken: '123:abc' },
+const telegramItem = (
+  text: string,
+  { from = 456, chatType = 'private' }: { from?: number; chatType?: string } = {},
+): QueuedUpdate => {
+  const id = nextId++;
+  return {
+    id: `q-${id}`,
+    channel: 'telegram',
+    mediaType: null,
+    update: {
+      update_id: id,
+      message: {
+        message_id: id,
+        chat: { id: chatType === 'private' ? from : -100, type: chatType },
+        from: { id: from, is_bot: false, first_name: 'Alice' },
+        text,
+        date: 1_700_000_000,
       },
-    ];
+    },
+  };
+};
 
+const whatsappItem = (overrides: Record<string, unknown> = {}): QueuedUpdate => {
+  const id = nextId++;
+  return {
+    id: `q-${id}`,
+    channel: 'whatsapp',
+    mediaType: null,
+    update: {
+      channelMessageId: `wa-${id}`,
+      channelChatId: '15551234567@s.whatsapp.net',
+      senderId: '15551234567@s.whatsapp.net',
+      body: 'hello',
+      timestamp: 1_700_000_000_000,
+      chatType: 'direct',
+      fromMe: false,
+      ...overrides,
+    },
+  };
+};
+
+describe('handleQueuedUpdate', () => {
+  beforeEach(() => {
     vi.clearAllMocks();
-
-    const bridgeMod = await import('./message-bridge');
-    handleChannelUpdates = bridgeMod.handleChannelUpdates;
-
-    const agentMod = await import('./agent-handler');
-    handleChannelMessage = agentMod.handleChannelMessage;
+    vi.mocked(getChannelAdapter).mockReturnValue(adapter);
+    vi.mocked(getChannelConfig).mockImplementation(async channelId => ({
+      channelId,
+      allowedSenderIds: channelId === 'telegram' ? ['456'] : ['15551234567@s.whatsapp.net'],
+    }));
   });
 
-  it('dispatches allowed DM to agent handler', async () => {
-    const updates = [
-      {
-        update_id: 1,
-        message: {
-          message_id: 42,
-          chat: { id: 123, type: 'private' },
-          from: { id: 456, is_bot: false, first_name: 'Alice' },
-          text: 'hello',
-          date: 1700000000,
-        },
-      },
-    ];
+  it('dispatches an allowed Telegram DM to the agent handler', async () => {
+    expect(await handleQueuedUpdate(telegramItem('hello'))).toBe(true);
 
-    await handleChannelUpdates('telegram', updates);
-
-    // Wait for the async dispatch
-    await new Promise(r => setTimeout(r, 50));
-
-    expect(handleChannelMessage).toHaveBeenCalled();
+    expect(handleChannelMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ senderId: '456', body: 'hello', chatType: 'direct' }),
+      adapter,
+      expect.objectContaining({ channelId: 'telegram' }),
+    );
+    expect(updateChannelConfig).toHaveBeenCalledWith('telegram', {
+      lastActivityAt: expect.any(Number),
+    });
   });
 
-  it('rejects messages from non-allowed senders', async () => {
-    const updates = [
-      {
-        update_id: 2,
-        message: {
-          message_id: 43,
-          chat: { id: 999, type: 'private' },
-          from: { id: 999, is_bot: false, first_name: 'Hacker' },
-          text: 'should be blocked',
-          date: 1700000000,
-        },
-      },
-    ];
+  it('skips senders that are not on the allowlist', async () => {
+    expect(await handleQueuedUpdate(telegramItem('hi', { from: 999 }))).toBe(false);
+    expect(handleChannelMessage).not.toHaveBeenCalled();
+    expect(updateChannelConfig).not.toHaveBeenCalled();
+  });
 
-    await handleChannelUpdates('telegram', updates);
-    await new Promise(r => setTimeout(r, 50));
-
+  it('skips everything when the channel has no local config', async () => {
+    vi.mocked(getChannelConfig).mockResolvedValue(undefined);
+    expect(await handleQueuedUpdate(telegramItem('hi'))).toBe(false);
     expect(handleChannelMessage).not.toHaveBeenCalled();
   });
 
-  it('rejects group messages (Phase 1: DM only)', async () => {
-    const updates = [
-      {
-        update_id: 3,
-        message: {
-          message_id: 44,
-          chat: { id: -100123, type: 'supergroup', title: 'Group' },
-          from: { id: 456, is_bot: false, first_name: 'Alice' },
-          text: 'group msg',
-          date: 1700000000,
-        },
-      },
-    ];
-
-    await handleChannelUpdates('telegram', updates);
-    await new Promise(r => setTimeout(r, 50));
-
+  it('skips group messages', async () => {
+    expect(await handleQueuedUpdate(telegramItem('hi', { chatType: 'supergroup' }))).toBe(false);
     expect(handleChannelMessage).not.toHaveBeenCalled();
   });
 
-  it('returns max update_id for offset tracking', async () => {
-    const updates = [
-      {
-        update_id: 10,
-        message: {
-          message_id: 50,
-          chat: { id: 123, type: 'private' },
-          from: { id: 456, is_bot: false, first_name: 'Alice' },
-          text: 'msg1',
-          date: 1700000000,
-        },
-      },
-      {
-        update_id: 15,
-        message: {
-          message_id: 51,
-          chat: { id: 123, type: 'private' },
-          from: { id: 456, is_bot: false, first_name: 'Alice' },
-          text: 'msg2',
-          date: 1700000001,
-        },
-      },
-    ];
-
-    const maxId = await handleChannelUpdates('telegram', updates);
-    expect(maxId).toBe(15);
+  it('skips a redelivered message it already handled', async () => {
+    const item = telegramItem('once');
+    expect(await handleQueuedUpdate(item)).toBe(true);
+    expect(await handleQueuedUpdate({ ...item, id: 'q-redelivered' })).toBe(false);
+    expect(handleChannelMessage).toHaveBeenCalledOnce();
   });
 
-  it('handles bot command failure gracefully (logs error, continues)', async () => {
-    const { handleBotCommand } = await import('./telegram/commands');
-    vi.mocked(handleBotCommand).mockRejectedValueOnce(new Error('Command handler crashed'));
+  it('skips updates that do not normalize to a message', async () => {
+    const item: QueuedUpdate = {
+      id: 'q-edit',
+      channel: 'telegram',
+      mediaType: null,
+      update: { update_id: 9999 },
+    };
+    expect(await handleQueuedUpdate(item)).toBe(false);
+  });
 
-    const updates = [
-      {
-        update_id: 20,
-        message: {
-          message_id: 60,
-          chat: { id: 123, type: 'private' },
-          from: { id: 456, is_bot: false, first_name: 'Alice' },
-          text: '/start',
-          date: 1700000000,
-        },
-      },
-    ];
+  it('skips a channel without an adapter', async () => {
+    vi.mocked(getChannelAdapter).mockReturnValue(undefined);
+    expect(await handleQueuedUpdate(telegramItem('hi'))).toBe(false);
+  });
 
-    // Should not throw
-    await handleChannelUpdates('telegram', updates);
-
-    // The agent handler should NOT have been called (command error → continue)
+  it('answers Telegram commands without the agent', async () => {
+    expect(await handleQueuedUpdate(telegramItem('/status'))).toBe(true);
+    expect(handleBotCommand).toHaveBeenCalledOnce();
     expect(handleChannelMessage).not.toHaveBeenCalled();
   });
 
-  it('handles agent handler failure gracefully (logs error, continues)', async () => {
-    vi.mocked(handleChannelMessage).mockRejectedValueOnce(new Error('Agent handler crashed'));
-
-    const updates = [
-      {
-        update_id: 21,
-        message: {
-          message_id: 61,
-          chat: { id: 123, type: 'private' },
-          from: { id: 456, is_bot: false, first_name: 'Alice' },
-          text: 'normal message',
-          date: 1700000000,
-        },
-      },
-    ];
-
-    // Should not throw despite handler failure
-    await handleChannelUpdates('telegram', updates);
-  });
-
-  it('returns undefined for unknown channel (no adapter)', async () => {
-    const { getChannelAdapter } = await import('./registry');
-    vi.mocked(getChannelAdapter).mockResolvedValueOnce(null as never);
-
-    const result = await handleChannelUpdates('unknown-channel', [
-      { update_id: 1, message: { message_id: 1 } },
-    ]);
-
-    expect(result).toBeUndefined();
-  });
-
-  it('returns undefined when channel is disabled', async () => {
-    // Override config to be disabled
-    mockStorage.channelConfigs = [
-      {
-        channelId: 'telegram',
-        enabled: false,
-        allowedSenderIds: ['456'],
-        status: 'passive',
-        credentials: { botToken: '123:abc' },
-      },
-    ];
-
-    const result = await handleChannelUpdates('telegram', [
-      {
-        update_id: 1,
-        message: {
-          message_id: 1,
-          chat: { id: 123, type: 'private' },
-          from: { id: 456, is_bot: false, first_name: 'Alice' },
-          text: 'hello',
-          date: 1700000000,
-        },
-      },
-    ]);
-
-    expect(result).toBeUndefined();
+  it('treats a failing command as handled', async () => {
+    vi.mocked(handleBotCommand).mockRejectedValueOnce(new Error('crashed'));
+    expect(await handleQueuedUpdate(telegramItem('/start'))).toBe(true);
     expect(handleChannelMessage).not.toHaveBeenCalled();
+  });
+
+  it('passes unknown commands on to the agent', async () => {
+    vi.mocked(handleBotCommand).mockResolvedValueOnce(false);
+    expect(await handleQueuedUpdate(telegramItem('/unknown'))).toBe(true);
+    expect(handleChannelMessage).toHaveBeenCalledOnce();
+  });
+
+  it('survives an agent handler failure', async () => {
+    vi.mocked(handleChannelMessage).mockRejectedValueOnce(new Error('LLM down'));
+    await expect(handleQueuedUpdate(telegramItem('hello'))).resolves.toBe(true);
+  });
+
+  it('dispatches an allowed WhatsApp message and routes commands', async () => {
+    expect(await handleQueuedUpdate(whatsappItem())).toBe(true);
+    expect(handleChannelMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ senderId: '15551234567@s.whatsapp.net', body: 'hello' }),
+      adapter,
+      expect.objectContaining({ channelId: 'whatsapp' }),
+    );
+
+    expect(await handleQueuedUpdate(whatsappItem({ body: '/help' }))).toBe(true);
+    expect(handleWhatsAppCommand).toHaveBeenCalledOnce();
+  });
+
+  it('allowlists own WhatsApp messages by the chat they were sent to', async () => {
+    const own = whatsappItem({
+      fromMe: true,
+      senderId: '19998887777@s.whatsapp.net',
+      channelChatId: '15551234567@s.whatsapp.net',
+    });
+    expect(await handleQueuedUpdate(own)).toBe(true);
+
+    const toStranger = whatsappItem({
+      fromMe: true,
+      senderId: '15551234567@s.whatsapp.net',
+      channelChatId: '10000000000@s.whatsapp.net',
+    });
+    expect(await handleQueuedUpdate(toStranger)).toBe(false);
+  });
+
+  it('passes WhatsApp voice notes through with their queue id as the media handle', async () => {
+    const voice = whatsappItem({ body: '', isAudio: true });
+    voice.mediaType = 'audio/ogg; codecs=opus';
+
+    expect(await handleQueuedUpdate(voice)).toBe(true);
+    expect(handleChannelMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ mediaFileId: voice.id, mediaMimeType: 'audio/ogg; codecs=opus' }),
+      adapter,
+      expect.anything(),
+    );
   });
 });

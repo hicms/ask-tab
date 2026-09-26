@@ -1,4 +1,5 @@
 import { cdpAttach, cdpSend } from './cdp';
+import { ensureJavascriptSandbox, resetJavascriptSandbox } from './javascript-sandbox';
 import { injectControlIndicator, removeControlIndicator } from './tab-indicator';
 import { getActiveAgentId, getWorkspaceFile } from './tool-utils';
 import { withAbort } from '../agents/cancellation';
@@ -184,90 +185,6 @@ const maybeAutoReturn = (code: string): string => {
   return code;
 };
 
-// ── Sandbox tab management ──────────────────────
-
-let sandboxTabId: number | null = null;
-let sandboxReady: Promise<number> | null = null;
-let listenerRegistered = false;
-
-const registerTabListener = () => {
-  if (listenerRegistered) return;
-  listenerRegistered = true;
-  chrome.tabs.onRemoved.addListener(tabId => {
-    if (tabId === sandboxTabId) {
-      sandboxTabId = null;
-      sandboxReady = null;
-    }
-  });
-};
-
-/** Try to find an existing sandbox tab left over from a previous SW lifecycle. */
-const findExistingSandboxTab = async (): Promise<number | null> => {
-  const url = chrome.runtime.getURL('sandbox.html');
-  const tabs = await chrome.tabs.query({ url });
-  return tabs.length > 0 && tabs[0].id != null ? tabs[0].id : null;
-};
-
-const createSandboxTab = async (): Promise<number> => {
-  // Reuse an orphan tab from a previous service worker lifecycle
-  const existingId = await findExistingSandboxTab();
-  if (existingId !== null) {
-    const err = await cdpAttach(existingId);
-    if (!err) {
-      await cdpSend(existingId, 'Runtime.enable');
-      sandboxTabId = existingId;
-      return existingId;
-    }
-    // Couldn't reuse — fall through and create a new one
-  }
-
-  const url = chrome.runtime.getURL('sandbox.html');
-  const tab = await chrome.tabs.create({ url, active: false });
-  const tabId = tab.id!;
-  const err = await cdpAttach(tabId);
-  if (err) {
-    try {
-      await chrome.tabs.remove(tabId);
-    } catch {
-      /* ignore */
-    }
-    throw new Error(err);
-  }
-  await cdpSend(tabId, 'Runtime.enable');
-  sandboxTabId = tabId;
-  return tabId;
-};
-
-const ensureSandboxTab = async (): Promise<number> => {
-  registerTabListener();
-  if (sandboxTabId !== null) {
-    try {
-      await chrome.tabs.get(sandboxTabId);
-      // Re-attach debugger in case it was detached (e.g. after SW restart)
-      const err = await cdpAttach(sandboxTabId);
-      if (err) {
-        // Can't attach — discard and create a new tab
-        sandboxTabId = null;
-        sandboxReady = null;
-      } else {
-        await cdpSend(sandboxTabId, 'Runtime.enable');
-        return sandboxTabId;
-      }
-    } catch {
-      sandboxTabId = null;
-      sandboxReady = null;
-    }
-  }
-  if (sandboxReady) return sandboxReady;
-  sandboxReady = createSandboxTab();
-  try {
-    return await sandboxReady;
-  } catch (e) {
-    sandboxReady = null;
-    throw e;
-  }
-};
-
 /**
  * Execute JavaScript code via CDP Runtime.evaluate in a sandbox or target tab.
  */
@@ -285,8 +202,8 @@ const executeCodeInTarget = async (
     return executeCodeFirefox(code, args, timeout, targetTabId, exportAs);
   }
 
-  // 1. Determine which tab to run in
-  let tabId: number;
+  // 1. Use the requested tab, or a hidden offscreen document.
+  let target: number | chrome.debugger.Debuggee;
   if (targetTabId != null) {
     try {
       await chrome.tabs.get(targetTabId);
@@ -301,14 +218,14 @@ const executeCodeInTarget = async (
       return executeCodeFirefox(code, args, timeout, targetTabId, exportAs);
     }
     await cdpSend(targetTabId, 'Runtime.enable');
-    tabId = targetTabId;
+    target = targetTabId;
   } else {
-    tabId = await ensureSandboxTab();
+    target = await ensureJavascriptSandbox();
   }
 
   // 2. Inject console capture
   signal?.throwIfAborted();
-  await cdpSend(tabId, 'Runtime.evaluate', {
+  await cdpSend(target, 'Runtime.evaluate', {
     expression: `(function() {
       if (!window.__cc) {
         window.__cc = {
@@ -355,18 +272,17 @@ const executeCodeInTarget = async (
   signal?.throwIfAborted();
   const effectiveTimeout = Math.min(Math.max(timeout ?? DEFAULT_TIMEOUT_MS, 1000), MAX_TIMEOUT_MS);
 
+  // Serialize by target (below) so cancelling this evaluation cannot terminate
+  // another chat's JavaScript tool. Destroy our hidden runtime to discard timers
+  // and async continuations as well as the currently executing script.
   let cancellation: Promise<unknown> | undefined;
   const onAbort = () => {
     cancellation = Promise.allSettled([
-      withAbort(AbortSignal.timeout(5000), () => cdpSend(tabId, 'Runtime.terminateExecution')),
+      withAbort(AbortSignal.timeout(5000), () => cdpSend(target, 'Runtime.terminateExecution')),
       ...(targetTabId == null
-        ? [withAbort(AbortSignal.timeout(5000), () => chrome.tabs.remove(tabId))]
+        ? [withAbort(AbortSignal.timeout(5000), () => chrome.offscreen.closeDocument())]
         : []),
     ]);
-    if (targetTabId == null) {
-      sandboxTabId = null;
-      sandboxReady = null;
-    }
   };
   signal?.addEventListener('abort', onAbort, { once: true });
   let result;
@@ -375,7 +291,7 @@ const executeCodeInTarget = async (
       cdpSend<{
         result: { type: string; value?: unknown; description?: string; subtype?: string };
         exceptionDetails?: { text: string; exception?: { description?: string } };
-      }>(tabId, 'Runtime.evaluate', {
+      }>(target, 'Runtime.evaluate', {
         expression,
         returnByValue: true,
         awaitPromise: true,
@@ -391,7 +307,7 @@ const executeCodeInTarget = async (
   // 5. Read console logs
   let logs: Array<{ l: string; m: string }> = [];
   try {
-    const logsResult = await cdpSend<{ result: { value?: unknown } }>(tabId, 'Runtime.evaluate', {
+    const logsResult = await cdpSend<{ result: { value?: unknown } }>(target, 'Runtime.evaluate', {
       expression: 'JSON.stringify(window.__cl || [])',
       returnByValue: true,
     });
@@ -620,11 +536,7 @@ ${maybeAutoReturn(file.content)}
 };
 
 /** Reset sandbox state — exported for testing only. */
-const _resetSandbox = () => {
-  sandboxTabId = null;
-  sandboxReady = null;
-  listenerRegistered = false;
-};
+const _resetSandbox = resetJavascriptSandbox;
 
 // ── Tool registration ──
 
@@ -632,7 +544,7 @@ const executeJsToolDef: ToolRegistration = {
   name: 'execute_javascript',
   label: 'Execute Javascript',
   description:
-    'Execute JavaScript code in a sandboxed browser tab (or a specific tab via tabId), ' +
+    'Execute JavaScript code in a sandbox runtime (hidden on Chrome, or a specific tab via tabId), ' +
     'bundle and run multiple workspace files, or register/unregister workspace files as custom tools. ' +
     'Actions: execute (run JS code or a workspace file), bundle (load multiple files as modules), ' +
     'register (parse tool metadata and save), unregister (remove a custom tool). ' +

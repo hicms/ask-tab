@@ -501,6 +501,11 @@
   "sessionMgr_clickToSelectSidePanel": {
     "message": "Нажмите для выбора, дважды — для открытия в боковой панели"
   },
+  "channels_statusNotConnected": { "message": "Не подключено" },
+  "channels_statusConnecting": { "message": "Подключение..." },
+  "channels_statusConnected": { "message": "Подключено" },
+  "channels_statusError": { "message": "Ошибка" },
+  "channels_signInRequired": { "message": "Войдите в аккаунт AskTab, чтобы подключить каналы." },
   "telegram_title": {
     "message": "Telegram-бот"
   },
@@ -513,11 +518,9 @@
   "telegram_botToken": {
     "message": "Bot Token"
   },
-  "telegram_validate": {
-    "message": "Проверить"
-  },
-  "telegram_tokenValid": {
-    "message": "Токен действителен"
+  "telegram_connect": { "message": "Подключить" },
+  "telegram_tokenHint": {
+    "message": "Сервер AskTab проверяет и хранит токен; в браузере он не сохраняется. Введите новый токен, чтобы заменить его."
   },
   "telegram_invalidToken": {
     "message": "Недействительный токен"
@@ -543,6 +546,7 @@
   "telegram_toggleFailed": {
     "message": "Ошибка переключения"
   },
+  "telegram_connectFailed": { "message": "Не удалось подключиться" },
   "agents_newAgent": {
     "message": "Новый агент"
   },
@@ -778,7 +782,7 @@
     "message": "WhatsApp"
   },
   "whatsapp_description": {
-    "message": "Подключите WhatsApp, чтобы общаться с AI-ассистентом с телефона. Используется протокол WhatsApp Web — внешний сервер не нужен."
+    "message": "Подключите WhatsApp, чтобы общаться с ИИ-ассистентом с телефона. Связанную сессию WhatsApp хранит сервер AskTab."
   },
   "whatsapp_connection": {
     "message": "Подключение"
@@ -789,17 +793,12 @@
   "whatsapp_disconnect": {
     "message": "Отключить"
   },
-  "whatsapp_disconnected": {
-    "message": "Отключено"
-  },
+  "whatsapp_unlink": { "message": "Отвязать" },
   "whatsapp_connecting": {
     "message": "Ожидание сканирования QR..."
   },
   "whatsapp_connected": {
     "message": "Подключено"
-  },
-  "whatsapp_reconnecting": {
-    "message": "Переподключение..."
   },
   "whatsapp_loggedOut": {
     "message": "Выход выполнен"
@@ -812,9 +811,6 @@
   },
   "whatsapp_connectedMsg": {
     "message": "WhatsApp подключён и принимает сообщения"
-  },
-  "whatsapp_reconnectingMsg": {
-    "message": "Переподключение к WhatsApp..."
   },
   "whatsapp_allowedNumbers": {
     "message": "Разрешённые номера телефонов"

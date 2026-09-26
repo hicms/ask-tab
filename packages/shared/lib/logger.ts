@@ -26,20 +26,14 @@ type LogCategory =
   | 'channel-bridge'
   | 'channel-poller'
   | 'channel-cmd'
-  | 'offscreen-mgr'
   | 'media'
   | 'journal'
   | 'cron'
   | 'heartbeat'
   | 'tts'
-  | 'local-llm'
-  | 'embedding'
   | 'memory-sync'
   | 'wa-adapter'
-  | 'channel-sw'
   | 'slash-cmd'
-  | 'web-auth'
-  | 'web-llm'
   | 'browser';
 
 // ── Log Entry ───────────────────────────────────

@@ -6,9 +6,7 @@ import type {
   DbChat,
   DbChatMessage,
   DbModelTranscript,
-  DbEmbeddingCache,
   DbHeartbeatState,
-  DbMemoryChunk,
   DbScheduledTask,
   DbTaskRunLog,
   DbWorkspaceFile,
@@ -31,24 +29,11 @@ const LOCAL_KEYS = new Set([
   'log-config',
   'stt-config',
   'tts-config',
-  'embedding-config',
   'channelConfigs',
-  'wa-auth-creds',
-  'wa-lid-map',
-  'wa-sent-messages',
 ]);
 
 const isBackupLocalKey = (key: string): boolean =>
-  LOCAL_KEYS.has(key) || key.startsWith('wa-auth-keys:') || key.startsWith('heartbeat.');
-
-const whatsAppKeys = (stored: Record<string, unknown>): string =>
-  JSON.stringify(
-    Object.fromEntries(
-      Object.entries(stored)
-        .filter(([key]) => key === 'wa-auth-creds' || key.startsWith('wa-auth-keys:'))
-        .sort(([a], [b]) => a.localeCompare(b)),
-    ),
-  );
+  LOCAL_KEYS.has(key) || key.startsWith('heartbeat.');
 
 interface FullBackupTables {
   agents: AgentConfig[];
@@ -57,10 +42,8 @@ interface FullBackupTables {
   modelTranscripts: DbModelTranscript[];
   artifacts: DbArtifact[];
   workspaceFiles: DbWorkspaceFile[];
-  memoryChunks: DbMemoryChunk[];
   scheduledTasks: DbScheduledTask[];
   taskRunLogs: DbTaskRunLog[];
-  embeddingCache: DbEmbeddingCache[];
   heartbeatState: DbHeartbeatState[];
 }
 
@@ -79,10 +62,8 @@ const tables = [
   chatDb.modelTranscripts,
   chatDb.artifacts,
   chatDb.workspaceFiles,
-  chatDb.memoryChunks,
   chatDb.scheduledTasks,
   chatDb.taskRunLogs,
-  chatDb.embeddingCache,
   chatDb.heartbeatState,
 ] as const;
 
@@ -95,10 +76,8 @@ const readTables = async (): Promise<FullBackupTables> =>
       modelTranscripts,
       artifacts,
       workspaceFiles,
-      memoryChunks,
       scheduledTasks,
       taskRunLogs,
-      embeddingCache,
       heartbeatState,
     ] = await Promise.all([
       chatDb.agents.toArray(),
@@ -107,10 +86,8 @@ const readTables = async (): Promise<FullBackupTables> =>
       chatDb.modelTranscripts.toArray(),
       chatDb.artifacts.toArray(),
       chatDb.workspaceFiles.toArray(),
-      chatDb.memoryChunks.toArray(),
       chatDb.scheduledTasks.toArray(),
       chatDb.taskRunLogs.toArray(),
-      chatDb.embeddingCache.toArray(),
       chatDb.heartbeatState.toArray(),
     ]);
     // A stream can finish writing after its chat was deleted. Keep the snapshot
@@ -123,31 +100,22 @@ const readTables = async (): Promise<FullBackupTables> =>
       modelTranscripts: modelTranscripts.filter(transcript => chatIds.has(transcript.chatId)),
       artifacts: artifacts.filter(artifact => chatIds.has(artifact.chatId)),
       workspaceFiles,
-      memoryChunks,
       scheduledTasks,
       taskRunLogs,
-      embeddingCache,
       heartbeatState,
     };
   });
 
 const captureFullBackup = async (): Promise<FullBackup> => {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const [stored, data] = await Promise.all([chrome.storage.local.get(null), readTables()]);
-    const after = await chrome.storage.local.get(null);
-    if (whatsAppKeys(stored) !== whatsAppKeys(after)) continue;
-    const local = Object.fromEntries(
-      Object.entries(stored).filter(([key]) => isBackupLocalKey(key)),
-    );
-    return validateFullBackup({
-      format: BACKUP_FORMAT,
-      version: BACKUP_VERSION,
-      createdAt: Date.now(),
-      local,
-      tables: data,
-    });
-  }
-  throw new Error('WhatsApp credentials changed during backup; retry later');
+  const [stored, data] = await Promise.all([chrome.storage.local.get(null), readTables()]);
+  const local = Object.fromEntries(Object.entries(stored).filter(([key]) => isBackupLocalKey(key)));
+  return validateFullBackup({
+    format: BACKUP_FORMAT,
+    version: BACKUP_VERSION,
+    createdAt: Date.now(),
+    local,
+    tables: data,
+  });
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -160,6 +128,31 @@ const assertFields = (value: unknown, allowed: readonly string[], path: string):
   }
 };
 
+/** Channel credentials and sessions live on the AskTab server; only routing settings are local. */
+const assertChannelConfigs = (value: unknown): void => {
+  if (!Array.isArray(value)) throw new Error('Invalid backup configuration: channelConfigs');
+  for (const config of value) {
+    assertFields(
+      config,
+      ['channelId', 'allowedSenderIds', 'modelId', 'lastActivityAt'],
+      'channelConfigs',
+    );
+    const { channelId, allowedSenderIds, modelId, lastActivityAt } = config as Record<
+      string,
+      unknown
+    >;
+    if (
+      typeof channelId !== 'string' ||
+      !Array.isArray(allowedSenderIds) ||
+      allowedSenderIds.some(id => typeof id !== 'string') ||
+      (modelId !== undefined && typeof modelId !== 'string') ||
+      (lastActivityAt !== undefined && typeof lastActivityAt !== 'number')
+    ) {
+      throw new Error('Invalid backup configuration: channelConfigs');
+    }
+  }
+};
+
 const assertAiPreferences = (local: Record<string, unknown>): void => {
   if ('settings' in local) assertFields(local.settings, ['theme', 'locale'], 'settings');
   if ('selected-model-id' in local && typeof local['selected-model-id'] !== 'string') {
@@ -167,11 +160,7 @@ const assertAiPreferences = (local: Record<string, unknown>): void => {
   }
   if ('tool-config' in local) assertToolConfig(local['tool-config']);
   if ('stt-config' in local) {
-    assertFields(
-      local['stt-config'],
-      ['engine', 'openai', 'language', 'localModel', 'hotkey'],
-      'stt-config',
-    );
+    assertFields(local['stt-config'], ['engine', 'openai', 'language', 'hotkey'], 'stt-config');
     assertFields(
       (local['stt-config'] as Record<string, unknown>).openai,
       ['modelId'],
@@ -181,16 +170,7 @@ const assertAiPreferences = (local: Record<string, unknown>): void => {
   if ('tts-config' in local) {
     assertFields(
       local['tts-config'],
-      [
-        'engine',
-        'autoMode',
-        'maxChars',
-        'summarize',
-        'summaryTimeout',
-        'chatUiAutoPlay',
-        'kokoro',
-        'openai',
-      ],
+      ['engine', 'autoMode', 'maxChars', 'summarize', 'summaryTimeout', 'chatUiAutoPlay', 'openai'],
       'tts-config',
     );
     assertFields(
@@ -198,37 +178,8 @@ const assertAiPreferences = (local: Record<string, unknown>): void => {
       ['modelId', 'voice'],
       'tts-config.openai',
     );
-    assertFields(
-      (local['tts-config'] as Record<string, unknown>).kokoro,
-      ['model', 'voice', 'speed', 'adaptiveChunking'],
-      'tts-config.kokoro',
-    );
   }
-  if ('embedding-config' in local) {
-    assertFields(
-      local['embedding-config'],
-      ['provider', 'openaiCompatible', 'local', 'search', 'mmr', 'temporalDecay'],
-      'embedding-config',
-    );
-    assertFields(
-      (local['embedding-config'] as Record<string, unknown>).openaiCompatible,
-      ['modelId'],
-      'embedding-config.openaiCompatible',
-    );
-    const embedding = local['embedding-config'] as Record<string, unknown>;
-    assertFields(embedding.local, ['model'], 'embedding-config.local');
-    assertFields(
-      embedding.search,
-      ['vectorWeight', 'bm25Weight', 'candidateMultiplier'],
-      'embedding-config.search',
-    );
-    assertFields(embedding.mmr, ['enabled', 'lambda'], 'embedding-config.mmr');
-    assertFields(
-      embedding.temporalDecay,
-      ['enabled', 'halfLifeDays'],
-      'embedding-config.temporalDecay',
-    );
-  }
+  if ('channelConfigs' in local) assertChannelConfigs(local.channelConfigs);
 };
 
 const assertRows: (
@@ -266,10 +217,8 @@ const validateFullBackup = (value: unknown): FullBackup => {
     modelTranscripts: 'chatId',
     artifacts: 'id',
     workspaceFiles: 'id',
-    memoryChunks: 'id',
     scheduledTasks: 'id',
     taskRunLogs: 'id',
-    embeddingCache: 'id',
     heartbeatState: 'agentId',
   };
   for (const [key, idKey] of Object.entries(idKeys)) {
@@ -335,16 +284,6 @@ const writeFullBackup = async (backup: FullBackup, resetRuntimeState: boolean): 
           : ((models[0]?.id as string | undefined) ?? '');
     }
   }
-  if (resetRuntimeState && Array.isArray(local['channelConfigs'])) {
-    local['channelConfigs'] = (local['channelConfigs'] as Record<string, unknown>[]).map(
-      config => ({
-        ...config,
-        enabled: false,
-        status: 'idle',
-        lastError: undefined,
-      }),
-    );
-  }
   if (Object.keys(local).length) await chrome.storage.local.set(local);
 
   await chatDb.transaction('rw', [...tables, chatDb.heartbeatLocks], async () => {
@@ -357,7 +296,6 @@ const writeFullBackup = async (backup: FullBackup, resetRuntimeState: boolean): 
       chatDb.modelTranscripts.bulkPut(data.modelTranscripts),
       chatDb.artifacts.bulkPut(data.artifacts),
       chatDb.workspaceFiles.bulkPut(data.workspaceFiles),
-      chatDb.memoryChunks.bulkPut(data.memoryChunks),
       chatDb.scheduledTasks.bulkPut(
         resetRuntimeState
           ? data.scheduledTasks.map(task => ({
@@ -367,7 +305,6 @@ const writeFullBackup = async (backup: FullBackup, resetRuntimeState: boolean): 
           : data.scheduledTasks,
       ),
       chatDb.taskRunLogs.bulkPut(data.taskRunLogs),
-      chatDb.embeddingCache.bulkPut(data.embeddingCache),
       chatDb.heartbeatState.bulkPut(data.heartbeatState),
     ]);
     await chatDb.heartbeatLocks.clear();

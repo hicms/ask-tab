@@ -502,6 +502,11 @@
   "sessionMgr_clickToSelectSidePanel": {
     "message": "按一下選取，按兩下在側邊面板中開啟"
   },
+  "channels_statusNotConnected": { "message": "未連線" },
+  "channels_statusConnecting": { "message": "連線中..." },
+  "channels_statusConnected": { "message": "已連線" },
+  "channels_statusError": { "message": "錯誤" },
+  "channels_signInRequired": { "message": "登入 AskTab 帳戶以連線頻道。" },
   "telegram_title": {
     "message": "Telegram 機器人"
   },
@@ -514,11 +519,9 @@
   "telegram_botToken": {
     "message": "Bot Token"
   },
-  "telegram_validate": {
-    "message": "驗證"
-  },
-  "telegram_tokenValid": {
-    "message": "Token 有效"
+  "telegram_connect": { "message": "連線" },
+  "telegram_tokenHint": {
+    "message": "權杖由 AskTab 伺服器驗證並保存，不會儲存在瀏覽器中。輸入新權杖即可取代。"
   },
   "telegram_invalidToken": {
     "message": "無效的 Token"
@@ -544,6 +547,7 @@
   "telegram_toggleFailed": {
     "message": "切換失敗"
   },
+  "telegram_connectFailed": { "message": "連線失敗" },
   "agents_newAgent": {
     "message": "新建代理"
   },
@@ -779,7 +783,7 @@
     "message": "WhatsApp"
   },
   "whatsapp_description": {
-    "message": "連接 WhatsApp，透過手機與 AI 助手聊天。使用 WhatsApp Web 協定——無需外部伺服器。"
+    "message": "連線 WhatsApp，即可在手機上與 AI 助理聊天。已連結的 WhatsApp 工作階段由 AskTab 伺服器保持。"
   },
   "whatsapp_connection": {
     "message": "連線"
@@ -790,17 +794,12 @@
   "whatsapp_disconnect": {
     "message": "中斷連線"
   },
-  "whatsapp_disconnected": {
-    "message": "已中斷連線"
-  },
+  "whatsapp_unlink": { "message": "取消連結" },
   "whatsapp_connecting": {
     "message": "等待掃描 QR 碼..."
   },
   "whatsapp_connected": {
     "message": "已連接"
-  },
-  "whatsapp_reconnecting": {
-    "message": "重新連線中..."
   },
   "whatsapp_loggedOut": {
     "message": "已登出"
@@ -813,9 +812,6 @@
   },
   "whatsapp_connectedMsg": {
     "message": "WhatsApp 已連接，正在接收訊息"
-  },
-  "whatsapp_reconnectingMsg": {
-    "message": "正在重新連接 WhatsApp..."
   },
   "whatsapp_allowedNumbers": {
     "message": "允許的電話號碼"

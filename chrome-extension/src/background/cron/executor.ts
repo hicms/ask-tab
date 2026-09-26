@@ -2,7 +2,7 @@
 // Executes scheduled tasks via headless LLM
 
 import { runHeadlessLLM, resolveDefaultModel, dbModelToChatModel } from '../agents/agent-setup';
-import { getChannelConfigs } from '../channels/config';
+import { findActiveChannel } from '../channels/active-channel';
 import { getChannelAdapter } from '../channels/registry';
 import { getHeartbeatServiceRef } from '../heartbeat';
 import { createLogger } from '../logging/logger-buffer';
@@ -26,10 +26,7 @@ const DEFAULT_TASK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 /** Resolve a default delivery target from the first active channel with allowed senders. */
 const resolveDefaultDelivery = async (): Promise<TaskDelivery | undefined> => {
-  const configs = await getChannelConfigs();
-  const active = configs.find(
-    c => c.enabled && c.status !== 'idle' && c.allowedSenderIds.length > 0,
-  );
+  const active = await findActiveChannel();
   if (!active) return undefined;
   return { channel: active.channelId, to: active.allowedSenderIds[0], bestEffort: true };
 };
@@ -38,7 +35,7 @@ const deliverResult = async (task: ScheduledTask, responseText: string): Promise
   if (!task.delivery) return;
 
   const { channel, to, bestEffort } = task.delivery;
-  const adapter = await getChannelAdapter(channel);
+  const adapter = getChannelAdapter(channel);
 
   if (!adapter) {
     if (bestEffort) {

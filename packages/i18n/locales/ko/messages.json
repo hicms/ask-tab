@@ -509,6 +509,11 @@
   "sessionMgr_clickToSelectSidePanel": {
     "message": "클릭하여 선택, 더블클릭하여 사이드 패널에서 열기"
   },
+  "channels_statusNotConnected": { "message": "연결되지 않음" },
+  "channels_statusConnecting": { "message": "연결 중..." },
+  "channels_statusConnected": { "message": "연결됨" },
+  "channels_statusError": { "message": "오류" },
+  "channels_signInRequired": { "message": "채널을 연결하려면 AskTab 계정에 로그인하세요." },
   "telegram_title": {
     "message": "Telegram 봇"
   },
@@ -521,11 +526,9 @@
   "telegram_botToken": {
     "message": "봇 토큰"
   },
-  "telegram_validate": {
-    "message": "검증"
-  },
-  "telegram_tokenValid": {
-    "message": "토큰이 유효합니다"
+  "telegram_connect": { "message": "연결" },
+  "telegram_tokenHint": {
+    "message": "토큰은 AskTab 서버가 확인하고 보관하며 브라우저에는 저장되지 않습니다. 교체하려면 새 토큰을 입력하세요."
   },
   "telegram_invalidToken": {
     "message": "유효하지 않은 토큰"
@@ -551,6 +554,7 @@
   "telegram_toggleFailed": {
     "message": "토글 실패"
   },
+  "telegram_connectFailed": { "message": "연결 실패" },
   "agents_newAgent": {
     "message": "새 에이전트"
   },
@@ -855,7 +859,7 @@
     "message": "WhatsApp"
   },
   "whatsapp_description": {
-    "message": "WhatsApp을 연결하여 휴대전화에서 AI 비서와 채팅하세요. WhatsApp Web 프로토콜을 사용하므로 외부 서버가 필요하지 않습니다."
+    "message": "WhatsApp을 연결하여 휴대전화에서 AI 비서와 채팅하세요. 연결된 WhatsApp 세션은 AskTab 서버가 유지합니다."
   },
   "whatsapp_connection": {
     "message": "연결"
@@ -866,17 +870,12 @@
   "whatsapp_disconnect": {
     "message": "연결 해제"
   },
-  "whatsapp_disconnected": {
-    "message": "연결 해제됨"
-  },
+  "whatsapp_unlink": { "message": "기기 연결 해제" },
   "whatsapp_connecting": {
     "message": "QR 스캔 대기 중..."
   },
   "whatsapp_connected": {
     "message": "연결됨"
-  },
-  "whatsapp_reconnecting": {
-    "message": "재연결 중..."
   },
   "whatsapp_loggedOut": {
     "message": "로그아웃됨"
@@ -889,9 +888,6 @@
   },
   "whatsapp_connectedMsg": {
     "message": "WhatsApp이 연결되어 메시지를 수신하고 있습니다"
-  },
-  "whatsapp_reconnectingMsg": {
-    "message": "WhatsApp에 재연결 중..."
   },
   "whatsapp_allowedNumbers": {
     "message": "허용된 전화번호"

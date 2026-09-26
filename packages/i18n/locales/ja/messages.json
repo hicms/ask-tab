@@ -501,6 +501,13 @@
   "sessionMgr_clickToSelectSidePanel": {
     "message": "クリックで選択、ダブルクリックでサイドパネルに開く"
   },
+  "channels_statusNotConnected": { "message": "未接続" },
+  "channels_statusConnecting": { "message": "接続中..." },
+  "channels_statusConnected": { "message": "接続済み" },
+  "channels_statusError": { "message": "エラー" },
+  "channels_signInRequired": {
+    "message": "チャネルを接続するには AskTab アカウントにサインインしてください。"
+  },
   "telegram_title": {
     "message": "Telegram ボット"
   },
@@ -513,11 +520,9 @@
   "telegram_botToken": {
     "message": "ボットトークン"
   },
-  "telegram_validate": {
-    "message": "検証"
-  },
-  "telegram_tokenValid": {
-    "message": "トークンは有効です"
+  "telegram_connect": { "message": "接続" },
+  "telegram_tokenHint": {
+    "message": "トークンは AskTab サーバーが検証して保管します。ブラウザーには保存されません。置き換えるには新しいトークンを入力してください。"
   },
   "telegram_invalidToken": {
     "message": "無効なトークン"
@@ -543,6 +548,7 @@
   "telegram_toggleFailed": {
     "message": "切り替えに失敗しました"
   },
+  "telegram_connectFailed": { "message": "接続に失敗しました" },
   "agents_newAgent": {
     "message": "新しいエージェント"
   },
@@ -778,7 +784,7 @@
     "message": "WhatsApp"
   },
   "whatsapp_description": {
-    "message": "WhatsApp を接続して、スマートフォンから AI アシスタントとチャットできます。WhatsApp Web プロトコルを使用——外部サーバー不要。"
+    "message": "WhatsApp を接続して、スマートフォンから AI アシスタントとチャットできます。リンクされた WhatsApp セッションは AskTab サーバーが保持します。"
   },
   "whatsapp_connection": {
     "message": "接続"
@@ -789,17 +795,12 @@
   "whatsapp_disconnect": {
     "message": "切断"
   },
-  "whatsapp_disconnected": {
-    "message": "切断済み"
-  },
+  "whatsapp_unlink": { "message": "リンク解除" },
   "whatsapp_connecting": {
     "message": "QR コードのスキャンを待っています..."
   },
   "whatsapp_connected": {
     "message": "接続済み"
-  },
-  "whatsapp_reconnecting": {
-    "message": "再接続中..."
   },
   "whatsapp_loggedOut": {
     "message": "ログアウト済み"
@@ -812,9 +813,6 @@
   },
   "whatsapp_connectedMsg": {
     "message": "WhatsApp が接続され、メッセージを受信しています"
-  },
-  "whatsapp_reconnectingMsg": {
-    "message": "WhatsApp に再接続中..."
   },
   "whatsapp_allowedNumbers": {
     "message": "許可する電話番号"

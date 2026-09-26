@@ -26,9 +26,3 @@ export { lastActiveSessionStorage } from './session-storage.js';
 export { logConfigStorage, defaultLogConfig } from './log-config-storage.js';
 export { sttConfigStorage, defaultSttConfig, type SttConfig } from './stt-config-storage.js';
 export { ttsConfigStorage, defaultTtsConfig, type TtsConfig } from './tts-config-storage.js';
-export {
-  embeddingConfigStorage,
-  defaultEmbeddingConfig,
-  type EmbeddingConfig,
-  type EmbeddingProviderType,
-} from './embedding-config-storage.js';

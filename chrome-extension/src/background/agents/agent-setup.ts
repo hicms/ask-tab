@@ -21,12 +21,7 @@ import { createLogger } from '../logging/logger-buffer';
 import { getAgentTools, getToolConfig, getImplementedToolNames } from '../tools';
 import { beginAgentTabGroup, endAgentTabGroup } from '../tools/agent-tab-group';
 import { IS_FIREFOX } from '@extension/env';
-import {
-  buildSystemPrompt,
-  buildLocalSystemPrompt,
-  resolveToolPromptHints,
-  resolveToolListings,
-} from '@extension/shared';
+import { buildSystemPrompt, resolveToolPromptHints, resolveToolListings } from '@extension/shared';
 import {
   serverModelsStorage,
   selectedModelStorage,
@@ -50,14 +45,6 @@ const agentLog = createLogger('agent');
 
 const DEFAULT_TIMEOUT_SECONDS = 600;
 const MAX_RETRY_ATTEMPTS = 3;
-
-/** Tools allowed for local models — keeps context small for limited-context on-device models. */
-const LOCAL_TOOL_ALLOWLIST = new Set([
-  'web_search',
-  'web_fetch',
-  'create_document',
-  'memory_search',
-]);
 
 // ── Shared runAgent lifecycle ────────────
 
@@ -226,8 +213,7 @@ const executeAttempt = async (opts: {
       messages,
     },
     streamFn,
-    getApiKey: async () =>
-      model.provider === 'local' ? undefined : (await requireSession(sessionSnapshot)).token,
+    getApiKey: async () => (await requireSession(sessionSnapshot)).token,
   };
   if (convertToLlm) agentOpts.convertToLlm = convertToLlm;
   if (transformContext) agentOpts.transformContext = transformContext;
@@ -465,18 +451,12 @@ const runAgent = async (opts: RunAgentOpts): Promise<RunAgentResult> => {
   } = opts;
 
   // 1. Build pi-mono primitives (shared across attempts)
-  const sessionSnapshot = model.provider === 'local' ? undefined : await requireSession();
+  const sessionSnapshot = await requireSession();
   const { model: piModel } = chatModelToPiModel(model);
   const streamFn = createStreamFn(model);
-  let tools =
+  const tools =
     toolsOverride ??
     (model.supportsTools !== false ? await getAgentTools({ headless: headlessTools, chatId }) : []);
-
-  // Local models have limited context — restrict to a small, high-value tool set
-  // to avoid blowing the token budget with tool schemas.
-  if (model.provider === 'local' && !toolsOverride) {
-    tools = tools.filter(t => LOCAL_TOOL_ALLOWLIST.has(t.name));
-  }
 
   const timeoutMs = (model.toolTimeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS) * 1000;
 
@@ -656,25 +636,13 @@ const buildHeadlessSystemPrompt = async (model: ChatModel, agentId?: string): Pr
   const agent = agentId ? await getAgent(agentId) : undefined;
 
   const availableTools = getImplementedToolNames();
-  const isLocal = model.provider === 'local';
-
-  // For local models, restrict tool listings to the allowlist to keep system prompt small
-  const effectiveEnabledTools = isLocal
-    ? Object.fromEntries(
-        Object.entries(toolConfig.enabledTools).filter(([name]) => LOCAL_TOOL_ALLOWLIST.has(name)),
-      )
-    : toolConfig.enabledTools;
 
   const promptConfig = {
-    mode: isLocal ? ('minimal' as const) : ('full' as const),
-    tools: resolveToolListings(
-      effectiveEnabledTools,
-      isLocal ? [] : agent?.customTools,
-      availableTools,
-    ),
+    mode: 'full' as const,
+    tools: resolveToolListings(toolConfig.enabledTools, agent?.customTools, availableTools),
     toolPromptHints: resolveToolPromptHints(
-      effectiveEnabledTools,
-      isLocal ? [] : agent?.customTools,
+      toolConfig.enabledTools,
+      agent?.customTools,
       availableTools,
     ),
     workspaceFiles: workspaceFiles.map(f => ({
@@ -694,7 +662,7 @@ const buildHeadlessSystemPrompt = async (model: ChatModel, agentId?: string): Pr
     },
   };
 
-  const { text } = isLocal ? buildLocalSystemPrompt(promptConfig) : buildSystemPrompt(promptConfig);
+  const { text } = buildSystemPrompt(promptConfig);
 
   return text;
 };

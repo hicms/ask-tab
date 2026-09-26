@@ -1,237 +1,150 @@
-import { createWhatsAppAdapter } from './adapter';
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { whatsappAdapter } from './adapter';
+import { downloadQueuedMedia, sendWhatsAppText } from '../gateway';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ChannelInboundMessage } from '../types';
 
-// Mock chrome.storage.local and chrome.runtime.sendMessage
-const mockStorage: Record<string, unknown> = {};
+vi.mock('../gateway', () => ({
+  sendWhatsAppText: vi.fn(() => Promise.resolve({ messageId: 'm1' })),
+  downloadQueuedMedia: vi.fn(() => Promise.resolve(new ArrayBuffer(4))),
+}));
 
-const mockChrome = {
-  storage: {
-    local: {
-      get: vi.fn((keys: string | string[]) => {
-        const result: Record<string, unknown> = {};
-        const keyArr = Array.isArray(keys) ? keys : [keys];
-        for (const key of keyArr) {
-          if (mockStorage[key] !== undefined) {
-            result[key] = mockStorage[key];
-          }
-        }
-        return Promise.resolve(result);
-      }),
-    },
-  },
-  runtime: {
-    sendMessage: vi.fn(),
-  },
-};
+vi.mock('../../logging/logger-buffer', () => ({
+  createLogger: () => ({
+    trace: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  }),
+}));
 
-describe('createWhatsAppAdapter', () => {
+const sendText = vi.mocked(sendWhatsAppText);
+const download = vi.mocked(downloadQueuedMedia);
+
+const makeInbound = (overrides: Partial<ChannelInboundMessage> = {}): ChannelInboundMessage => ({
+  channelMessageId: '1',
+  channelChatId: '123@s.whatsapp.net',
+  senderId: '15551234567@s.whatsapp.net',
+  body: 'hello',
+  timestamp: Date.now(),
+  chatType: 'direct',
+  ...overrides,
+});
+
+describe('whatsappAdapter', () => {
   beforeEach(() => {
-    vi.stubGlobal('chrome', mockChrome);
-    mockChrome.runtime.sendMessage.mockReset();
-    // Clear storage
-    for (const key of Object.keys(mockStorage)) {
-      delete mockStorage[key];
-    }
+    vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  it('has the expected static properties', () => {
+    expect(whatsappAdapter.id).toBe('whatsapp');
+    expect(whatsappAdapter.label).toBe('WhatsApp');
+    expect(whatsappAdapter.maxMessageLength).toBe(4096);
   });
 
-  it('creates an adapter with correct properties', () => {
-    const adapter = createWhatsAppAdapter();
-    expect(adapter.id).toBe('whatsapp');
-    expect(adapter.label).toBe('WhatsApp');
-    expect(adapter.maxMessageLength).toBe(4096);
-  });
+  describe('sendMessage', () => {
+    it('sends formatted text through the server gateway', async () => {
+      const result = await whatsappAdapter.sendMessage({ to: '123@s.whatsapp.net', text: 'hi' });
 
-  it('validateAuth returns valid when creds exist', async () => {
-    mockStorage['wa-auth-creds'] = '{"some":"creds"}';
-    const adapter = createWhatsAppAdapter();
-    const result = await adapter.validateAuth();
-    expect(result.valid).toBe(true);
-    expect(result.identity).toBe('WhatsApp linked');
-  });
-
-  it('validateAuth returns invalid when no creds', async () => {
-    const adapter = createWhatsAppAdapter();
-    const result = await adapter.validateAuth();
-    expect(result.valid).toBe(false);
-    expect(result.error).toContain('Not linked');
-  });
-
-  it('sendMessage delegates to chrome.runtime.sendMessage', async () => {
-    mockChrome.runtime.sendMessage.mockResolvedValueOnce({ ok: true, messageId: 'msg-123' });
-
-    const adapter = createWhatsAppAdapter();
-    const result = await adapter.sendMessage({
-      to: '1234567890@s.whatsapp.net',
-      text: 'hello',
+      expect(result).toEqual({ ok: true, messageId: 'm1' });
+      expect(sendText).toHaveBeenCalledWith('123@s.whatsapp.net', 'hi');
     });
 
-    expect(result.ok).toBe(true);
-    expect(result.messageId).toBe('msg-123');
-    expect(mockChrome.runtime.sendMessage).toHaveBeenCalledWith({
-      type: 'WA_SEND_MESSAGE',
-      jid: '1234567890@s.whatsapp.net',
-      text: 'hello',
+    it('applies WhatsApp formatting', async () => {
+      await whatsappAdapter.sendMessage({ to: '123@s.whatsapp.net', text: '**bold**' });
+
+      expect(sendText).toHaveBeenCalledWith('123@s.whatsapp.net', '*bold*');
+    });
+
+    it('splits long text into multiple chunks', async () => {
+      sendText.mockResolvedValue({ messageId: 'chunk' });
+
+      const result = await whatsappAdapter.sendMessage({
+        to: '123@s.whatsapp.net',
+        text: `${'a'.repeat(4000)}\n${'b'.repeat(4000)}`,
+      });
+
+      expect(sendText.mock.calls.length).toBeGreaterThan(1);
+      expect(result.ok).toBe(true);
+    });
+
+    it('returns the last chunk message id', async () => {
+      sendText
+        .mockResolvedValueOnce({ messageId: 'first' })
+        .mockResolvedValueOnce({ messageId: 'last' });
+
+      const result = await whatsappAdapter.sendMessage({
+        to: '123@s.whatsapp.net',
+        text: `${'a'.repeat(4000)}\n${'b'.repeat(4000)}`,
+      });
+
+      expect(result.messageId).toBe('last');
+    });
+
+    it('returns ok without calling the server for empty formatted text', async () => {
+      const result = await whatsappAdapter.sendMessage({ to: '123@s.whatsapp.net', text: '' });
+
+      expect(result).toEqual({ ok: true });
+      expect(sendText).not.toHaveBeenCalled();
+    });
+
+    it('returns an error result when the server send fails', async () => {
+      sendText.mockRejectedValue(new Error('Not connected'));
+
+      const result = await whatsappAdapter.sendMessage({ to: '123@s.whatsapp.net', text: 'hi' });
+
+      expect(result).toEqual({ ok: false, error: 'Not connected' });
+    });
+
+    it('stops on the first chunk error', async () => {
+      sendText.mockRejectedValue(new Error('boom'));
+
+      const result = await whatsappAdapter.sendMessage({
+        to: '123@s.whatsapp.net',
+        text: `${'a'.repeat(4000)}\n${'b'.repeat(4000)}`,
+      });
+
+      expect(sendText).toHaveBeenCalledTimes(1);
+      expect(result.ok).toBe(false);
+    });
+
+    it('normalizes non-Error throws', async () => {
+      sendText.mockRejectedValue('nope');
+
+      const result = await whatsappAdapter.sendMessage({ to: '123@s.whatsapp.net', text: 'hi' });
+
+      expect(result).toEqual({ ok: false, error: 'Send failed' });
     });
   });
 
-  it('sendMessage handles errors gracefully', async () => {
-    mockChrome.runtime.sendMessage.mockRejectedValueOnce(new Error('SW unavailable'));
+  describe('downloadMedia', () => {
+    it('downloads the queued media by id', async () => {
+      const data = await whatsappAdapter.downloadMedia(makeInbound({ mediaFileId: 'q-1' }));
 
-    const adapter = createWhatsAppAdapter();
-    const result = await adapter.sendMessage({
-      to: '1234567890@s.whatsapp.net',
-      text: 'hello',
+      expect(download).toHaveBeenCalledWith('q-1');
+      expect(data.byteLength).toBe(4);
     });
 
-    expect(result.ok).toBe(false);
-    expect(result.error).toBe('SW unavailable');
+    it('throws when the message has no media', async () => {
+      await expect(whatsappAdapter.downloadMedia(makeInbound())).rejects.toThrow('no media');
+    });
   });
 
-  it('formatSenderDisplay shows name when available', () => {
-    const adapter = createWhatsAppAdapter();
-    const display = adapter.formatSenderDisplay({
-      channelChatId: '1234567890@s.whatsapp.net',
-      senderId: '1234567890@s.whatsapp.net',
-      senderName: 'Alice',
-      body: 'hi',
-      timestamp: Date.now(),
-      chatType: 'direct',
-    });
-    expect(display).toBe('Alice');
-  });
-
-  it('formatSenderDisplay shows phone number from JID when no name', () => {
-    const adapter = createWhatsAppAdapter();
-    const display = adapter.formatSenderDisplay({
-      channelChatId: '1234567890@s.whatsapp.net',
-      senderId: '1234567890@s.whatsapp.net',
-      body: 'hi',
-      timestamp: Date.now(),
-      chatType: 'direct',
-    });
-    expect(display).toBe('+1234567890');
-  });
-
-  // ── Message splitting ──
-
-  it('sendMessage splits long text into multiple chunks', async () => {
-    // Create a message that exceeds 4096 chars
-    const longText = 'A'.repeat(5000);
-    mockChrome.runtime.sendMessage
-      .mockResolvedValueOnce({ ok: true, messageId: 'chunk-1' })
-      .mockResolvedValueOnce({ ok: true, messageId: 'chunk-2' });
-
-    const adapter = createWhatsAppAdapter();
-    const result = await adapter.sendMessage({
-      to: '1234567890@s.whatsapp.net',
-      text: longText,
+  describe('formatSenderDisplay', () => {
+    it('shows the sender name when available', () => {
+      expect(whatsappAdapter.formatSenderDisplay(makeInbound({ senderName: 'Alice' }))).toBe(
+        'Alice',
+      );
     });
 
-    expect(result.ok).toBe(true);
-    expect(mockChrome.runtime.sendMessage).toHaveBeenCalledTimes(2);
-  });
-
-  it('sendMessage returns last chunk messageId', async () => {
-    const longText = 'A'.repeat(5000);
-    mockChrome.runtime.sendMessage
-      .mockResolvedValueOnce({ ok: true, messageId: 'chunk-1' })
-      .mockResolvedValueOnce({ ok: true, messageId: 'chunk-2' });
-
-    const adapter = createWhatsAppAdapter();
-    const result = await adapter.sendMessage({
-      to: '1234567890@s.whatsapp.net',
-      text: longText,
+    it('falls back to the username', () => {
+      expect(whatsappAdapter.formatSenderDisplay(makeInbound({ senderUsername: 'alice_1' }))).toBe(
+        'alice_1',
+      );
     });
 
-    expect(result.messageId).toBe('chunk-2');
-  });
-
-  it('sendMessage stops on first chunk error', async () => {
-    const longText = 'A'.repeat(5000);
-    mockChrome.runtime.sendMessage.mockResolvedValueOnce({ ok: false, error: 'First chunk fail' });
-
-    const adapter = createWhatsAppAdapter();
-    const result = await adapter.sendMessage({
-      to: '1234567890@s.whatsapp.net',
-      text: longText,
+    it('derives a phone number from the JID as a last resort', () => {
+      expect(whatsappAdapter.formatSenderDisplay(makeInbound())).toBe('+15551234567');
     });
-
-    expect(result.ok).toBe(false);
-    expect(result.error).toBe('First chunk fail');
-    // Should not have sent the second chunk
-    expect(mockChrome.runtime.sendMessage).toHaveBeenCalledTimes(1);
-  });
-
-  it('sendMessage returns ok:true for empty formatted text', async () => {
-    const adapter = createWhatsAppAdapter();
-    const result = await adapter.sendMessage({
-      to: '1234567890@s.whatsapp.net',
-      text: '',
-    });
-
-    expect(result.ok).toBe(true);
-    expect(mockChrome.runtime.sendMessage).not.toHaveBeenCalled();
-  });
-
-  it('sendMessage applies WhatsApp formatting', async () => {
-    mockChrome.runtime.sendMessage.mockResolvedValueOnce({ ok: true, messageId: 'msg-fmt' });
-
-    const adapter = createWhatsAppAdapter();
-    await adapter.sendMessage({
-      to: '1234567890@s.whatsapp.net',
-      text: '**bold** text',
-    });
-
-    // The formatted text should convert **bold** to *bold*
-    const call = mockChrome.runtime.sendMessage.mock.calls[0][0];
-    expect(call.text).toContain('*bold*');
-    expect(call.text).not.toContain('**bold**');
-  });
-
-  it('sendMessage handles undefined offscreen response', async () => {
-    mockChrome.runtime.sendMessage.mockResolvedValueOnce(undefined);
-
-    const adapter = createWhatsAppAdapter();
-    const result = await adapter.sendMessage({
-      to: '1234567890@s.whatsapp.net',
-      text: 'hello',
-    });
-
-    expect(result.ok).toBe(false);
-    expect(result.error).toContain('not running');
-  });
-
-  it('sendMessage catches exceptions and returns error', async () => {
-    mockChrome.runtime.sendMessage.mockImplementationOnce(() => {
-      throw new Error('Unexpected crash');
-    });
-
-    const adapter = createWhatsAppAdapter();
-    const result = await adapter.sendMessage({
-      to: '1234567890@s.whatsapp.net',
-      text: 'hello',
-    });
-
-    expect(result.ok).toBe(false);
-    expect(result.error).toBe('Unexpected crash');
-  });
-
-  // ── formatSenderDisplay fallback ──
-
-  it('formatSenderDisplay falls back to senderUsername', () => {
-    const adapter = createWhatsAppAdapter();
-    const display = adapter.formatSenderDisplay({
-      channelChatId: '1234567890@s.whatsapp.net',
-      senderId: '1234567890@s.whatsapp.net',
-      senderUsername: 'alice_wa',
-      body: 'hi',
-      timestamp: Date.now(),
-      chatType: 'direct',
-    });
-    expect(display).toBe('alice_wa');
   });
 });

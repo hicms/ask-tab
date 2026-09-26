@@ -103,6 +103,7 @@ const ToolHeader = ({
         <CopyIcon className="size-3" />
       </Button>
     )}
+    {!onCopy && <span aria-hidden="true" className="size-5 shrink-0" />}
     <ChevronDownIcon className="text-muted-foreground size-3.5 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
   </CollapsibleTrigger>
 );

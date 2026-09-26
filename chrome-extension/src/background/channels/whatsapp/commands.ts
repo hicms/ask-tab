@@ -1,6 +1,7 @@
 import { createLogger } from '../../logging/logger-buffer';
 import { resolveModel } from '../agent-handler';
 import { getChannelConfig } from '../config';
+import { describeChannelStatus } from '../gateway';
 import { findChatByChannelChatId, deleteChat, getMessagesByChatId } from '@extension/storage';
 import type { ChannelAdapter, ChannelInboundMessage } from '../types';
 
@@ -86,7 +87,7 @@ const handleStatus = async (msg: ChannelInboundMessage, adapter: ChannelAdapter)
     lines.push('No active conversation');
   }
 
-  lines.push(`Channel status: ${config?.status ?? 'unknown'}`);
+  lines.push(`Channel status: ${await describeChannelStatus('whatsapp')}`);
 
   await adapter.sendMessage({ to: msg.channelChatId, text: lines.join('\n') });
 };

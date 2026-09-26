@@ -96,10 +96,6 @@
         {
           "group": "Overview",
           "pages": ["providers/index"]
-        },
-        {
-          "group": "Local inference",
-          "pages": ["providers/local-llm"]
         }
       ]
     },

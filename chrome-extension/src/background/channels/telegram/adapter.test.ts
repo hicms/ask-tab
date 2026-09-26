@@ -1,116 +1,67 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { telegramAdapter } from './adapter';
+import { downloadFile, getFile, sendTelegramMessage } from './bot-api';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ChannelInboundMessage } from '../types';
 
-const originalFetch = globalThis.fetch;
+vi.mock('./bot-api', () => ({
+  MAX_TG_MESSAGE_LENGTH: 4096,
+  sendTelegramMessage: vi.fn(async () => {}),
+  getFile: vi.fn(async () => ({ filePath: 'voice/file_1.oga' })),
+  downloadFile: vi.fn(async () => new ArrayBuffer(3)),
+}));
 
-describe('createTelegramAdapter', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let createTelegramAdapter: any;
+const inbound = (overrides: Partial<ChannelInboundMessage> = {}): ChannelInboundMessage => ({
+  channelChatId: '123',
+  senderId: '456',
+  body: 'hi',
+  timestamp: 0,
+  chatType: 'direct',
+  ...overrides,
+});
 
-  beforeEach(async () => {
-    globalThis.fetch = vi.fn();
-    const mod = await import('./adapter');
-    createTelegramAdapter = mod.createTelegramAdapter;
+describe('telegramAdapter', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-    vi.restoreAllMocks();
+  it('has the Telegram id, label and limit', () => {
+    expect(telegramAdapter.id).toBe('telegram');
+    expect(telegramAdapter.label).toBe('Telegram');
+    expect(telegramAdapter.maxMessageLength).toBe(4096);
   });
 
-  it('has correct id and label', () => {
-    const adapter = createTelegramAdapter('123:abc');
-    expect(adapter.id).toBe('telegram');
-    expect(adapter.label).toBe('Telegram');
-    expect(adapter.maxMessageLength).toBe(4096);
+  it('sends text through the bot API', async () => {
+    expect(await telegramAdapter.sendMessage({ to: '456', text: 'Hello' })).toEqual({ ok: true });
+    expect(sendTelegramMessage).toHaveBeenCalledWith('456', 'Hello');
   });
 
-  it('validateAuth returns valid on successful getMe', async () => {
-    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          ok: true,
-          result: { id: 1, username: 'test_bot', is_bot: true, first_name: 'Bot' },
-        }),
+  it('reports send failures instead of throwing', async () => {
+    vi.mocked(sendTelegramMessage).mockRejectedValueOnce(new Error('Chat not found'));
+
+    expect(await telegramAdapter.sendMessage({ to: '999', text: 'Hello' })).toEqual({
+      ok: false,
+      error: 'Chat not found',
     });
-
-    const adapter = createTelegramAdapter('123:abc');
-    const result = await adapter.validateAuth();
-    expect(result.valid).toBe(true);
-    expect(result.identity).toBe('@test_bot');
   });
 
-  it('validateAuth returns invalid on failed getMe', async () => {
-    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ ok: false, description: 'Unauthorized' }),
-    });
+  it('downloads media by resolving the file path first', async () => {
+    const audio = await telegramAdapter.downloadMedia(inbound({ mediaFileId: 'file-1' }));
 
-    const adapter = createTelegramAdapter('bad:token');
-    const result = await adapter.validateAuth();
-    expect(result.valid).toBe(false);
-    expect(result.error).toBe('Unauthorized');
+    expect(getFile).toHaveBeenCalledWith('file-1');
+    expect(downloadFile).toHaveBeenCalledWith('voice/file_1.oga');
+    expect(audio.byteLength).toBe(3);
   });
 
-  it('sendMessage sends text via Telegram API', async () => {
-    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ ok: true, result: { message_id: 1 } }),
-    });
-
-    const adapter = createTelegramAdapter('123:abc');
-    const result = await adapter.sendMessage({ to: '456', text: 'Hello' });
-    expect(result.ok).toBe(true);
+  it('refuses to download without a media handle', async () => {
+    await expect(telegramAdapter.downloadMedia(inbound())).rejects.toThrow('no media');
+    expect(getFile).not.toHaveBeenCalled();
   });
 
-  it('sendMessage returns error on failure', async () => {
-    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ ok: false, description: 'Chat not found' }),
-    });
-
-    const adapter = createTelegramAdapter('123:abc');
-    const result = await adapter.sendMessage({ to: '999', text: 'Hello' });
-    expect(result.ok).toBe(false);
-    expect(result.error).toBeTruthy();
-  });
-
-  it('formatSenderDisplay uses senderName', () => {
-    const adapter = createTelegramAdapter('123:abc');
-    const display = adapter.formatSenderDisplay({
-      channelChatId: '123',
-      senderId: '456',
-      senderName: 'Alice',
-      senderUsername: 'alice',
-      body: 'hi',
-      timestamp: Date.now(),
-      chatType: 'direct',
-    });
-    expect(display).toBe('Alice');
-  });
-
-  it('formatSenderDisplay falls back to username', () => {
-    const adapter = createTelegramAdapter('123:abc');
-    const display = adapter.formatSenderDisplay({
-      channelChatId: '123',
-      senderId: '456',
-      senderUsername: 'alice',
-      body: 'hi',
-      timestamp: Date.now(),
-      chatType: 'direct',
-    });
-    expect(display).toBe('alice');
-  });
-
-  it('formatSenderDisplay falls back to senderId', () => {
-    const adapter = createTelegramAdapter('123:abc');
-    const display = adapter.formatSenderDisplay({
-      channelChatId: '123',
-      senderId: '456',
-      body: 'hi',
-      timestamp: Date.now(),
-      chatType: 'direct',
-    });
-    expect(display).toBe('User 456');
+  it('formats the sender from name, username, then id', () => {
+    expect(
+      telegramAdapter.formatSenderDisplay(inbound({ senderName: 'Alice', senderUsername: 'a' })),
+    ).toBe('Alice');
+    expect(telegramAdapter.formatSenderDisplay(inbound({ senderUsername: 'alice' }))).toBe('alice');
+    expect(telegramAdapter.formatSenderDisplay(inbound())).toBe('User 456');
   });
 });

@@ -1,9 +1,8 @@
-import { DEFAULT_LOCAL_MODEL } from './defaults';
 import { getProvider } from './providers';
 import { requireSession } from '../ask-service/client';
 import { createLogger } from '../logging/logger-buffer';
 import { publicModelsStorage, sttConfigStorage } from '@extension/storage';
-import type { MediaEngine, TranscribeOptions } from './types';
+import type { MediaEngine } from './types';
 import type { SttConfig, AskSession } from '@extension/storage';
 
 const log = createLogger('media');
@@ -19,47 +18,17 @@ const resolveSttModel = async (config: SttConfig, session?: AskSession): Promise
   return selected.id;
 };
 
-const detectBestEngine = async (config: SttConfig): Promise<MediaEngine> => {
-  try {
-    await resolveSttModel(config);
-    return 'openai';
-  } catch {
-    return 'transformers';
-  }
-};
-
 const resolveTranscription = async (audio: ArrayBuffer, mimeType: string): Promise<string> => {
   const config = await sttConfigStorage.get();
   if (config.engine === 'off') throw new Error('Audio transcription is disabled');
-  const engine: MediaEngine =
-    config.engine === 'auto' ? await detectBestEngine(config) : config.engine;
+  const engine: MediaEngine = 'openai';
   const provider = getProvider(engine);
   if (!provider) throw new Error(`Unknown media engine: ${engine}`);
 
-  const options: TranscribeOptions = { language: config.language };
-  if (engine === 'openai') {
-    options.session = await requireSession();
-    options.model = await resolveSttModel(config, options.session);
-  } else if (engine === 'sensevoice') {
-    options.model = 'sensevoice';
-    if (config.language === 'en') options.language = 'auto';
-  } else {
-    options.model = config.localModel || DEFAULT_LOCAL_MODEL;
-  }
+  const session = await requireSession();
+  const model = await resolveSttModel(config, session);
   log.info('resolveTranscription: engine selected', { engine, bytes: audio.byteLength });
-  try {
-    return await provider.transcribe(audio, mimeType, options);
-  } catch (error) {
-    if (config.engine === 'auto' && engine === 'openai') {
-      const local = getProvider('transformers');
-      if (local)
-        return local.transcribe(audio, mimeType, {
-          language: config.language,
-          model: config.localModel || DEFAULT_LOCAL_MODEL,
-        });
-    }
-    throw error;
-  }
+  return provider.transcribe(audio, mimeType, { language: config.language, session, model });
 };
 
-export { resolveTranscription, resolveSttModel, detectBestEngine };
+export { resolveTranscription, resolveSttModel };

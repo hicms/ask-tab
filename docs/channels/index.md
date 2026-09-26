@@ -8,23 +8,24 @@ title: "Channels"
 
 # Channels
 
-AskTab can send and receive messages on WhatsApp and Telegram. Channel workers run in a persistent offscreen document; inbound messages are routed through the agent system and replies are sent back via the same channel.
+AskTab can send and receive messages on WhatsApp and Telegram. The AskTab service owns all channel I/O — it holds the Telegram bot token and the WhatsApp session, and queues inbound messages. The extension leases queued messages from the service, routes them through the agent system, and sends replies back via the service.
 
 ## Supported channels
 
-| Channel | Connection | Polling | Max Message |
-|---------|-----------|---------|-------------|
-| [WhatsApp](/channels/whatsapp) | QR code pairing via Baileys WebSocket | Push-based (WebSocket) | 4,096 chars |
-| [Telegram](/channels/telegram) | Bot token with HTTP long-polling | Long-poll (25s) or alarm-based | 4,096 chars |
+| Channel | Connection | Delivery | Max Message |
+|---------|-----------|----------|-------------|
+| [WhatsApp](/channels/whatsapp) | QR code pairing, session kept by the AskTab service | Service queue, leased by the extension | 4,096 chars |
+| [Telegram](/channels/telegram) | Bot token held by the AskTab service | Service queue, leased by the extension | 4,096 chars |
 
 ## How channels work
 
 ```
 Inbound message (WhatsApp/Telegram)
-  → Offscreen Worker (polls or receives push)
+  → AskTab service (receives, filters, queues)
+  → Poller (extension leases queued updates, then acks)
   → Message Bridge (normalize, deduplicate, filter)
   → Agent Handler (build context, run LLM, stream response)
-  → Channel Adapter (format reply, send back)
+  → Channel Adapter (format reply, send back via the service)
 ```
 
 ### Message bridge
@@ -33,9 +34,8 @@ The message bridge normalizes raw platform messages into a common format:
 
 1. **Normalization** — Convert platform-specific updates to `ChannelInboundMessage`
 2. **Deduplication** — Track recently processed message IDs (up to 200) to prevent reprocessing on service worker restart
-3. **Direction filtering** — Apply `acceptFromMe` / `acceptFromOthers` flags (WhatsApp)
-4. **DM-only filter** — Reject group messages (only direct messages are processed)
-5. **Allowlist check** — Verify sender against `allowedSenderIds`
+3. **DM-only filter** — Reject group messages (only direct messages are processed)
+4. **Allowlist check** — Verify sender against `allowedSenderIds`
 6. **Bot command dispatch** — Handle built-in commands (`/start`, `/help`, `/reset`, `/status`)
 7. **Agent handler** — Route to LLM for response generation
 
@@ -55,21 +55,19 @@ The agent handler processes each inbound message:
 
 ### Polling modes
 
-Channels operate in two modes to balance latency and resource usage:
+The extension polls the service queue with a single alarm (every 30 seconds) and adapts the long-poll wait to balance latency and resource usage:
 
-- **Passive mode** — Alarm fires every 30 seconds, short-polls with timeout=0 (lower CPU, higher latency)
-- **Active mode** — Offscreen document long-polls with timeout=25s (lower latency, uses offscreen document)
+- **Idle** — short wait (about 5 seconds) when nothing is happening
+- **Active** — longer wait (about 20 seconds) for 5 minutes after the last message, so replies feel near-instant
 
-Channels start in passive mode and upgrade to active on first valid message. After 10 minutes of inactivity, they downgrade back to passive.
-
-A watchdog alarm (every 1 minute) ensures the offscreen document is alive and recreates it if needed.
+Each leased queue item is acknowledged after it is handled, so a service worker restart at most re-delivers the in-flight item.
 
 ## Configuration
 
 Both channels are configured on the Options page under the **Channels** section:
 
 - **Enable/disable** each channel independently
-- **Credentials** — Bot token (Telegram) or QR code session (WhatsApp)
+- **Connect** — Bot token (Telegram) or QR code pairing (WhatsApp); credentials are sent to and kept by the AskTab service
 - **Allowed senders** — Allowlist of sender IDs that can interact with the agent
 - **Model override** — Use a specific model for channel messages (optional)
 
@@ -89,7 +87,7 @@ Both channels support slash commands:
 
 Both channels support voice messages:
 
-- **Inbound**: Voice messages are transcribed using the configured STT engine (Whisper local or OpenAI cloud)
+- **Inbound**: Voice messages are transcribed using the configured STT engine (server STT model)
 - **Outbound**: When TTS is enabled, responses are sent as voice/audio messages
   - Telegram sends voice bubbles or audio files
   - WhatsApp sends PTT (Push-to-Talk) voice messages

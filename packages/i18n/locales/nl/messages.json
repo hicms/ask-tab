@@ -501,6 +501,13 @@
   "sessionMgr_clickToSelectSidePanel": {
     "message": "Klik om te selecteren, dubbelklik om te openen in zijpaneel"
   },
+  "channels_statusNotConnected": { "message": "Niet verbonden" },
+  "channels_statusConnecting": { "message": "Verbinden..." },
+  "channels_statusConnected": { "message": "Verbonden" },
+  "channels_statusError": { "message": "Fout" },
+  "channels_signInRequired": {
+    "message": "Meld je aan bij je AskTab-account om kanalen te verbinden."
+  },
   "telegram_title": {
     "message": "Telegram-bot"
   },
@@ -513,11 +520,9 @@
   "telegram_botToken": {
     "message": "Bot Token"
   },
-  "telegram_validate": {
-    "message": "Valideren"
-  },
-  "telegram_tokenValid": {
-    "message": "Token geldig"
+  "telegram_connect": { "message": "Verbinden" },
+  "telegram_tokenHint": {
+    "message": "De AskTab-server controleert en bewaart het token; het wordt niet in de browser opgeslagen. Voer een nieuw token in om het te vervangen."
   },
   "telegram_invalidToken": {
     "message": "Ongeldig token"
@@ -543,6 +548,7 @@
   "telegram_toggleFailed": {
     "message": "Schakelen mislukt"
   },
+  "telegram_connectFailed": { "message": "Verbinding mislukt" },
   "agents_newAgent": {
     "message": "Nieuwe agent"
   },
@@ -778,7 +784,7 @@
     "message": "WhatsApp"
   },
   "whatsapp_description": {
-    "message": "Verbind WhatsApp om met je AI-assistent te chatten vanaf je telefoon. Gebruikt het WhatsApp Web-protocol — geen externe server nodig."
+    "message": "Verbind WhatsApp om met je AI-assistent te chatten vanaf je telefoon. De AskTab-server houdt de gekoppelde WhatsApp-sessie bij."
   },
   "whatsapp_connection": {
     "message": "Verbinding"
@@ -789,17 +795,12 @@
   "whatsapp_disconnect": {
     "message": "Verbreken"
   },
-  "whatsapp_disconnected": {
-    "message": "Verbroken"
-  },
+  "whatsapp_unlink": { "message": "Ontkoppelen" },
   "whatsapp_connecting": {
     "message": "Wachten op QR-scan..."
   },
   "whatsapp_connected": {
     "message": "Verbonden"
-  },
-  "whatsapp_reconnecting": {
-    "message": "Opnieuw verbinden..."
   },
   "whatsapp_loggedOut": {
     "message": "Uitgelogd"
@@ -812,9 +813,6 @@
   },
   "whatsapp_connectedMsg": {
     "message": "WhatsApp verbonden en ontvangt berichten"
-  },
-  "whatsapp_reconnectingMsg": {
-    "message": "Opnieuw verbinden met WhatsApp..."
   },
   "whatsapp_allowedNumbers": {
     "message": "Toegestane telefoonnummers"

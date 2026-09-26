@@ -36,13 +36,6 @@ Temporary extensions are removed when Firefox restarts. Load the extension again
 
 ## Platform differences
 
-### Offscreen document
-
-- **Chrome**: Uses `chrome.offscreen` API (MV3)
-- **Firefox**: Uses a hidden popup window (Firefox doesn't support `chrome.offscreen`)
-
-The offscreen functionality (channels, TTS, STT, local LLM) works the same way regardless.
-
 ### Debugger tool
 
 The `debugger` tool (raw CDP commands) is Chrome-only. It's automatically hidden on Firefox.

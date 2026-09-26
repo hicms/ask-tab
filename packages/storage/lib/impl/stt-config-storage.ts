@@ -1,10 +1,9 @@
 import { createStorage, StorageEnum } from '../base/index.js';
 
 interface SttConfig {
-  engine: 'auto' | 'off' | 'openai' | 'transformers' | 'sensevoice';
+  engine: 'auto' | 'off' | 'openai';
   openai: { modelId: string };
   language: string;
-  localModel: string;
   /** `KeyboardEvent.code` for push-to-talk dictation: hold to record, release to stop (e.g. `AltRight`). Empty disables the shortcut. */
   hotkey: string;
 }
@@ -13,7 +12,6 @@ const defaultSttConfig: SttConfig = {
   engine: 'off',
   openai: { modelId: '' },
   language: 'en',
-  localModel: 'tiny',
   hotkey: 'AltRight',
 };
 

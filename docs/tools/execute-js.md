@@ -1,5 +1,5 @@
 ---
-summary: "Execute JavaScript tool — run JS in a sandboxed tab, bundle workspace files, and register custom tools."
+summary: "Execute JavaScript tool — run JS in a sandbox runtime, bundle workspace files, and register custom tools."
 read_when:
   - Running JavaScript from the agent
   - Understanding the JS sandbox
@@ -9,7 +9,7 @@ title: "Execute JavaScript"
 
 # Execute JavaScript
 
-The `execute_javascript` tool runs JavaScript code in a sandboxed browser tab or a specific tab. It also supports bundling workspace files and registering custom tools.
+The `execute_javascript` tool runs JavaScript code in a sandbox runtime or a specific tab. It also supports bundling workspace files and registering custom tools.
 
 ## Actions
 
@@ -35,7 +35,9 @@ The `execute_javascript` tool runs JavaScript code in a sandboxed browser tab or
 
 ## Sandbox
 
-By default, code runs in a dedicated sandbox tab that persists across service worker restarts:
+On Chrome, code runs in a hidden offscreen document. It does not open a browser tab or take focus, and is reused across service worker restarts. After the hidden runtime starts successfully, leftover `sandbox.html` tabs from older versions are closed. Failures are reported without opening a replacement tab.
+
+Firefox continues to use a background `about:blank` tab.
 
 - Isolated from the rest of the browser
 - State persists between executions within the same session

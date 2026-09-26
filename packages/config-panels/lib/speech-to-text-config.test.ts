@@ -7,8 +7,8 @@ describe('SpeechToTextConfig — SttConfig defaults', () => {
     expect(defaultSttConfig.engine).toBe('off');
     expect(defaultSttConfig.openai).toEqual({ modelId: '' });
     expect(defaultSttConfig.language).toBe('en');
-    expect(defaultSttConfig.localModel).toBe('tiny');
     expect(defaultSttConfig.hotkey).toBe('AltRight');
+    expect(defaultSttConfig).not.toHaveProperty('localModel');
   });
 });
 

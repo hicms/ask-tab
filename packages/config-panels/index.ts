@@ -3,7 +3,6 @@ export { Settings } from './lib/settings';
 export { BackupConfig } from './lib/backup-config';
 export { ModelConfig } from './lib/model-config';
 export { ToolConfig } from './lib/tool-config';
-export { EmbeddingConfigPanel } from './lib/embedding-config';
 export { SpeechToTextConfig } from './lib/speech-to-text-config';
 export { TextToSpeechConfig } from './lib/text-to-speech-config';
 export { SuggestedActionsConfig } from './lib/suggested-actions-config';

@@ -51,7 +51,7 @@ const sendStepFinish = (port: chrome.runtime.Port, step: Omit<LLMStepFinish, 'ty
 const sendError = (port: chrome.runtime.Port, chatId: string, error: string): boolean =>
   safeSend(port, { type: 'LLM_STREAM_ERROR', chatId, error });
 
-/** Non-blocking TTS synthesis for browser chat UI auto-play (chunked streaming). */
+/** Non-blocking TTS synthesis for browser chat UI auto-play. */
 const maybeSendTtsAudio = async (
   port: chrome.runtime.Port,
   chatId: string,
@@ -63,38 +63,36 @@ const maybeSendTtsAudio = async (
     const ttsConfig = await ttsConfigStorage.get();
     if (ttsConfig.engine === 'off' || !ttsConfig.chatUiAutoPlay) return;
 
-    const { maybeApplyTtsStreaming } = await import('../tts');
-    const { arrayBufferToBase64 } = await import('../tts/providers/kokoro-bridge');
+    const { maybeApplyTts } = await import('../tts');
+    const { arrayBufferToBase64 } = await import('../tts/audio-encoding');
 
-    await maybeApplyTtsStreaming({
+    const result = await maybeApplyTts({
       text: responseText,
       config: ttsConfig,
       inboundHadAudio: false,
       modelConfig,
-      onChunk: chunk => {
-        const msg: LLMTtsAudio = {
-          type: 'LLM_TTS_AUDIO',
-          chatId,
-          audioBase64: arrayBufferToBase64(chunk.audio),
-          contentType: chunk.contentType,
-          provider: chunk.provider,
-          chunkIndex: chunk.chunkIndex,
-          isLastChunk: false,
-        };
-        port.postMessage(msg);
-      },
-      onComplete: () => {
-        const sentinel: LLMTtsAudio = {
-          type: 'LLM_TTS_AUDIO',
-          chatId,
-          audioBase64: '',
-          contentType: '',
-          provider: '',
-          isLastChunk: true,
-        };
-        port.postMessage(sentinel);
-      },
     });
+    if (!result) return;
+
+    const audio: LLMTtsAudio = {
+      type: 'LLM_TTS_AUDIO',
+      chatId,
+      audioBase64: arrayBufferToBase64(result.audio),
+      contentType: result.contentType,
+      provider: result.provider,
+      chunkIndex: 0,
+      isLastChunk: false,
+    };
+    port.postMessage(audio);
+    const sentinel: LLMTtsAudio = {
+      type: 'LLM_TTS_AUDIO',
+      chatId,
+      audioBase64: '',
+      contentType: '',
+      provider: '',
+      isLastChunk: true,
+    };
+    port.postMessage(sentinel);
   } catch {
     // TTS failure is non-fatal — text response already delivered
   }
@@ -108,6 +106,7 @@ const runLLMStream = async (
   const { chatId, messages, model: modelConfig, assistantMessageId } = request;
   const assistantParts: ChatMessagePart[] = [];
   let turnPartStart = 0;
+
   streamLog.info('Stream started', { chatId, model: modelConfig.id });
   streamLog.trace('Stream request detail', {
     chatId,
@@ -465,7 +464,8 @@ const runLLMStream = async (
   }
 };
 
-// Wait for the prior turn's cleanup and durable writes before replacing it.
+// A replacement request waits for the stopped turn's cleanup and durable writes.
+// Otherwise an old checkpoint can overwrite the new turn after Stop → Send.
 const activeStreams = new Map<string, { controller: AbortController; done: Promise<void> }>();
 
 const handleLLMStream = async (

@@ -1,11 +1,6 @@
 import { ConfirmDialog, emptyConfirm } from './confirm-dialog.js';
 import { t, useT } from '@extension/i18n';
-import {
-  updateWorkspaceFile,
-  deleteWorkspaceFile,
-  createWorkspaceFile,
-  deleteMemoryChunksByFileId,
-} from '@extension/storage';
+import { updateWorkspaceFile, deleteWorkspaceFile, createWorkspaceFile } from '@extension/storage';
 import {
   Button,
   Dialog,
@@ -243,9 +238,6 @@ const AgentFilesTab = ({
 
   const doDeleteFile = useCallback(
     async (file: DbWorkspaceFile) => {
-      if (file.name === 'MEMORY.md' || file.name.startsWith('memory/')) {
-        await deleteMemoryChunksByFileId(file.id);
-      }
       await deleteWorkspaceFile(file.id);
       if (editorFile?.id === file.id) {
         setEditorFile(null);
@@ -453,14 +445,7 @@ const AgentFilesTab = ({
         ]),
         destructive: true,
         onConfirm: async () => {
-          await Promise.all(
-            childFiles.map(async f => {
-              if (f.name === 'MEMORY.md' || f.name.startsWith('memory/')) {
-                await deleteMemoryChunksByFileId(f.id);
-              }
-              await deleteWorkspaceFile(f.id);
-            }),
-          );
+          await Promise.all(childFiles.map(f => deleteWorkspaceFile(f.id)));
           setSelectedNode(null);
           onReload();
           toast.success(t('agents_folderDeleted'));

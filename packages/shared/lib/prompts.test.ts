@@ -2,9 +2,7 @@ import {
   regularPrompt,
   safetyPrompt,
   toolStylePrompt,
-  sandboxPrompt,
   buildSystemPrompt,
-  buildLocalSystemPrompt,
   isMemoryFile,
   BOOTSTRAP_FILENAMES,
   MAX_PER_FILE_CHARS,
@@ -51,7 +49,7 @@ describe('buildSystemPrompt', () => {
     expect(result.text).toContain('Model: gpt-4o');
   });
 
-  it('mode=minimal includes identity + safety + tool listing (for tiny local models)', () => {
+  it('mode=minimal includes identity + safety + tool listing', () => {
     const config: SystemPromptConfig = {
       mode: 'minimal',
       tools: [{ name: 'testTool', description: 'A test tool' }],
@@ -284,7 +282,7 @@ describe('buildSystemPrompt', () => {
     expect(result.text).toContain(safetyPrompt);
     // Tool listing included so model knows available tools
     expect(result.text).toContain('web_search');
-    // Everything else stripped for tiny local models
+    // Everything else is stripped in minimal mode
     expect(result.text).not.toContain(toolStylePrompt);
     expect(result.text).not.toContain('## Subagent Context');
     expect(result.text).not.toContain('# Project Context');
@@ -797,63 +795,6 @@ describe('isMemoryFile', () => {
   it('is case-sensitive for MEMORY.md', () => {
     expect(isMemoryFile('memory.md')).toBe(false);
     expect(isMemoryFile('Memory.md')).toBe(false);
-  });
-});
-
-// ── buildLocalSystemPrompt() tests ──
-
-describe('buildLocalSystemPrompt', () => {
-  it('omits ## Tooling section', () => {
-    const result = buildLocalSystemPrompt({
-      mode: 'minimal',
-      tools: [{ name: 'web_search', description: 'Search the web' }],
-    });
-    expect(result.text).not.toContain('## Tooling');
-    expect(result.text).not.toContain('Tool names are case-sensitive');
-  });
-
-  it('includes identity and safety', () => {
-    const result = buildLocalSystemPrompt({ mode: 'minimal' });
-    expect(result.text).toContain(regularPrompt);
-    expect(result.text).toContain(safetyPrompt);
-  });
-
-  it('includes minimal workspace (AGENTS.md, TOOLS.md only)', () => {
-    const result = buildLocalSystemPrompt({
-      mode: 'minimal',
-      workspaceFiles: [
-        { name: 'AGENTS.md', content: 'Agent config', owner: 'user' },
-        { name: 'TOOLS.md', content: 'Tool docs', owner: 'user' },
-        { name: 'USER.md', content: 'Should not appear', owner: 'user' },
-        { name: 'SOUL.md', content: 'Should not appear', owner: 'user' },
-      ],
-    });
-    expect(result.text).toContain('## Workspace');
-    expect(result.text).toContain('Agent config');
-    expect(result.text).toContain('Tool docs');
-    expect(result.text).not.toContain('Should not appear');
-  });
-
-  it('omits sandbox, tool style, skills, runtime meta, and extraContext', () => {
-    const result = buildLocalSystemPrompt({
-      mode: 'minimal',
-      tools: [{ name: 'web_search', description: 'Search' }],
-      toolPromptHints: ['Custom hint'],
-      skills: [{ name: 'Research', description: 'Web research', path: 'skills/research/SKILL.md' }],
-      runtimeMeta: { modelName: 'llama', currentDate: '2026-03-19' },
-      extraContext: '## Extra',
-    });
-    expect(result.text).not.toContain(sandboxPrompt.trim());
-    expect(result.text).not.toContain(toolStylePrompt);
-    expect(result.text).not.toContain('## Skills');
-    expect(result.text).not.toContain('Current date:');
-    expect(result.text).not.toContain('## Extra');
-    expect(result.text).not.toContain('Custom hint');
-  });
-
-  it('returns correct estimatedTokens', () => {
-    const result = buildLocalSystemPrompt({ mode: 'minimal' });
-    expect(result.estimatedTokens).toBe(Math.ceil(result.text.length / 4));
   });
 });
 

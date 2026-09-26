@@ -2,28 +2,21 @@
 // WhatsApp Channel Types
 // ──────────────────────────────────────────────
 
-/** Inbound update from WhatsApp worker (offscreen → SW) */
+/**
+ * WhatsApp message as queued by the AskTab server. The server already applies
+ * the direction settings and drops echoes of its own sends.
+ */
 interface WaInboundUpdate {
   channelMessageId: string;
   channelChatId: string;
   senderId: string;
   senderName?: string;
+  /** Empty for voice notes. */
   body: string;
   timestamp: number;
   chatType: 'direct' | 'group';
   fromMe: boolean;
-  /** True when the inbound message was an audio/voice message */
   isAudio?: boolean;
-  /** Original sender JID before LID resolution (present when resolution changed the value) */
-  originalSenderId?: string;
 }
 
-/** WhatsApp connection status */
-type WaConnectionStatus =
-  | 'connecting'
-  | 'connected'
-  | 'reconnecting'
-  | 'logged_out'
-  | 'disconnected';
-
-export type { WaInboundUpdate, WaConnectionStatus };
+export type { WaInboundUpdate };

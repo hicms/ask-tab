@@ -43,7 +43,7 @@ const manifest = {
     'sidePanel',
     'alarms',
     'debugger',
-    'offscreen',
+    ...(process.env['CLI_CEB_FIREFOX'] === 'true' ? [] : (['offscreen'] as const)),
     'identity',
     'cookies',
     'declarativeNetRequest',
@@ -70,11 +70,6 @@ const manifest = {
     : {}),
   declarative_net_request: {
     rule_resources: [
-      {
-        id: 'whatsapp_origin',
-        enabled: true,
-        path: 'rules/whatsapp-origin.json',
-      },
       {
         id: 'strip_extension_origin',
         enabled: true,
@@ -103,18 +98,7 @@ const manifest = {
     '128': 'icon-128.png',
   },
   content_security_policy: {
-    extension_pages:
-      "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; img-src 'self' https: data: blob:",
-  },
-  // Cross-origin isolation for extension pages (the offscreen document).
-  // Enables SharedArrayBuffer, required by the threaded sherpa-onnx WASM engine
-  // that powers the local SenseVoice STT. Only same-origin resources are loaded,
-  // so require-corp is safe. (Chrome 93+; ignored by Firefox.)
-  cross_origin_embedder_policy: {
-    value: 'require-corp',
-  },
-  cross_origin_opener_policy: {
-    value: 'same-origin',
+    extension_pages: "script-src 'self'; object-src 'self'; img-src 'self' https: data: blob:",
   },
   web_accessible_resources: [
     {
@@ -122,7 +106,6 @@ const manifest = {
         '*.js',
         '*.css',
         '*.svg',
-        '*.wasm',
         'icon-128.png',
         'icon-48.png',
         'icon-32.png',

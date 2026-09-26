@@ -1,7 +1,6 @@
 import { AgentsConfig } from './agents-config';
 import { BackupConfig } from './backup-config';
 import { CronConfig } from './cron-config';
-import { EmbeddingConfigPanel } from './embedding-config';
 import { LogViewer } from './log-viewer';
 import { ModelConfig } from './model-config';
 import { SessionManager } from './session-manager';
@@ -27,12 +26,7 @@ const ConfigPanelContent = ({
     {activeTab === 'general' && <Settings />}
     {activeTab === 'backup' && <BackupConfig />}
     {activeTab === 'model' && <ModelConfig />}
-    {activeTab === 'tool' && (
-      <>
-        <ToolConfig />
-        <EmbeddingConfigPanel />
-      </>
-    )}
+    {activeTab === 'tool' && <ToolConfig />}
     {activeTab === 'speech' && (
       <>
         <SpeechToTextConfig />

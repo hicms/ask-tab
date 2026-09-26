@@ -7,18 +7,15 @@ import {
   initializeBackup,
   runAutomaticBackup,
 } from './backup/service';
-import { initChannels, validateChannelAuth, toggleChannel } from './channels';
-import { saveChannelConfig, getChannelConfig, createDefaultChannelConfig } from './channels/config';
 import {
-  handleWatchdogAlarm,
-  handleOffscreenMessage,
-  isWatchdogAlarm,
-} from './channels/offscreen-manager';
-import {
-  handlePassivePollAlarm,
-  isChannelPollAlarm,
-  channelIdFromAlarmName,
-} from './channels/poller';
+  connectChannel,
+  getChannelState,
+  initChannels,
+  removeServerChannel,
+  saveLocalChannelConfig,
+  setServerChannelEnabled,
+} from './channels';
+import { isChannelPollAlarm, runPollCycle, stopChannelPolling } from './channels/poller';
 import { CronService, readRunLogs } from './cron';
 import { executeScheduledTask } from './cron/executor';
 import { HeartbeatService, setHeartbeatServiceRef } from './heartbeat';
@@ -164,11 +161,7 @@ const messageHandlers: Record<string, MessageHandler> = {
         cronService.stop();
         stopped = true;
         await heartbeatService.stop();
-        await Promise.allSettled(
-          ['telegram', 'whatsapp'].map(channelId =>
-            chrome.runtime.sendMessage({ type: 'CHANNEL_STOP_WORKER', channelId }),
-          ),
-        );
+        await stopChannelPolling();
       });
       setTimeout(() => chrome.runtime.reload(), 500);
       return response;
@@ -202,79 +195,30 @@ const messageHandlers: Record<string, MessageHandler> = {
     return {};
   },
 
-  CHANNEL_VALIDATE_AUTH: async request => {
-    const channelId = request.channelId as string;
-    const credentials = request.credentials as Record<string, string>;
-    return validateChannelAuth(channelId, credentials);
-  },
-
-  CHANNEL_TOGGLE: async request => {
-    const channelId = request.channelId as string;
-    const enabled = request.enabled as boolean;
-    await toggleChannel(channelId, enabled);
-    return { success: true };
-  },
-
-  // ── Offscreen Storage Proxy ─────────────────
-  // Offscreen documents cannot access chrome.storage directly.
-  // These handlers proxy storage operations from the offscreen document.
-
-  OFFSCREEN_STORAGE_GET: async request => {
-    const keys = request.keys as string | string[];
-    const data = await chrome.storage.local.get(keys);
-    return { data };
-  },
-
-  OFFSCREEN_STORAGE_SET: async request => {
-    const items = request.items as Record<string, unknown>;
-    await chrome.storage.local.set(items);
-    return { success: true };
-  },
-
-  OFFSCREEN_STORAGE_REMOVE: async request => {
-    const keys = request.keys as string | string[];
-    await chrome.storage.local.remove(keys);
-    return { success: true };
+  CHANNEL_GET: async request => {
+    const state = await getChannelState(request.channelId);
+    return { ...state };
   },
 
   CHANNEL_SAVE_CONFIG: async request => {
-    const channelId = request.channelId as string;
-    const updates = request.config as Record<string, unknown>;
-    let config = await getChannelConfig(channelId);
-    if (!config) {
-      config = createDefaultChannelConfig(channelId);
-    }
-    // R6: Whitelist fields that can be set from Options page
-    if (updates.credentials && typeof updates.credentials === 'object') {
-      config.credentials = updates.credentials as Record<string, string>;
-    }
-    if (Array.isArray(updates.allowedSenderIds)) {
-      config.allowedSenderIds = updates.allowedSenderIds as string[];
-    }
-    if (updates.modelId !== undefined) {
-      config.modelId = updates.modelId as string | undefined;
-    }
-    if (updates.acceptFromMe !== undefined) {
-      config.acceptFromMe = updates.acceptFromMe as boolean;
-    }
-    if (updates.acceptFromOthers !== undefined) {
-      config.acceptFromOthers = updates.acceptFromOthers as boolean;
-    }
-    await saveChannelConfig(config);
+    const updates =
+      request.config && typeof request.config === 'object'
+        ? (request.config as Record<string, unknown>)
+        : {};
+    await saveLocalChannelConfig(request.channelId, updates);
     return { success: true };
   },
 
-  CHANNEL_GET_CONFIG: async request => {
-    const channelId = request.channelId as string;
-    const config = await getChannelConfig(channelId);
-    return { config: config ?? createDefaultChannelConfig(channelId) };
+  CHANNEL_CONNECT: async request => ({ view: await connectChannel(request) }),
+
+  CHANNEL_SET_ENABLED: async request => {
+    if (typeof request.enabled !== 'boolean') throw new Error('enabled must be a boolean');
+    return { view: await setServerChannelEnabled(request.channelId, request.enabled) };
   },
 
-  STT_DOWNLOAD_MODEL: async request => {
-    const { requestModelDownload } = await import('./media-understanding');
-    const engine = request.engine === 'sensevoice' ? 'sensevoice' : 'transformers';
-    const downloadId = await requestModelDownload(request.model as string, engine);
-    return { downloadId };
+  CHANNEL_REMOVE: async request => {
+    await removeServerChannel(request.channelId);
+    return { success: true };
   },
 
   TRANSCRIBE_DICTATION: async request => {
@@ -339,34 +283,20 @@ const messageHandlers: Record<string, MessageHandler> = {
     }
   },
 
-  TTS_DOWNLOAD_MODEL: async request => {
-    const { requestModelDownload } = await import('./tts/providers/kokoro-bridge');
-    const downloadId = await requestModelDownload(request.model as string);
-    return { downloadId };
-  },
-
-  LOCAL_LLM_DOWNLOAD_MODEL: async request => {
-    const { ensureOffscreenDocument } = await import('./channels/offscreen-manager');
-    await ensureOffscreenDocument();
-    const modelId = request.modelId as string;
-    const downloadId = (request.downloadId as string) || crypto.randomUUID();
-    const device =
-      request.device === 'webgpu' || request.device === 'wasm' ? request.device : undefined;
-    await chrome.runtime.sendMessage({
-      type: 'LOCAL_LLM_DOWNLOAD_MODEL',
-      modelId,
-      downloadId,
-      device,
-    });
-    return { downloadId };
-  },
-
   SUBAGENT_STOP: async request => {
     const runId = request.runId as string;
     if (!runId) return { status: 'error', error: 'runId is required' };
     const { executeKillSubagent } = await import('./tools/subagent');
     const result = await executeKillSubagent({ runId });
     return JSON.parse(result);
+  },
+
+  MEMORY_FORGET_AGENT: async request => {
+    const agentId = request.agentId as string;
+    if (!agentId) return { error: 'agentId is required' };
+    const { forgetAgentMemory } = await import('./memory/memory-service');
+    await forgetAgentMemory(agentId);
+    return { success: true };
   },
 
   SESSION_JOURNAL: async request => {
@@ -618,8 +548,6 @@ chrome.runtime.onConnect.addListener(port => {
   }
 });
 
-// Handle alarms: keep-alive, channel passive polls, and watchdog.
-// Use waitUntil pattern (returning promise) to keep SW alive during async poll work.
 chrome.alarms.onAlarm.addListener(alarm => {
   if (HeartbeatService.isSchedulerAlarm(alarm.name)) {
     heartbeatService.handleAlarm(alarm).catch(err => {
@@ -632,21 +560,13 @@ chrome.alarms.onAlarm.addListener(alarm => {
   } else if (alarm.name === ALARM_NAME) {
     runAutomaticBackup().catch(err => diagnostics.error('[backup] Automatic backup failed:', err));
   } else if (isChannelPollAlarm(alarm.name)) {
-    // Keep SW alive by handling the promise — Chrome extends lifetime for pending async event work
-    handlePassivePollAlarm(channelIdFromAlarmName(alarm.name)).catch(err => {
-      diagnostics.error('[alarm] Passive poll failed:', err);
-    });
-  } else if (isWatchdogAlarm(alarm.name)) {
-    handleWatchdogAlarm().catch(err => {
-      diagnostics.error('[alarm] Watchdog failed:', err);
-    });
+    runPollCycle().catch(err => diagnostics.error('[alarm] Channel poll failed:', err));
   }
-  // keep-alive alarm: no-op (just keeps the service worker active)
+  // keep-alive alarms: no-op (they only keep the service worker active)
 });
 
 // ── Channel Initialization ────────────────────
 
-// R22: Initialize channels on startup with retry on failure
 const channelLog = createLogger('channel-init');
 const initWithRetry = async (attempts = 3, delayMs = 2000): Promise<void> => {
   for (let i = 0; i < attempts; i++) {
@@ -654,7 +574,6 @@ const initWithRetry = async (attempts = 3, delayMs = 2000): Promise<void> => {
       await initChannels();
       return;
     } catch (err) {
-      diagnostics.error(`[channels] Init failed (attempt ${i + 1}/${attempts}):`, err);
       channelLog.error('Init failed', { attempt: i + 1, attempts, error: String(err) });
       if (i < attempts - 1) {
         await new Promise(r => setTimeout(r, delayMs));
@@ -662,12 +581,15 @@ const initWithRetry = async (attempts = 3, delayMs = 2000): Promise<void> => {
     }
   }
 };
-// Ensure log config is loaded before channel init so structured logs aren't silently dropped.
-// Export the promise so the offscreen message handler can await it — on SW restart,
-// CHANNEL_UPDATES may arrive before initChannels() completes.
-const channelsReady = configReady
+// Log config must be loaded first so structured channel logs aren't silently dropped.
+configReady
   .then(() => initWithRetry())
   .catch(err => diagnostics.error('[channels] configReady failed:', err));
+askSessionStorage.subscribe(() => {
+  initChannels().catch(err =>
+    channelLog.warn('Channel refresh after session change failed', { error: String(err) }),
+  );
+});
 
 refreshSessionOnStartup().catch(err => diagnostics.error('[account] Model sync failed:', err));
 let backupInitialization = Promise.resolve();
@@ -678,51 +600,5 @@ const refreshBackupForAccount = () => {
 };
 askSessionStorage.subscribe(refreshBackupForAccount);
 refreshBackupForAccount();
-
-// R14: Handle messages from the offscreen document — return true for async handling
-chrome.runtime.onMessage.addListener(
-  (
-    message: Record<string, unknown>,
-    sender: chrome.runtime.MessageSender,
-    sendResponse: (response?: unknown) => void,
-  ) => {
-    // Only handle messages originating from the offscreen/worker document, not our own
-    // broadcasts back to extension pages. Offscreen senders have sender.url set
-    // to the offscreen HTML page; the SW broadcasting to itself has no url.
-    // On Firefox, workers run in a hidden popup window with the same page URL.
-    const senderUrl = sender.url ?? '';
-    const isFromOffscreen =
-      sender.id === chrome.runtime.id && senderUrl.includes('offscreen-channels');
-    const isFromWorkerRouter = message._source === 'worker-router';
-
-    if (typeof message.type === 'string') {
-      const type = message.type;
-
-      if (
-        type === 'CHANNEL_UPDATES' ||
-        type === 'CHANNEL_ERROR' ||
-        type === 'WA_QR_CODE' ||
-        type === 'WA_CONNECTION_STATUS' ||
-        type === 'WA_DEBUG'
-      ) {
-        if (!isFromOffscreen && !isFromWorkerRouter) {
-          // This is our own broadcast echoing back — ignore it
-          return false;
-        }
-        // Wait for channel initialization to complete before processing.
-        // On SW restart, this message may arrive before initChannels() finishes.
-        channelsReady
-          .then(() => handleOffscreenMessage(message))
-          .then(() => sendResponse({ ok: true }))
-          .catch(err => {
-            diagnostics.error('[channels] Offscreen message handler error:', err);
-            sendResponse({ ok: false });
-          });
-        return true; // Keep message channel open for async response
-      }
-    }
-    return false;
-  },
-);
 
 initSidePanelBehavior();

@@ -1,22 +1,21 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { sendTelegramMessage, setMyCommands } from './bot-api';
+import { handleBotCommand, isBotCommand, registerBotCommands } from './commands';
+import { resolveModel } from '../agent-handler';
+import { getChannelConfig } from '../config';
+import {
+  deleteChat,
+  findChatByChannelChatId,
+  getMessagesByChatId,
+  ttsConfigStorage,
+} from '@extension/storage';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ChannelInboundMessage } from '../types';
 
-// Mock chrome.storage.local
-beforeAll(() => {
-  Object.defineProperty(globalThis, 'chrome', {
-    value: {
-      storage: {
-        local: {
-          get: vi.fn(() => Promise.resolve({})),
-          set: vi.fn(() => Promise.resolve()),
-        },
-      },
-      runtime: { getURL: vi.fn((p: string) => `chrome-ext://id/${p}`) },
-    },
-    writable: true,
-  });
-});
+vi.mock('./bot-api', () => ({
+  sendTelegramMessage: vi.fn(() => Promise.resolve()),
+  setMyCommands: vi.fn(() => Promise.resolve()),
+}));
 
-// Mock logger
 vi.mock('../../logging/logger-buffer', () => ({
   createLogger: () => ({
     trace: vi.fn(),
@@ -27,51 +26,55 @@ vi.mock('../../logging/logger-buffer', () => ({
   }),
 }));
 
-// Mock storage
 vi.mock('@extension/storage', () => ({
   findChatByChannelChatId: vi.fn(() => Promise.resolve(null)),
   deleteChat: vi.fn(() => Promise.resolve()),
   getMessagesByChatId: vi.fn(() => Promise.resolve([])),
-  serverModelsStorage: { get: vi.fn(() => Promise.resolve([])) },
-  selectedModelStorage: { get: vi.fn(() => Promise.resolve(null)) },
+  ttsConfigStorage: {
+    get: vi.fn(() =>
+      Promise.resolve({
+        engine: 'openai',
+        autoMode: 'off',
+        openai: { voice: 'alloy' },
+        summarize: false,
+        maxChars: 500,
+      }),
+    ),
+    set: vi.fn(() => Promise.resolve()),
+  },
 }));
 
-// Mock config
 vi.mock('../config', () => ({
   getChannelConfig: vi.fn(() => Promise.resolve(null)),
 }));
 
-// Mock agent handler (commands.ts imports resolveModel from it)
 vi.mock('../agent-handler', () => ({
   resolveModel: vi.fn(() => Promise.resolve(null)),
 }));
 
-const originalFetch = globalThis.fetch;
+vi.mock('../gateway', () => ({
+  describeChannelStatus: vi.fn(() => Promise.resolve('connected')),
+}));
+
+const send = vi.mocked(sendTelegramMessage);
+const findChat = vi.mocked(findChatByChannelChatId);
+const ttsSet = vi.mocked(ttsConfigStorage.set);
+
+const makeMsg = (body: string): ChannelInboundMessage => ({
+  channelMessageId: '1',
+  channelChatId: '123',
+  senderId: '456',
+  senderName: 'Alice',
+  body,
+  timestamp: Date.now(),
+  chatType: 'direct',
+});
+
+const lastReply = (): string => send.mock.calls.at(-1)?.[1] as string;
 
 describe('telegram commands', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let isBotCommand: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let handleBotCommand: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let registerBotCommands: any;
-
-  beforeEach(async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ ok: true, result: { message_id: 1 } }),
-    });
-
+  beforeEach(() => {
     vi.clearAllMocks();
-    const mod = await import('./commands');
-    isBotCommand = mod.isBotCommand;
-    handleBotCommand = mod.handleBotCommand;
-    registerBotCommands = mod.registerBotCommands;
-  });
-
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-    vi.restoreAllMocks();
   });
 
   describe('isBotCommand', () => {
@@ -105,56 +108,91 @@ describe('telegram commands', () => {
   });
 
   describe('handleBotCommand', () => {
-    const makeMsg = (body: string) => ({
-      channelMessageId: '1',
-      channelChatId: '123',
-      senderId: '456',
-      senderName: 'Alice',
-      body,
-      timestamp: Date.now(),
-      chatType: 'direct' as const,
+    it('handles /start with a welcome message', async () => {
+      expect(await handleBotCommand(makeMsg('/start'))).toBe(true);
+      expect(send).toHaveBeenCalledWith('123', expect.stringContaining('Hello Alice'));
     });
 
-    it('handles /start', async () => {
-      const result = await handleBotCommand(makeMsg('/start'), 'tok');
-      expect(result).toBe(true);
-      expect(globalThis.fetch).toHaveBeenCalled();
+    it('handles /help by listing all commands', async () => {
+      expect(await handleBotCommand(makeMsg('/help'))).toBe(true);
+      expect(lastReply()).toContain('/reset');
+      expect(lastReply()).toContain('/tts');
     });
 
-    it('handles /help', async () => {
-      const result = await handleBotCommand(makeMsg('/help'), 'tok');
-      expect(result).toBe(true);
+    it('handles /reset by deleting the existing chat', async () => {
+      findChat.mockResolvedValue({ id: 'chat-1' } as never);
+
+      expect(await handleBotCommand(makeMsg('/reset'))).toBe(true);
+      expect(deleteChat).toHaveBeenCalledWith('chat-1');
+      expect(lastReply()).toContain('reset');
     });
 
-    it('handles /reset', async () => {
-      const result = await handleBotCommand(makeMsg('/reset'), 'tok');
-      expect(result).toBe(true);
+    it('handles /status with model and channel info', async () => {
+      vi.mocked(getChannelConfig).mockResolvedValue({
+        channelId: 'telegram',
+        allowedSenderIds: [],
+      });
+      vi.mocked(resolveModel).mockResolvedValue({ name: 'gpt-x', provider: 'custom' } as never);
+      findChat.mockResolvedValue({ id: 'chat-1' } as never);
+      vi.mocked(getMessagesByChatId).mockResolvedValue([{}, {}] as never);
+
+      expect(await handleBotCommand(makeMsg('/status'))).toBe(true);
+      expect(lastReply()).toContain('Model: gpt-x');
+      expect(lastReply()).toContain('Messages in conversation: 2');
+      expect(lastReply()).toContain('Channel status: connected');
     });
 
-    it('handles /status', async () => {
-      const result = await handleBotCommand(makeMsg('/status'), 'tok');
-      expect(result).toBe(true);
+    it('returns false for an unknown command', async () => {
+      expect(await handleBotCommand(makeMsg('/unknown'))).toBe(false);
+      expect(send).not.toHaveBeenCalled();
     });
 
-    it('returns false for unknown command', async () => {
-      const result = await handleBotCommand(makeMsg('/unknown'), 'tok');
-      expect(result).toBe(false);
+    it('strips the @botname suffix from the command', async () => {
+      expect(await handleBotCommand(makeMsg('/start@mybot'))).toBe(true);
+      expect(send).toHaveBeenCalled();
+    });
+  });
+
+  describe('/tts', () => {
+    it('shows current settings by default', async () => {
+      expect(await handleBotCommand(makeMsg('/tts'))).toBe(true);
+      expect(lastReply()).toContain('Engine: openai');
+      expect(lastReply()).toContain('Mode: off');
     });
 
-    it('strips @botname suffix from command', async () => {
-      const result = await handleBotCommand(makeMsg('/start@mybot'), 'tok');
-      expect(result).toBe(true);
+    it('turns TTS on with /tts on', async () => {
+      await handleBotCommand(makeMsg('/tts on'));
+      expect(ttsSet).toHaveBeenCalledWith(expect.objectContaining({ autoMode: 'always' }));
+    });
+
+    it('turns TTS off with /tts off', async () => {
+      await handleBotCommand(makeMsg('/tts off'));
+      expect(ttsSet).toHaveBeenCalledWith(expect.objectContaining({ autoMode: 'off' }));
+    });
+
+    it('sets an explicit mode with /tts inbound', async () => {
+      await handleBotCommand(makeMsg('/tts inbound'));
+      expect(ttsSet).toHaveBeenCalledWith(expect.objectContaining({ autoMode: 'inbound' }));
+    });
+
+    it('shows usage for an unknown subcommand', async () => {
+      await handleBotCommand(makeMsg('/tts bogus'));
+      expect(ttsSet).not.toHaveBeenCalled();
+      expect(lastReply()).toContain('TTS Commands:');
     });
   });
 
   describe('registerBotCommands', () => {
-    it('calls setMyCommands API', async () => {
-      await registerBotCommands('tok');
-      const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls;
-      const setCommandsCall = calls.find(
-        c => typeof c[0] === 'string' && c[0].includes('setMyCommands'),
+    it('registers the command list with Telegram', async () => {
+      await registerBotCommands();
+      expect(setMyCommands).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ command: 'start' })]),
       );
-      expect(setCommandsCall).toBeDefined();
+    });
+
+    it('swallows registration failures', async () => {
+      vi.mocked(setMyCommands).mockRejectedValueOnce(new Error('Unauthorized'));
+      await expect(registerBotCommands()).resolves.toBeUndefined();
     });
   });
 });

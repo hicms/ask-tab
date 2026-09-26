@@ -1,147 +1,129 @@
-import { getChannelConfig, updateChannelConfig } from './config';
-import { handleChannelUpdates } from './message-bridge';
-import { getUpdatesShortPoll } from './telegram/bot-api';
+import { ackUpdates, pullUpdates } from './gateway';
+import { handleQueuedUpdate } from './message-bridge';
+import { AskServiceError } from '../ask-service/client';
 import { createLogger } from '../logging/logger-buffer';
-import { diagnostics } from '@extension/shared/lib/diagnostics.js';
+import { createKeepAliveManager } from '../utils/keep-alive';
+import type { QueuedUpdate } from './gateway';
 
 const pollerLog = createLogger('channel-poller');
 
-const ALARM_PREFIX = 'channel-poll-';
-const pollingInProgress = new Set<string>();
+const CHANNEL_POLL_ALARM = 'channel-poll';
+const POLL_ALARM_PERIOD_MINUTES = 0.5;
+/** Pull wait while idle; the alarm provides the cadence. */
+const IDLE_WAIT_SECONDS = 5;
+/** Long-poll wait during a conversation. */
+const ACTIVE_WAIT_SECONDS = 20;
+/** Keep long-polling this long after the last valid message. */
+const ACTIVE_WINDOW_MS = 5 * 60_000;
 
-/** Get the alarm name for a channel's passive poll */
-const getPassiveAlarmName = (channelId: string): string => `${ALARM_PREFIX}${channelId}`;
+const pollKeepAlive = createKeepAliveManager('channel-poll-keep-alive');
+pollKeepAlive.clearOrphan();
 
-/** Handle a passive poll alarm firing — do a short poll for the channel */
-const handlePassivePollAlarm = async (channelId: string): Promise<void> => {
-  if (pollingInProgress.has(channelId)) {
-    pollerLog.trace('Skipping poll — previous cycle still running', { channelId });
-    return;
-  }
-  pollingInProgress.add(channelId);
+let currentLoop: Promise<void> | null = null;
+let currentController: AbortController | null = null;
+let lastMessageAt = 0;
+
+const isActiveWindow = (): boolean => Date.now() - lastMessageAt < ACTIVE_WINDOW_MS;
+
+const handleItem = async (item: QueuedUpdate): Promise<void> => {
   try {
-    await handlePassivePollInner(channelId);
-  } finally {
-    pollingInProgress.delete(channelId);
+    if (await handleQueuedUpdate(item)) lastMessageAt = Date.now();
+  } catch (err) {
+    // Acked anyway: a message that always throws would otherwise be redelivered forever.
+    pollerLog.error('Queued update handling failed', {
+      id: item.id,
+      channelId: item.channel,
+      error: String(err),
+    });
+  }
+  try {
+    await ackUpdates([item.id]);
+  } catch (err) {
+    pollerLog.warn('Ack failed; the server will redeliver after the lease', {
+      id: item.id,
+      error: String(err),
+    });
   }
 };
 
-const handlePassivePollInner = async (channelId: string): Promise<void> => {
-  diagnostics.log(`[channel-poller] Alarm fired for ${channelId}`);
-  pollerLog.trace('Passive poll alarm fired', { channelId });
-
-  const config = await getChannelConfig(channelId);
-  if (!config || !config.enabled) {
-    diagnostics.log(`[channel-poller] ${channelId} not enabled, skipping`);
-    pollerLog.debug('Channel not enabled, skipping poll', { channelId, hasConfig: !!config });
-    return;
-  }
-
-  // Only poll in passive or idle modes (not while offscreen is actively polling)
-  if (config.status === 'active') {
-    pollerLog.debug('Skipping poll — channel in active mode (offscreen polling)', { channelId });
-    return;
-  }
-
-  pollerLog.trace('Poll config snapshot', {
-    channelId,
-    status: config.status,
-    offset: config.lastPollOffset,
-    allowedSenders: config.allowedSenderIds.length,
-  });
-
+const pollLoop = async (signal: AbortSignal): Promise<void> => {
+  let keptAlive = false;
   try {
-    let updates: unknown[] = [];
+    while (!signal.aborted) {
+      const active = isActiveWindow();
+      if (active && !keptAlive) {
+        pollKeepAlive.acquire();
+        keptAlive = true;
+      }
 
-    switch (channelId) {
-      case 'telegram': {
-        const token = config.credentials.botToken;
-        if (!token) {
-          diagnostics.warn(`[channel-poller] ${channelId}: no bot token`);
-          pollerLog.warn('No bot token configured', { channelId });
+      let items: QueuedUpdate[];
+      try {
+        items = await pullUpdates(active ? ACTIVE_WAIT_SECONDS : IDLE_WAIT_SECONDS, signal);
+      } catch (err) {
+        if (signal.aborted) return;
+        if (err instanceof AskServiceError && err.status === 401) {
+          pollerLog.debug('Not signed in; stopping channel polling');
+          await stopChannelPolling();
           return;
         }
-        // R18: Validate offset is a finite number before use
-        const offset =
-          typeof config.lastPollOffset === 'number' && Number.isFinite(config.lastPollOffset)
-            ? config.lastPollOffset
-            : undefined;
-        pollerLog.trace('Calling getUpdates (short poll)', { channelId, offset });
-        updates = await getUpdatesShortPoll(token, offset);
-        break;
-      }
-      default:
-        pollerLog.warn('Unknown channel for passive poll', { channelId });
+        pollerLog.warn('Channel pull failed', { error: String(err) });
         return;
-    }
-
-    diagnostics.log(`[channel-poller] ${channelId}: got ${updates.length} updates`);
-    pollerLog.trace('getUpdates result', { channelId, count: updates.length, updates });
-
-    if (updates.length > 0) {
-      pollerLog.info('Passive poll got updates', { channelId, count: updates.length });
-
-      const maxUpdateId = await handleChannelUpdates(channelId, updates);
-
-      pollerLog.trace('Updates processed', { channelId, maxUpdateId });
-
-      // Advance offset (monotonic — never go backwards)
-      if (maxUpdateId !== undefined) {
-        const freshConfig = await getChannelConfig(channelId);
-        const currentOffset = freshConfig?.lastPollOffset ?? 0;
-        const newOffset = maxUpdateId + 1;
-        if (newOffset > currentOffset) {
-          await updateChannelConfig(channelId, { lastPollOffset: newOffset });
-          pollerLog.debug('Offset advanced', { channelId, newOffset });
-        } else {
-          pollerLog.trace('Offset not advanced (already ahead)', {
-            channelId,
-            newOffset,
-            currentOffset,
-          });
-        }
       }
-    }
 
-    // Clear any previous error
-    if (config.status === 'error') {
-      await updateChannelConfig(channelId, { status: 'passive', lastError: undefined });
-      pollerLog.info('Cleared error status', { channelId });
-    }
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    diagnostics.error(`[channel-poller] ${channelId} error:`, errorMsg);
-    pollerLog.error('Passive poll error', { channelId, error: errorMsg });
+      for (const item of items) {
+        if (signal.aborted) return;
+        await handleItem(item);
+      }
 
-    // Set error status for persistent failures (401 = invalid token)
-    if (errorMsg.includes('401') || errorMsg.includes('Unauthorized')) {
-      await updateChannelConfig(channelId, { status: 'error', lastError: errorMsg });
+      if (items.length === 0 && !isActiveWindow()) return;
     }
+  } finally {
+    if (keptAlive) pollKeepAlive.release();
   }
 };
 
-/** Create a passive poll alarm for a channel */
-const createPassiveAlarm = (channelId: string): void => {
-  chrome.alarms.create(getPassiveAlarmName(channelId), { periodInMinutes: 0.5 });
-  diagnostics.log(`[channel-poller] Created alarm for ${channelId} (every 30s)`);
+/** Run one poll cycle, or join the one already running. */
+const runPollCycle = (): Promise<void> => {
+  if (currentLoop) {
+    // A stopped loop may still be finishing its current message; start after it.
+    return currentController?.signal.aborted ? currentLoop.then(runPollCycle) : currentLoop;
+  }
+  const controller = new AbortController();
+  currentController = controller;
+  const loop = pollLoop(controller.signal).finally(() => {
+    if (currentLoop === loop) {
+      currentLoop = null;
+      currentController = null;
+    }
+  });
+  currentLoop = loop;
+  return loop;
 };
 
-/** Clear the passive poll alarm for a channel */
-const clearPassiveAlarm = async (channelId: string): Promise<void> => {
-  await chrome.alarms.clear(getPassiveAlarmName(channelId));
+/** Poll while at least one server channel is enabled; stop otherwise. */
+const setChannelPolling = async (enabled: boolean): Promise<void> => {
+  if (!enabled) {
+    await stopChannelPolling();
+    return;
+  }
+  const existing = await chrome.alarms.get(CHANNEL_POLL_ALARM);
+  if (!existing) {
+    await chrome.alarms.create(CHANNEL_POLL_ALARM, { periodInMinutes: POLL_ALARM_PERIOD_MINUTES });
+  }
+  void runPollCycle();
 };
 
-/** Check if an alarm name is a channel passive poll alarm */
-const isChannelPollAlarm = (alarmName: string): boolean => alarmName.startsWith(ALARM_PREFIX);
+const stopChannelPolling = async (): Promise<void> => {
+  currentController?.abort();
+  await chrome.alarms.clear(CHANNEL_POLL_ALARM);
+};
 
-/** Extract the channel ID from a poll alarm name */
-const channelIdFromAlarmName = (alarmName: string): string => alarmName.slice(ALARM_PREFIX.length);
+const isChannelPollAlarm = (alarmName: string): boolean => alarmName === CHANNEL_POLL_ALARM;
 
 export {
-  handlePassivePollAlarm,
-  createPassiveAlarm,
-  clearPassiveAlarm,
+  runPollCycle,
+  setChannelPolling,
+  stopChannelPolling,
   isChannelPollAlarm,
-  channelIdFromAlarmName,
-  getPassiveAlarmName,
+  CHANNEL_POLL_ALARM,
 };

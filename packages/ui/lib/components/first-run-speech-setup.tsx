@@ -23,17 +23,6 @@ const SPEECH_ENGINE_OPTIONS: { value: SttConfig['engine']; label: string; descri
   [
     { value: 'off', label: 'Off', description: 'Audio transcription is disabled' },
     {
-      value: 'sensevoice',
-      label: 'SenseVoice (Local)',
-      description:
-        'Runs locally via WASM — no data leaves your browser. Downloads a ~239 MB model on first use.',
-    },
-    {
-      value: 'transformers',
-      label: 'Whisper (Local)',
-      description: 'Runs a transformer model locally via ONNX — no data leaves your browser.',
-    },
-    {
       value: 'openai',
       label: 'AskTab server',
       description: 'Uses an STT model configured on the AskTab server.',

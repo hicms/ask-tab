@@ -19,10 +19,10 @@ const convertToFirefoxCompatibleManifest = (manifest: ManifestType) => {
     };
   }
   manifestCopy.content_security_policy = {
-    extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
+    extension_pages: "script-src 'self'; object-src 'self'",
   };
   manifestCopy.permissions = (manifestCopy.permissions as string[]).filter(
-    value => !['sidePanel', 'offscreen', 'debugger'].includes(value),
+    value => !['sidePanel', 'debugger'].includes(value),
   );
 
   // Use shorter name for Firefox (Mozilla enforces ≤50 char limit)

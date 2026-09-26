@@ -1,182 +1,134 @@
+import { createDefaultChannelConfig, getChannelConfig, updateChannelConfig } from './config';
 import {
-  getChannelConfigs,
-  getChannelConfig,
-  saveChannelConfig,
-  updateChannelConfig,
-  createDefaultChannelConfig,
-} from './config';
-import {
-  switchToPassiveMode,
-  switchToActiveMode,
-  maybeCloseOffscreenDocument,
-} from './offscreen-manager';
-import { createPassiveAlarm, clearPassiveAlarm } from './poller';
-import { registerChannel } from './registry';
-import { createTelegramAdapter } from './telegram/adapter';
-import { validateBotToken } from './telegram/bot-api';
-import { createWhatsAppAdapter } from './whatsapp/adapter';
+  connectTelegram,
+  connectWhatsApp,
+  getChannelView,
+  isServerChannelId,
+  listChannels,
+  removeChannel,
+  setChannelEnabled,
+} from './gateway';
+import { setChannelPolling, stopChannelPolling } from './poller';
+import { registerBotCommands } from './telegram/commands';
+import { AskServiceError } from '../ask-service/client';
 import { createLogger } from '../logging/logger-buffer';
-import { diagnostics } from '@extension/shared/lib/diagnostics.js';
+import { askSessionStorage } from '@extension/storage';
+import type { ChannelView, ServerChannelId } from './gateway';
+import type { ChannelConfig } from './types';
 
 const initLog = createLogger('channel-init');
 
-/** Initialize all enabled channels on startup */
-const initChannels = async (): Promise<void> => {
-  const configs = await getChannelConfigs();
-  diagnostics.log(`[channel-init] Found ${configs.length} channel config(s)`);
-  initLog.info('Found channel configs', { count: configs.length });
+let sync: Promise<unknown> = Promise.resolve();
 
-  for (const config of configs) {
-    if (!config.enabled) {
-      diagnostics.log(`[channel-init] ${config.channelId}: disabled, skipping`);
-      initLog.info('Channel disabled, skipping', { channelId: config.channelId });
-      continue;
-    }
-
-    switch (config.channelId) {
-      case 'telegram': {
-        const token = config.credentials.botToken;
-        if (!token) {
-          diagnostics.warn(`[channel-init] ${config.channelId}: enabled but no bot token`);
-          initLog.warn('Enabled but no bot token', { channelId: config.channelId });
-          continue;
-        }
-
-        // Register the adapter
-        const adapter = createTelegramAdapter(token);
-        registerChannel(adapter);
-
-        // Start in passive mode
-        createPassiveAlarm(config.channelId);
-        await updateChannelConfig(config.channelId, { status: 'passive' });
-        diagnostics.log(`[channel-init] Telegram initialized (passive mode)`);
-        initLog.info('Telegram channel initialized (passive mode)');
-        break;
-      }
-      case 'whatsapp': {
-        // WhatsApp always starts in active mode (persistent WebSocket)
-        const adapter = createWhatsAppAdapter();
-        registerChannel(adapter);
-        await switchToActiveMode(config.channelId);
-        diagnostics.log(`[channel-init] WhatsApp initialized (active mode)`);
-        initLog.info('WhatsApp channel initialized (active mode)');
-        break;
-      }
-    }
+const syncChannels = async (): Promise<ChannelView[]> => {
+  if (!(await askSessionStorage.get())) {
+    await stopChannelPolling();
+    return [];
   }
-};
-
-/** Enable a channel and start polling — requires valid credentials */
-const enableChannel = async (channelId: string): Promise<void> => {
-  let config = await getChannelConfig(channelId);
-  if (!config) {
-    config = createDefaultChannelConfig(channelId);
-  }
-
-  // F12: Don't enable without credentials
-  switch (channelId) {
-    case 'telegram': {
-      const token = config.credentials.botToken;
-      if (!token) {
-        initLog.warn('Cannot enable Telegram: no bot token configured');
-        return;
-      }
-      const adapter = createTelegramAdapter(token);
-      registerChannel(adapter);
-
-      config.enabled = true;
-      config.status = 'passive';
-      await saveChannelConfig(config);
-
-      createPassiveAlarm(channelId);
-      initLog.info('Telegram channel enabled');
-      break;
+  let views: ChannelView[];
+  try {
+    views = await listChannels();
+  } catch (err) {
+    if (err instanceof AskServiceError && err.status === 401) {
+      await stopChannelPolling();
+      return [];
     }
-    case 'whatsapp': {
-      const adapter = createWhatsAppAdapter();
-      registerChannel(adapter);
-
-      config.enabled = true;
-      config.status = 'active';
-      await saveChannelConfig(config);
-
-      await switchToActiveMode(channelId);
-      initLog.info('WhatsApp channel enabled');
-      break;
-    }
-    default:
-      initLog.warn('Unknown channel', { channelId });
-      return;
+    throw err;
   }
-};
-
-/** Disable a channel and stop polling */
-const disableChannel = async (channelId: string): Promise<void> => {
-  const config = await getChannelConfig(channelId);
-  if (!config) return;
-
-  // Stop active mode if running
-  if (config.status === 'active') {
-    // Send stop worker message to offscreen for any channel type
-    try {
-      await chrome.runtime.sendMessage({
-        type: 'CHANNEL_STOP_WORKER',
-        channelId,
-      });
-    } catch {
-      // Offscreen may already be gone
-    }
-    await switchToPassiveMode(channelId);
-  }
-
-  // Clear passive alarm
-  await clearPassiveAlarm(channelId);
-
-  // Update config
-  await updateChannelConfig(channelId, {
-    enabled: false,
-    status: 'idle',
+  initLog.info('Channels synced', {
+    channels: views.map(view => `${view.channel}:${view.status}`),
   });
-
-  await maybeCloseOffscreenDocument();
-  initLog.info('Channel disabled', { channelId });
+  await setChannelPolling(views.some(view => view.enabled));
+  return views;
 };
 
-/** Validate channel credentials from the Options page */
-const validateChannelAuth = async (
-  channelId: string,
-  credentials: Record<string, string>,
-): Promise<{ valid: boolean; identity?: string; error?: string }> => {
-  switch (channelId) {
-    case 'telegram': {
-      const result = await validateBotToken(credentials.botToken ?? '');
-      if (result.valid) {
-        return {
-          valid: true,
-          identity: result.botUser?.username ? `@${result.botUser.username}` : undefined,
-        };
-      }
-      return { valid: false, error: result.error };
-    }
-    case 'whatsapp': {
-      const data = await chrome.storage.local.get('wa-auth-creds');
-      if (data['wa-auth-creds']) {
-        return { valid: true, identity: 'WhatsApp linked' };
-      }
-      return { valid: false, error: 'Not linked — scan QR code to connect' };
-    }
-    default:
-      return { valid: false, error: `Unknown channel: ${channelId}` };
+/**
+ * Read the server channel accounts and start or stop polling to match.
+ * A signed-out user resolves quietly with no channels.
+ */
+const initChannels = (): Promise<ChannelView[]> => {
+  const next = sync.then(syncChannels, syncChannels);
+  sync = next.catch(() => {});
+  return next;
+};
+
+const parseChannelId = (value: unknown): ServerChannelId => {
+  if (!isServerChannelId(value)) throw new Error(`Unknown channel: ${String(value)}`);
+  return value;
+};
+
+/** Refresh polling after a change; the change itself already succeeded. */
+const refreshAfterChange = async (): Promise<void> => {
+  await initChannels().catch(err =>
+    initLog.warn('Channel refresh failed', { error: err instanceof Error ? err.message : err }),
+  );
+};
+
+const getChannelState = async (
+  channelIdValue: unknown,
+): Promise<{ config: ChannelConfig; view: ChannelView | null; signedIn: boolean }> => {
+  const channelId = parseChannelId(channelIdValue);
+  const config = (await getChannelConfig(channelId)) ?? createDefaultChannelConfig(channelId);
+  if (!(await askSessionStorage.get())) return { config, view: null, signedIn: false };
+  return { config, view: await getChannelView(channelId), signedIn: true };
+};
+
+/** Only local routing settings are saved here; the server owns the connection. */
+const saveLocalChannelConfig = async (
+  channelIdValue: unknown,
+  updates: Record<string, unknown>,
+): Promise<void> => {
+  const channelId = parseChannelId(channelIdValue);
+  const patch: Partial<Omit<ChannelConfig, 'channelId'>> = {};
+  if (Array.isArray(updates.allowedSenderIds)) {
+    patch.allowedSenderIds = updates.allowedSenderIds.filter(
+      (id): id is string => typeof id === 'string',
+    );
   }
+  if ('modelId' in updates) {
+    patch.modelId = typeof updates.modelId === 'string' ? updates.modelId : undefined;
+  }
+  await updateChannelConfig(channelId, patch);
 };
 
-/** Toggle a channel on/off */
-const toggleChannel = async (channelId: string, enabled: boolean): Promise<void> => {
-  if (enabled) {
-    await enableChannel(channelId);
+const connectChannel = async (request: Record<string, unknown>): Promise<ChannelView> => {
+  const channelId = parseChannelId(request.channelId);
+  let view: ChannelView;
+  if (channelId === 'telegram') {
+    const botToken = typeof request.botToken === 'string' ? request.botToken.trim() : '';
+    if (!botToken) throw new Error('Bot token is required');
+    view = await connectTelegram(botToken);
+    void registerBotCommands();
   } else {
-    await disableChannel(channelId);
+    view = await connectWhatsApp({
+      acceptFromMe: typeof request.acceptFromMe === 'boolean' ? request.acceptFromMe : true,
+      acceptFromOthers:
+        typeof request.acceptFromOthers === 'boolean' ? request.acceptFromOthers : false,
+    });
   }
+  await refreshAfterChange();
+  return view;
 };
 
-export { initChannels, enableChannel, disableChannel, validateChannelAuth, toggleChannel };
+const setServerChannelEnabled = async (
+  channelIdValue: unknown,
+  enabled: boolean,
+): Promise<ChannelView> => {
+  const view = await setChannelEnabled(parseChannelId(channelIdValue), enabled);
+  await refreshAfterChange();
+  return view;
+};
+
+const removeServerChannel = async (channelIdValue: unknown): Promise<void> => {
+  await removeChannel(parseChannelId(channelIdValue));
+  await refreshAfterChange();
+};
+
+export {
+  initChannels,
+  getChannelState,
+  saveLocalChannelConfig,
+  connectChannel,
+  setServerChannelEnabled,
+  removeServerChannel,
+};

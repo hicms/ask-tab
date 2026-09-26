@@ -225,14 +225,21 @@
   "sessionMgr_clickToSelectSidePanel": {
     "message": "Clique para selecionar, duplo clique para abrir no painel lateral"
   },
+  "channels_statusNotConnected": { "message": "Não conectado" },
+  "channels_statusConnecting": { "message": "Conectando..." },
+  "channels_statusConnected": { "message": "Conectado" },
+  "channels_statusError": { "message": "Erro" },
+  "channels_signInRequired": { "message": "Entre na sua conta AskTab para conectar canais." },
   "telegram_title": { "message": "Bot do Telegram" },
   "telegram_description": {
     "message": "Conecte um bot do Telegram para conversar com seu assistente de IA pelo Telegram."
   },
   "telegram_enableBot": { "message": "Ativar Bot do Telegram" },
   "telegram_botToken": { "message": "Bot Token" },
-  "telegram_validate": { "message": "Validar" },
-  "telegram_tokenValid": { "message": "Token válido" },
+  "telegram_connect": { "message": "Conectar" },
+  "telegram_tokenHint": {
+    "message": "O servidor AskTab verifica e guarda o token; ele não é armazenado no navegador. Insira um novo token para substituí-lo."
+  },
   "telegram_invalidToken": { "message": "Token inválido" },
   "telegram_allowedUserIds": { "message": "IDs de Usuário Permitidos" },
   "telegram_userIdsHint": {
@@ -245,6 +252,7 @@
   "telegram_validationFailed": { "message": "Falha na validação" },
   "telegram_saveFailed": { "message": "Falha ao salvar" },
   "telegram_toggleFailed": { "message": "Falha ao alternar" },
+  "telegram_connectFailed": { "message": "Falha na conexão" },
   "agents_newAgent": { "message": "Novo Agente" },
   "agents_deleteAgent": { "message": "Excluir agente" },
   "agents_deleteAgentConfirm": {
@@ -338,22 +346,20 @@
   "tab_logs": { "message": "Logs" },
   "whatsapp_title": { "message": "WhatsApp" },
   "whatsapp_description": {
-    "message": "Conecte o WhatsApp para conversar com seu assistente de IA pelo celular. Usa o protocolo WhatsApp Web — nenhum servidor externo necessário."
+    "message": "Conecte o WhatsApp para conversar com seu assistente de IA pelo celular. O servidor AskTab mantém a sessão vinculada do WhatsApp."
   },
   "whatsapp_connection": { "message": "Conexão" },
   "whatsapp_connect": { "message": "Conectar" },
   "whatsapp_disconnect": { "message": "Desconectar" },
-  "whatsapp_disconnected": { "message": "Desconectado" },
+  "whatsapp_unlink": { "message": "Desvincular" },
   "whatsapp_connecting": { "message": "Aguardando leitura do QR..." },
   "whatsapp_connected": { "message": "Conectado" },
-  "whatsapp_reconnecting": { "message": "Reconectando..." },
   "whatsapp_loggedOut": { "message": "Desconectado" },
   "whatsapp_scanQr": { "message": "Escaneie com o WhatsApp" },
   "whatsapp_scanInstructions": {
     "message": "Abra o WhatsApp no seu celular → Configurações → Aparelhos Conectados → Conectar um Aparelho"
   },
   "whatsapp_connectedMsg": { "message": "WhatsApp conectado e recebendo mensagens" },
-  "whatsapp_reconnectingMsg": { "message": "Reconectando ao WhatsApp..." },
   "whatsapp_allowedNumbers": { "message": "Números de Telefone Permitidos" },
   "whatsapp_numbersHint": {
     "message": "Apenas mensagens destes números de telefone serão processadas. Insira números com código do país (ex: +5511999999999)."

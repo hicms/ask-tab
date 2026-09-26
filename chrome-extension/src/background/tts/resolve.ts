@@ -4,14 +4,7 @@ import { getProvider } from './providers';
 import { requireSession } from '../ask-service/client';
 import { createLogger } from '../logging/logger-buffer';
 import { publicModelsStorage } from '@extension/storage';
-import type {
-  TtsConfig,
-  TtsApplyResult,
-  TtsProvider,
-  TtsStreamChunk,
-  TtsSynthesizeResult,
-  TtsSynthesizeOptions,
-} from './types';
+import type { TtsConfig, TtsApplyResult, TtsProvider, TtsSynthesizeOptions } from './types';
 import type { ChatModel } from '@extension/shared';
 import type { AskSession } from '@extension/storage';
 
@@ -42,14 +35,6 @@ const buildProviderOptions = (
   providerId: TtsProvider,
   resolvedModelId?: string,
 ): TtsSynthesizeOptions => {
-  if (providerId === 'kokoro') {
-    return {
-      model: config.kokoro.model,
-      voice: config.kokoro.voice,
-      speed: config.kokoro.speed,
-      adaptiveChunking: config.kokoro.adaptiveChunking,
-    };
-  }
   if (providerId === 'openai') {
     return {
       model: resolvedModelId ?? config.openai.modelId,
@@ -59,7 +44,7 @@ const buildProviderOptions = (
   return {};
 };
 
-/** Respect the selected local or server engine. */
+/** Respect the selected engine. */
 const resolveProviderOrder = (primary: TtsProvider): TtsProvider[] => [primary];
 
 /** Resolve a published TTS capability. The server owns its upstream credentials. */
@@ -85,10 +70,7 @@ interface TtsContext {
   providerOrder: TtsProvider[];
 }
 
-/**
- * Shared preprocessing pipeline used by both maybeApplyTts and maybeApplyTtsStreaming.
- * Returns null if TTS should not fire.
- */
+/** Preprocessing pipeline for maybeApplyTts. Returns null if TTS should not fire. */
 const prepareTtsContext = async (params: {
   text: string;
   config: TtsConfig;
@@ -171,7 +153,7 @@ const prepareTtsContext = async (params: {
   };
 };
 
-/** Resolve options for the selected local or server provider. */
+/** Resolve options for the selected provider. */
 const resolveProviderOptions = async (
   config: TtsConfig,
   providerId: TtsProvider,
@@ -242,244 +224,8 @@ const maybeApplyTts = async (params: {
   return null;
 };
 
-/** Streaming TTS chunk with provider info. */
-interface TtsStreamChunkWithProvider extends TtsStreamChunk {
-  provider: string;
-}
-
-/**
- * Streaming TTS entry point. Same preprocessing as maybeApplyTts, but delivers
- * audio per-sentence via onChunk callback. Falls back to single-blob delivery
- * when the provider doesn't support streaming.
- *
- * Returns true if TTS was triggered, false otherwise.
- */
-const maybeApplyTtsStreaming = async (params: {
-  text: string;
-  config: TtsConfig;
-  inboundHadAudio: boolean;
-  modelConfig?: ChatModel;
-  onChunk: (chunk: TtsStreamChunkWithProvider) => void;
-  onComplete: () => void;
-}): Promise<boolean> => {
-  const { onChunk, onComplete } = params;
-  const ctx = await prepareTtsContext(params);
-  if (!ctx) return false;
-
-  let lastError: string | undefined;
-
-  for (const providerId of ctx.providerOrder) {
-    try {
-      const provider = getProvider(providerId);
-      if (!provider) {
-        lastError = `${providerId}: provider not found`;
-        continue;
-      }
-
-      const options = await resolveProviderOptions(params.config, providerId, ctx);
-      if (!options) {
-        lastError = `${providerId}: not configured`;
-        continue;
-      }
-
-      // Try streaming path if available
-      if (provider.synthesizeStream) {
-        ttsLog.debug('TTS streaming starting', {
-          provider: providerId,
-          ttsTextLength: ctx.ttsText.length,
-        });
-        const t0 = Date.now();
-        let chunkCount = 0;
-        await provider.synthesizeStream(ctx.ttsText, options, chunk => {
-          chunkCount++;
-          onChunk({ ...chunk, provider: providerId });
-        });
-        ttsLog.info('TTS streaming complete', {
-          provider: providerId,
-          chunks: chunkCount,
-          elapsedMs: Date.now() - t0,
-        });
-        onComplete();
-        return true;
-      }
-
-      // Fallback: single-blob synthesis delivered as one chunk
-      ttsLog.debug('TTS single-blob fallback', {
-        provider: providerId,
-        ttsTextLength: ctx.ttsText.length,
-      });
-      const t0 = Date.now();
-      const result = await provider.synthesize(ctx.ttsText, options);
-      ttsLog.info('TTS single-blob complete', {
-        provider: providerId,
-        elapsedMs: Date.now() - t0,
-        audioBytes: result.audio.byteLength,
-      });
-      onChunk({
-        chunkIndex: 0,
-        text: ctx.ttsText,
-        audio: result.audio,
-        contentType: result.contentType,
-        sampleRate: result.sampleRate,
-        voiceCompatible: result.voiceCompatible,
-        provider: providerId,
-      });
-      onComplete();
-      return true;
-    } catch (err) {
-      lastError = `${providerId}: ${err instanceof Error ? err.message : String(err)}`;
-    }
-  }
-
-  ttsLog.warn('TTS streaming: all providers failed', { lastError });
-  return false;
-};
-
-/** Batched chunk delivered to the caller — audio blob with metadata and provider info. */
-interface TtsBatchedChunkWithProvider extends TtsSynthesizeResult {
-  provider: string;
-}
-
-/**
- * Batched streaming TTS entry point for Telegram.
- * Sends the first sentence immediately via onFirstChunk, then accumulates
- * remaining audio and delivers it as a single blob via onRemainder.
- *
- * Fallback chain:
- * 1. Provider has synthesizeBatchedStream → use it directly
- * 2. Provider has synthesizeStream → chunk 0 → onFirstChunk, concat rest → sequential onRemainder calls
- * 3. Provider has only synthesize → single blob → onFirstChunk
- *
- * Returns true if TTS was triggered, false otherwise.
- */
-const maybeApplyTtsBatchedStream = async (params: {
-  text: string;
-  config: TtsConfig;
-  inboundHadAudio: boolean;
-  modelConfig?: ChatModel;
-  onFirstChunk: (chunk: TtsBatchedChunkWithProvider) => void | Promise<void>;
-  onRemainder: (chunk: TtsBatchedChunkWithProvider) => void | Promise<void>;
-}): Promise<boolean> => {
-  const { onFirstChunk, onRemainder } = params;
-  const ctx = await prepareTtsContext(params);
-  if (!ctx) return false;
-
-  let lastError: string | undefined;
-
-  for (const providerId of ctx.providerOrder) {
-    try {
-      const provider = getProvider(providerId);
-      if (!provider) {
-        lastError = `${providerId}: provider not found`;
-        continue;
-      }
-
-      const options = await resolveProviderOptions(params.config, providerId, ctx);
-      if (!options) {
-        lastError = `${providerId}: not configured`;
-        continue;
-      }
-
-      // Collect async callback promises so we can await them before returning.
-      // Without this, sendVoiceMessage HTTP requests would float as unresolved
-      // promises and the service worker could go idle before they complete.
-      const pendingOps: Promise<void>[] = [];
-      const trackOp = (result: void | Promise<void>) => {
-        if (result) pendingOps.push(result);
-      };
-
-      // Path 1: Native batched streaming
-      if (provider.synthesizeBatchedStream) {
-        ttsLog.debug('TTS batched streaming starting', {
-          provider: providerId,
-          ttsTextLength: ctx.ttsText.length,
-        });
-        const t0 = Date.now();
-        await provider.synthesizeBatchedStream(
-          ctx.ttsText,
-          options,
-          chunk => {
-            trackOp(onFirstChunk({ ...chunk, provider: providerId }));
-          },
-          chunk => {
-            trackOp(onRemainder({ ...chunk, provider: providerId }));
-          },
-        );
-        for (const op of pendingOps) await op;
-        ttsLog.info('TTS batched streaming complete', {
-          provider: providerId,
-          elapsedMs: Date.now() - t0,
-        });
-        return true;
-      }
-
-      // Path 2: Per-chunk streaming fallback — first chunk → onFirstChunk, rest → sequential onRemainder
-      if (provider.synthesizeStream) {
-        ttsLog.debug('TTS batched stream fallback (per-chunk)', {
-          provider: providerId,
-          ttsTextLength: ctx.ttsText.length,
-        });
-        const t0 = Date.now();
-        let chunkCount = 0;
-        await provider.synthesizeStream(ctx.ttsText, options, chunk => {
-          const batchedChunk: TtsBatchedChunkWithProvider = {
-            audio: chunk.audio,
-            contentType: chunk.contentType,
-            sampleRate: chunk.sampleRate,
-            voiceCompatible: chunk.voiceCompatible,
-            provider: providerId,
-          };
-          if (chunkCount === 0) {
-            trackOp(onFirstChunk(batchedChunk));
-          } else {
-            trackOp(onRemainder(batchedChunk));
-          }
-          chunkCount++;
-        });
-        for (const op of pendingOps) await op;
-        ttsLog.info('TTS batched stream fallback complete', {
-          provider: providerId,
-          chunks: chunkCount,
-          elapsedMs: Date.now() - t0,
-        });
-        return true;
-      }
-
-      // Path 3: Monolithic synthesis — single blob as onFirstChunk
-      ttsLog.debug('TTS batched single-blob fallback', {
-        provider: providerId,
-        ttsTextLength: ctx.ttsText.length,
-      });
-      const t0 = Date.now();
-      const result = await provider.synthesize(ctx.ttsText, options);
-      ttsLog.info('TTS batched single-blob complete', {
-        provider: providerId,
-        elapsedMs: Date.now() - t0,
-        audioBytes: result.audio.byteLength,
-      });
-      const p = onFirstChunk({
-        audio: result.audio,
-        contentType: result.contentType,
-        sampleRate: result.sampleRate,
-        voiceCompatible: result.voiceCompatible,
-        provider: providerId,
-      });
-      if (p) await p;
-      return true;
-    } catch (err) {
-      lastError = `${providerId}: ${err instanceof Error ? err.message : String(err)}`;
-      ttsLog.warn('TTS batched provider failed', { provider: providerId, error: lastError });
-    }
-  }
-
-  ttsLog.warn('TTS batched streaming: all providers failed', { lastError });
-  return false;
-};
-
 export {
   maybeApplyTts,
-  maybeApplyTtsStreaming,
-  maybeApplyTtsBatchedStream,
   shouldSynthesize,
   buildProviderOptions,
   resolveProviderOrder,

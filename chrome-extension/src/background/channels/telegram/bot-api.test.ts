@@ -1,537 +1,253 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  downloadFile,
+  editMessageText,
+  getFile,
+  removeMessageReaction,
+  sendAudioMessage,
+  sendChatAction,
+  sendHtmlMessage,
+  sendTelegramMessage,
+  sendVoiceMessage,
+  setMessageReaction,
+  setMyCommands,
+} from './bot-api';
+import { AskServiceError, requestAuthorized } from '../../ask-service/client';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Store original fetch
-const originalFetch = globalThis.fetch;
+vi.mock('../../ask-service/client', () => {
+  class AskServiceError extends Error {
+    constructor(
+      message: string,
+      readonly status: number,
+    ) {
+      super(message);
+    }
+  }
+  return { AskServiceError, requestAuthorized: vi.fn() };
+});
+
+const request = vi.mocked(requestAuthorized);
+
+const reply = (body: unknown): Response => new Response(JSON.stringify(body));
+
+const call = (index = 0): { path: string; init: RequestInit } => {
+  const [path, init] = request.mock.calls[index] ?? [];
+  return { path: path as string, init: init ?? {} };
+};
+
+const jsonBody = (index = 0): Record<string, unknown> =>
+  JSON.parse(call(index).init.body as string) as Record<string, unknown>;
 
 describe('telegram bot-api', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let validateBotToken: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let getUpdatesShortPoll: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let sendTelegramMessage: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let sendHtmlMessage: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let editMessageText: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let getFile: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let downloadFile: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let sendVoiceMessage: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let sendAudioMessage: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let setMessageReaction: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let removeMessageReaction: any;
-
-  beforeEach(async () => {
-    globalThis.fetch = vi.fn();
-    // Dynamic import to pick up mocked fetch
-    const mod = await import('./bot-api');
-    validateBotToken = mod.validateBotToken;
-    getUpdatesShortPoll = mod.getUpdatesShortPoll;
-    sendTelegramMessage = mod.sendTelegramMessage;
-    sendHtmlMessage = mod.sendHtmlMessage;
-    editMessageText = mod.editMessageText;
-    getFile = mod.getFile;
-    downloadFile = mod.downloadFile;
-    sendVoiceMessage = mod.sendVoiceMessage;
-    sendAudioMessage = mod.sendAudioMessage;
-    setMessageReaction = mod.setMessageReaction;
-    removeMessageReaction = mod.removeMessageReaction;
-  });
-
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-    vi.restoreAllMocks();
-  });
-
-  describe('validateBotToken', () => {
-    it('returns valid=true with bot info for valid token', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            ok: true,
-            result: { id: 123, username: 'test_bot', is_bot: true, first_name: 'Test' },
-          }),
-      });
-      const result = await validateBotToken('123:abc');
-      expect(result).toEqual({ valid: true, botUser: { id: 123, username: 'test_bot' } });
-    });
-
-    it('returns valid=false for 401 Unauthorized', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: false, description: 'Unauthorized' }),
-      });
-      const result = await validateBotToken('bad-token');
-      expect(result.valid).toBe(false);
-      expect(result.error).toBe('Unauthorized');
-    });
-
-    it('returns valid=false on network error', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network error'));
-      const result = await validateBotToken('123:abc');
-      expect(result.valid).toBe(false);
-      expect(result.error).toBe('Network error');
-    });
-
-    it('calls correct Telegram API URL', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({ ok: true, result: { id: 1, is_bot: true, first_name: 'Bot' } }),
-      });
-      await validateBotToken('123:abc');
-      expect(globalThis.fetch).toHaveBeenCalledWith(
-        'https://api.telegram.org/bot123:abc/getMe',
-        expect.objectContaining({ signal: expect.any(AbortSignal) }),
-      );
-    });
-  });
-
-  describe('getUpdatesShortPoll', () => {
-    it('returns updates array on success', async () => {
-      const updates = [{ update_id: 1, message: { message_id: 1 } }];
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: true, result: updates }),
-      });
-      const result = await getUpdatesShortPoll('tok', 0);
-      expect(result).toEqual(updates);
-    });
-
-    it('passes offset and timeout=0', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: true, result: [] }),
-      });
-      await getUpdatesShortPoll('tok', 42);
-      const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-      expect(calledUrl).toContain('offset=42');
-      expect(calledUrl).toContain('timeout=0');
-    });
-
-    it('throws on non-ok response', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: false,
-        status: 500,
-        statusText: 'Internal Server Error',
-      });
-      await expect(getUpdatesShortPoll('tok')).rejects.toThrow('getUpdates failed');
-    });
-
-    it('returns empty array when result is undefined', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: true }),
-      });
-      const result = await getUpdatesShortPoll('tok');
-      expect(result).toEqual([]);
-    });
-
-    it('throws on data.ok=false from API response', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: false, description: 'Bot was blocked' }),
-      });
-      await expect(getUpdatesShortPoll('tok')).rejects.toThrow('Bot was blocked');
-    });
+  beforeEach(() => {
+    request.mockReset();
+    request.mockImplementation(async () => reply({ ok: true, result: { message_id: 1 } }));
   });
 
   describe('sendTelegramMessage', () => {
-    it('sends text with Markdown parse_mode', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: true, result: { message_id: 1 } }),
-      });
-      await sendTelegramMessage('tok', '123', 'Hello *world*');
+    it('posts Markdown text through the server bot relay', async () => {
+      await sendTelegramMessage('123', 'Hello *world*');
 
-      const call = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
-      expect(call[0]).toContain('/sendMessage');
-      const body = JSON.parse(call[1].body as string);
-      expect(body.parse_mode).toBe('Markdown');
-      expect(body.chat_id).toBe('123');
-      expect(body.text).toBe('Hello *world*');
+      expect(call().path).toBe('/api/channels/telegram/bot/sendMessage');
+      expect(call().init.method).toBe('POST');
+      expect(call().init.signal).toBeInstanceOf(AbortSignal);
+      expect(jsonBody()).toEqual({ chat_id: '123', text: 'Hello *world*', parse_mode: 'Markdown' });
     });
 
-    it('retries without parse_mode on Markdown failure', async () => {
-      const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
-      // First call: markdown parsing error
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ ok: false, description: "can't parse entities" }),
-      });
-      // Second call: success without parse_mode
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ ok: true, result: { message_id: 1 } }),
-      });
+    it('retries without parse_mode when Telegram cannot parse the Markdown', async () => {
+      request
+        .mockResolvedValueOnce(reply({ ok: false, description: "can't parse entities" }))
+        .mockResolvedValueOnce(reply({ ok: true, result: { message_id: 2 } }));
 
-      await sendTelegramMessage('tok', '123', 'Bad *markdown');
+      await sendTelegramMessage('123', 'Bad *markdown');
 
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-      const retryBody = JSON.parse(fetchMock.mock.calls[1][1].body as string);
-      expect(retryBody.parse_mode).toBeUndefined();
+      expect(request).toHaveBeenCalledTimes(2);
+      expect(jsonBody(1).parse_mode).toBeUndefined();
     });
 
-    it('splits messages >4096 chars', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: true, result: { message_id: 1 } }),
-      });
+    it('retries when the server relays the parse error as an HTTP error', async () => {
+      request
+        .mockRejectedValueOnce(new AskServiceError("Bad Request: can't parse entities", 400))
+        .mockResolvedValueOnce(reply({ ok: true, result: { message_id: 2 } }));
 
-      const longText = 'a'.repeat(4000) + '\n' + 'b'.repeat(4000);
-      await sendTelegramMessage('tok', '123', longText);
+      await sendTelegramMessage('123', 'Bad *markdown');
 
-      // Should have sent 2 messages
-      expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+      expect(request).toHaveBeenCalledTimes(2);
     });
 
-    it('throws on non-ok response without parse error', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: false, description: 'Chat not found' }),
-      });
-      await expect(sendTelegramMessage('tok', '999', 'hello')).rejects.toThrow(
+    it('splits messages longer than 4096 characters', async () => {
+      await sendTelegramMessage('123', `${'a'.repeat(4000)}\n${'b'.repeat(4000)}`);
+
+      expect(request).toHaveBeenCalledTimes(2);
+    });
+
+    it('throws with the Telegram description on failure', async () => {
+      request.mockResolvedValue(reply({ ok: false, description: 'Chat not found' }));
+
+      await expect(sendTelegramMessage('999', 'hello')).rejects.toThrow(
         'sendMessage failed: Chat not found',
       );
     });
 
-    it('throws when retry also fails', async () => {
-      const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ ok: false, description: "can't parse entities" }),
-      });
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ ok: false, description: 'Still broken' }),
-      });
-      await expect(sendTelegramMessage('tok', '123', 'Bad')).rejects.toThrow(
-        'sendMessage failed after retry',
+    it('throws when the retry fails too', async () => {
+      request
+        .mockResolvedValueOnce(reply({ ok: false, description: "can't parse entities" }))
+        .mockResolvedValueOnce(reply({ ok: false, description: 'Still broken' }));
+
+      await expect(sendTelegramMessage('123', 'Bad')).rejects.toThrow(
+        'sendMessage failed after retry: Still broken',
       );
+    });
+
+    it('propagates network failures', async () => {
+      request.mockRejectedValue(new TypeError('Failed to fetch'));
+
+      await expect(sendTelegramMessage('123', 'hello')).rejects.toThrow('Failed to fetch');
     });
   });
 
-  describe('sendHtmlMessage', () => {
-    it('sends HTML message and returns message_id', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: true, result: { message_id: 42 } }),
-      });
-      const result = await sendHtmlMessage('tok', '123', '<b>Hello</b>');
-      expect(result).toBe(42);
+  it('sendHtmlMessage returns the message id', async () => {
+    request.mockResolvedValue(reply({ ok: true, result: { message_id: 42 } }));
 
-      const body = JSON.parse(
-        (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body as string,
-      );
-      expect(body.parse_mode).toBe('HTML');
-    });
-
-    it('throws on failure', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: false, description: 'Bad Request' }),
-      });
-      await expect(sendHtmlMessage('tok', '123', '<b>test</b>')).rejects.toThrow(
-        'sendHtmlMessage failed',
-      );
-    });
+    expect(await sendHtmlMessage('123', '<b>Hello</b>')).toBe(42);
+    expect(jsonBody().parse_mode).toBe('HTML');
   });
 
-  describe('editMessageText', () => {
-    it('edits message with HTML parse mode', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: true }),
-      });
-      await editMessageText('tok', '123', 42, '<b>Updated</b>');
+  it('sendHtmlMessage throws on failure', async () => {
+    request.mockResolvedValue(reply({ ok: false, description: 'Bad Request' }));
 
-      const body = JSON.parse(
-        (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body as string,
-      );
-      expect(body.message_id).toBe(42);
-      expect(body.parse_mode).toBe('HTML');
-    });
-
-    it('throws on failure', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: false, description: 'message is not modified' }),
-      });
-      await expect(editMessageText('tok', '123', 42, 'same')).rejects.toThrow(
-        'editMessageText failed',
-      );
-    });
+    await expect(sendHtmlMessage('123', '<b>x</b>')).rejects.toThrow('sendHtmlMessage failed');
   });
 
-  describe('getFile', () => {
-    it('returns file path on success', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            ok: true,
-            result: { file_id: 'abc', file_path: 'voice/file_0.ogg' },
-          }),
-      });
-      const result = await getFile('tok', 'abc');
-      expect(result.filePath).toBe('voice/file_0.ogg');
-    });
+  it('editMessageText edits with HTML parse mode', async () => {
+    await editMessageText('123', 42, '<b>Updated</b>');
 
-    it('throws when file_path is missing', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: true, result: { file_id: 'abc' } }),
-      });
-      await expect(getFile('tok', 'abc')).rejects.toThrow('getFile failed');
-    });
+    expect(call().path).toBe('/api/channels/telegram/bot/editMessageText');
+    expect(jsonBody()).toMatchObject({ chat_id: '123', message_id: 42, parse_mode: 'HTML' });
   });
 
-  describe('downloadFile', () => {
-    it('downloads file and returns ArrayBuffer', async () => {
-      const buf = new ArrayBuffer(8);
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        arrayBuffer: () => Promise.resolve(buf),
-      });
-      const result = await downloadFile('tok', 'voice/file.ogg');
-      expect(result).toBe(buf);
+  it('editMessageText throws on failure', async () => {
+    request.mockResolvedValue(reply({ ok: false, description: 'message is not modified' }));
 
-      const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-      expect(calledUrl).toContain('/file/bottok/voice/file.ogg');
-    });
-
-    it('throws on non-ok response', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: false,
-        status: 404,
-        statusText: 'Not Found',
-      });
-      await expect(downloadFile('tok', 'bad/path')).rejects.toThrow('downloadFile failed');
-    });
+    await expect(editMessageText('123', 42, 'same')).rejects.toThrow('editMessageText failed');
   });
 
-  describe('setMessageReaction / removeMessageReaction', () => {
-    it('sets emoji reaction', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
-      await setMessageReaction('tok', '123', 1, '👍');
+  it('getFile resolves the file path', async () => {
+    request.mockResolvedValue(
+      reply({ ok: true, result: { file_id: 'abc', file_path: 'voice/file_0.oga' } }),
+    );
 
-      const body = JSON.parse(
-        (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body as string,
-      );
-      expect(body.reaction).toEqual([{ type: 'emoji', emoji: '👍' }]);
-      expect(body.message_id).toBe(1);
-    });
+    expect(await getFile('abc')).toEqual({ filePath: 'voice/file_0.oga' });
+    expect(jsonBody()).toEqual({ file_id: 'abc' });
+  });
 
-    it('removes reaction by sending empty array', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
-      await removeMessageReaction('tok', '123', 1);
+  it('getFile throws when the path is missing', async () => {
+    request.mockResolvedValue(reply({ ok: true, result: { file_id: 'abc' } }));
 
-      const body = JSON.parse(
-        (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body as string,
-      );
-      expect(body.reaction).toEqual([]);
-    });
+    await expect(getFile('abc')).rejects.toThrow('getFile failed');
+  });
+
+  it('downloadFile fetches the file through the server', async () => {
+    request.mockResolvedValue(new Response(new Uint8Array([1, 2, 3])));
+
+    const data = await downloadFile('voice/file 0.oga');
+
+    expect(call().path).toBe('/api/channels/telegram/file/voice/file%200.oga');
+    expect(data.byteLength).toBe(3);
+  });
+
+  it('downloadFile wraps server errors', async () => {
+    request.mockRejectedValue(new AskServiceError('Not Found', 404));
+
+    await expect(downloadFile('bad/path')).rejects.toThrow('downloadFile failed: Not Found');
+  });
+
+  it('sets and clears reactions', async () => {
+    await setMessageReaction('123', 1, '👍');
+    await removeMessageReaction('123', 1);
+
+    expect(jsonBody(0).reaction).toEqual([{ type: 'emoji', emoji: '👍' }]);
+    expect(jsonBody(1).reaction).toEqual([]);
+  });
+
+  it('sends a typing action', async () => {
+    await sendChatAction('123');
+
+    expect(call().path).toBe('/api/channels/telegram/bot/sendChatAction');
+    expect(jsonBody()).toEqual({ chat_id: '123', action: 'typing' });
+  });
+
+  it('registers bot commands', async () => {
+    await setMyCommands([{ command: 'start', description: 'Start' }]);
+
+    expect(jsonBody()).toEqual({ commands: [{ command: 'start', description: 'Start' }] });
+  });
+
+  it('setMyCommands throws on failure', async () => {
+    request.mockResolvedValue(reply({ ok: false, description: 'Unauthorized' }));
+
+    await expect(setMyCommands([])).rejects.toThrow('setMyCommands failed: Unauthorized');
   });
 
   describe('sendVoiceMessage', () => {
-    it('sends voice with FormData', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: true, result: { message_id: 10 } }),
-      });
-      const audio = new ArrayBuffer(16);
-      const result = await sendVoiceMessage('tok', '123', audio);
-      expect(result).toBe(10);
+    it('uploads an OGG voice note as multipart form data', async () => {
+      request.mockResolvedValue(reply({ ok: true, result: { message_id: 10 } }));
 
-      const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-      expect(calledUrl).toContain('/sendVoice');
+      const id = await sendVoiceMessage('123', new ArrayBuffer(16), {
+        caption: 'Voice reply',
+        parseMode: 'HTML',
+        replyToMessageId: 42,
+      });
+
+      expect(id).toBe(10);
+      expect(call().path).toBe('/api/channels/telegram/bot/sendVoice');
+      const form = call().init.body as FormData;
+      expect(form.get('chat_id')).toBe('123');
+      expect(form.get('caption')).toBe('Voice reply');
+      expect(form.get('parse_mode')).toBe('HTML');
+      expect(form.get('reply_to_message_id')).toBe('42');
+      const voice = form.get('voice') as File;
+      expect(voice.name).toBe('voice.ogg');
+      expect(voice.type).toBe('audio/ogg');
+      expect(call().init.headers).toBeUndefined();
     });
 
     it('throws on failure', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: false, description: 'Voice too long' }),
-      });
-      await expect(sendVoiceMessage('tok', '123', new ArrayBuffer(0))).rejects.toThrow(
-        'sendVoice failed',
-      );
-    });
+      request.mockResolvedValue(reply({ ok: false, description: 'Voice too long' }));
 
-    it('sends voice with caption and reply_to_message_id', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: true, result: { message_id: 12 } }),
-      });
-      const audio = new ArrayBuffer(16);
-      const result = await sendVoiceMessage('tok', '123', audio, {
-        caption: 'Voice reply',
-        replyToMessageId: 42,
-        parseMode: 'HTML',
-      });
-      expect(result).toBe(12);
+      await expect(sendVoiceMessage('123', new ArrayBuffer(0))).rejects.toThrow(
+        'sendVoice failed: Voice too long',
+      );
     });
   });
 
   describe('sendAudioMessage', () => {
-    it('sends audio file with FormData', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: true, result: { message_id: 11 } }),
+    it('uses the given file name and type', async () => {
+      await sendAudioMessage('123', new ArrayBuffer(10), {
+        filename: 'reply.mp3',
+        contentType: 'audio/mpeg',
       });
-      const audio = new ArrayBuffer(16);
-      const result = await sendAudioMessage('tok', '123', audio, {
-        filename: 'reply.wav',
-        contentType: 'audio/wav',
-      });
-      expect(result).toBe(11);
 
-      const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-      expect(calledUrl).toContain('/sendAudio');
-    });
-  });
-
-  describe('getUpdatesLongPoll', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let getUpdatesLongPoll: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let ConflictError: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let UnauthorizedError: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let RateLimitError: any;
-
-    beforeEach(async () => {
-      const mod = await import('./bot-api');
-      getUpdatesLongPoll = mod.getUpdatesLongPoll;
-      ConflictError = mod.ConflictError;
-      UnauthorizedError = mod.UnauthorizedError;
-      RateLimitError = mod.RateLimitError;
+      expect(call().path).toBe('/api/channels/telegram/bot/sendAudio');
+      const audio = (call().init.body as FormData).get('audio') as File;
+      expect(audio.name).toBe('reply.mp3');
+      expect(audio.type).toBe('audio/mpeg');
     });
 
-    it('returns updates on success', async () => {
-      const updates = [{ update_id: 1, message: { message_id: 1 } }];
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: true, result: updates }),
-      });
-      const result = await getUpdatesLongPoll('tok', 0);
-      expect(result).toEqual(updates);
+    it('defaults to a WAV file', async () => {
+      await sendAudioMessage('123', new ArrayBuffer(10));
+
+      const audio = (call().init.body as FormData).get('audio') as File;
+      expect(audio.name).toBe('audio.wav');
+      expect(audio.type).toBe('audio/wav');
     });
 
-    it('throws ConflictError on 409', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: false,
-        status: 409,
-        json: () => Promise.resolve({ ok: false, description: 'Conflict' }),
-      });
-      try {
-        await getUpdatesLongPoll('tok', 0);
-        expect.fail('Should have thrown');
-      } catch (err) {
-        expect(err).toBeInstanceOf(ConflictError);
-      }
-    });
+    it('throws on failure', async () => {
+      request.mockResolvedValue(reply({ ok: false, description: 'Bad Request' }));
 
-    it('throws UnauthorizedError on 401', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: false,
-        status: 401,
-        json: () => Promise.resolve({ ok: false, description: 'Unauthorized' }),
-      });
-      try {
-        await getUpdatesLongPoll('tok', 0);
-        expect.fail('Should have thrown');
-      } catch (err) {
-        expect(err).toBeInstanceOf(UnauthorizedError);
-      }
-    });
-
-    it('throws RateLimitError on 429 with retry_after', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: false,
-        status: 429,
-        json: () => Promise.resolve({ ok: false, parameters: { retry_after: 30 } }),
-      });
-      try {
-        await getUpdatesLongPoll('tok', 0);
-        expect.fail('Should have thrown');
-      } catch (err) {
-        expect(err).toBeInstanceOf(RateLimitError);
-        expect((err as InstanceType<typeof RateLimitError>).retryAfter).toBe(30);
-      }
-    });
-
-    it('throws generic Error on other non-ok status', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: false,
-        status: 500,
-        json: () => Promise.resolve({ ok: false }),
-      });
-      await expect(getUpdatesLongPoll('tok', 0)).rejects.toThrow('getUpdates failed: 500');
-    });
-
-    it('uses timeout=25 for long polling', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: true, result: [] }),
-      });
-      await getUpdatesLongPoll('tok', 5);
-      const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-      expect(calledUrl).toContain('timeout=25');
-      expect(calledUrl).toContain('offset=5');
-    });
-  });
-
-  describe('setMyCommands', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let setMyCommands: any;
-
-    beforeEach(async () => {
-      const mod = await import('./bot-api');
-      setMyCommands = mod.setMyCommands;
-    });
-
-    it('sends commands to Telegram API', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
-      await setMyCommands('tok', [{ command: 'start', description: 'Start the bot' }]);
-      const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-      expect(calledUrl).toContain('/setMyCommands');
-    });
-
-    it('throws on non-ok response', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: false,
-        status: 400,
-      });
-      await expect(
-        setMyCommands('tok', [{ command: 'start', description: 'Start' }]),
-      ).rejects.toThrow('setMyCommands failed: 400');
-    });
-  });
-
-  describe('sendChatAction', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let sendChatAction: any;
-
-    beforeEach(async () => {
-      const mod = await import('./bot-api');
-      sendChatAction = mod.sendChatAction;
-    });
-
-    it('sends typing action', async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
-      await sendChatAction('tok', '123');
-      const body = JSON.parse(
-        (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body as string,
+      await expect(sendAudioMessage('123', new ArrayBuffer(10))).rejects.toThrow(
+        'sendAudio failed: Bad Request',
       );
-      expect(body.action).toBe('typing');
     });
   });
 });

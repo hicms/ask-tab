@@ -83,7 +83,6 @@ Set in `.env` (auto-copied from `.example.env` on install):
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `CEB_GOOGLE_CLIENT_ID` | Google OAuth2 client ID (for Gmail/Calendar/Drive tools) | — |
-| `CEB_ENABLE_WEBGPU_MODELS` | Enable WebGPU local models | `false` |
 | `CEB_DEV_LOCALE` | Force locale for development | — |
 | `CEB_CI` | CI mode flag | — |
 | `CEB_ASK_SERVICE_URL_DEVELOPMENT` | Development AskTab service URL | `http://127.0.0.1:37817` |

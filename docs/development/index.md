@@ -125,13 +125,11 @@ Turborepo orchestrates builds across packages:
 | `pages/side-panel` | Primary chat UI |
 | `pages/full-page-chat` | Full-page chat mode |
 | `pages/options` | Settings page |
-| `pages/offscreen-channels` | Offscreen document |
 | `packages/shared` | Types, hooks, prompts, env config |
 | `packages/storage` | Chrome storage + IndexedDB |
 | `packages/ui` | React components (shadcn/ui) |
 | `packages/config-panels` | Options page tab panels |
 | `packages/skills` | Skill template system |
-| `packages/baileys` | WhatsApp client library |
 | `packages/i18n` | Internationalization |
 | `packages/env` | Build-time environment variables |
 | `packages/dev-utils` | Development utilities |

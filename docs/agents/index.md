@@ -82,7 +82,6 @@ Each agent can specify a default model that overrides the global default. This l
 
 - A fast agent using GPT-4o mini for quick tasks
 - A deep reasoning agent using o3 or Claude for complex analysis
-- A local agent using Transformers.js for offline use
 
 ## Example agents
 

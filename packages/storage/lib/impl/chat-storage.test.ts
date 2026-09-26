@@ -39,10 +39,6 @@ import {
   deleteWorkspaceFile,
   getEnabledWorkspaceFiles,
   seedPredefinedWorkspaceFiles,
-  bulkPutMemoryChunks,
-  deleteMemoryChunksByFileId,
-  getAllMemoryChunks,
-  clearAllMemoryChunks,
   listSkillFiles,
   getEnabledSkills,
   listScheduledTasks,
@@ -64,7 +60,6 @@ import type {
   DbChatMessage,
   AgentConfig,
   DbWorkspaceFile,
-  DbMemoryChunk,
   DbScheduledTask,
   DbTaskRunLog,
 } from './chat-db';
@@ -78,7 +73,6 @@ beforeEach(async () => {
   await chatDb.artifacts.clear();
   await chatDb.agents.clear();
   await chatDb.workspaceFiles.clear();
-  await chatDb.memoryChunks.clear();
   await chatDb.scheduledTasks.clear();
   await chatDb.taskRunLogs.clear();
 });
@@ -1100,19 +1094,6 @@ describe('Agent CRUD', () => {
       updatedAt: now,
       agentId: 'agent-2',
     });
-    await bulkPutMemoryChunks([
-      {
-        id: 'mc-a2',
-        fileId: 'ws-a2',
-        filePath: 'test.md',
-        startLine: 0,
-        endLine: 1,
-        text: 'chunk',
-        fileUpdatedAt: now,
-        agentId: 'agent-2',
-      },
-    ]);
-
     await deleteAgent('agent-2');
 
     expect(await getAgent('agent-2')).toBeUndefined();
@@ -1120,7 +1101,6 @@ describe('Agent CRUD', () => {
     expect(await getMessagesByChatId('chat-a2')).toEqual([]);
     expect(await getArtifactsByChatId('chat-a2')).toEqual([]);
     expect(await listWorkspaceFiles('agent-2')).toEqual([]);
-    expect(await getAllMemoryChunks('agent-2')).toEqual([]);
   });
 
   it('throws when trying to delete the default agent', async () => {
@@ -1300,72 +1280,6 @@ describe('seedPredefinedWorkspaceFiles', () => {
     const files = await listWorkspaceFiles('main');
     expect(files.length).toBeGreaterThan(0);
     expect(files.every(f => f.agentId === 'main')).toBe(true);
-  });
-});
-
-// ── Memory Chunk CRUD ────────────────────────
-
-describe('Memory Chunk CRUD', () => {
-  const now = Date.now();
-  const chunks: DbMemoryChunk[] = [
-    {
-      id: 'mc-1',
-      fileId: 'file-1',
-      filePath: 'MEMORY.md',
-      startLine: 0,
-      endLine: 10,
-      text: 'First chunk of memory',
-      fileUpdatedAt: now,
-      agentId: 'main',
-    },
-    {
-      id: 'mc-2',
-      fileId: 'file-1',
-      filePath: 'MEMORY.md',
-      startLine: 11,
-      endLine: 20,
-      text: 'Second chunk of memory',
-      fileUpdatedAt: now,
-      agentId: 'main',
-    },
-    {
-      id: 'mc-3',
-      fileId: 'file-2',
-      filePath: 'NOTES.md',
-      startLine: 0,
-      endLine: 5,
-      text: 'Notes chunk',
-      fileUpdatedAt: now,
-      agentId: 'other',
-    },
-  ];
-
-  it('bulk puts and retrieves all memory chunks', async () => {
-    await bulkPutMemoryChunks(chunks);
-    const all = await getAllMemoryChunks();
-    expect(all).toHaveLength(3);
-  });
-
-  it('retrieves memory chunks filtered by agentId', async () => {
-    await bulkPutMemoryChunks(chunks);
-    const mainChunks = await getAllMemoryChunks('main');
-    expect(mainChunks).toHaveLength(2);
-    expect(mainChunks.every(c => c.agentId === 'main')).toBe(true);
-  });
-
-  it('deletes memory chunks by fileId', async () => {
-    await bulkPutMemoryChunks(chunks);
-    await deleteMemoryChunksByFileId('file-1');
-    const remaining = await getAllMemoryChunks();
-    expect(remaining).toHaveLength(1);
-    expect(remaining[0]!.fileId).toBe('file-2');
-  });
-
-  it('clears all memory chunks', async () => {
-    await bulkPutMemoryChunks(chunks);
-    await clearAllMemoryChunks();
-    const all = await getAllMemoryChunks();
-    expect(all).toEqual([]);
   });
 });
 

@@ -574,6 +574,11 @@
   "sessionMgr_clickToSelectSidePanel": {
     "message": "单击选择，双击在侧边栏中打开"
   },
+  "channels_statusNotConnected": { "message": "未连接" },
+  "channels_statusConnecting": { "message": "正在连接..." },
+  "channels_statusConnected": { "message": "已连接" },
+  "channels_statusError": { "message": "错误" },
+  "channels_signInRequired": { "message": "登录 AskTab 账户以连接渠道。" },
   "telegram_title": {
     "message": "Telegram 机器人"
   },
@@ -586,11 +591,9 @@
   "telegram_botToken": {
     "message": "Bot Token"
   },
-  "telegram_validate": {
-    "message": "验证"
-  },
-  "telegram_tokenValid": {
-    "message": "Token 有效"
+  "telegram_connect": { "message": "连接" },
+  "telegram_tokenHint": {
+    "message": "令牌由 AskTab 服务器验证并保存，不会存储在浏览器中。输入新令牌即可替换。"
   },
   "telegram_invalidToken": {
     "message": "无效的 Token"
@@ -616,6 +619,7 @@
   "telegram_toggleFailed": {
     "message": "切换失败"
   },
+  "telegram_connectFailed": { "message": "连接失败" },
   "agents_newAgent": {
     "message": "新建智能体"
   },
@@ -851,7 +855,7 @@
     "message": "WhatsApp"
   },
   "whatsapp_description": {
-    "message": "连接 WhatsApp，通过手机与 AI 助手聊天。使用 WhatsApp Web 协议——无需外部服务器。"
+    "message": "连接 WhatsApp，即可在手机上与 AI 助手聊天。已关联的 WhatsApp 会话由 AskTab 服务器保持。"
   },
   "whatsapp_connection": {
     "message": "连接"
@@ -862,17 +866,12 @@
   "whatsapp_disconnect": {
     "message": "断开"
   },
-  "whatsapp_disconnected": {
-    "message": "已断开"
-  },
+  "whatsapp_unlink": { "message": "取消关联" },
   "whatsapp_connecting": {
     "message": "等待扫描二维码..."
   },
   "whatsapp_connected": {
     "message": "已连接"
-  },
-  "whatsapp_reconnecting": {
-    "message": "重新连接中..."
   },
   "whatsapp_loggedOut": {
     "message": "已退出"
@@ -885,9 +884,6 @@
   },
   "whatsapp_connectedMsg": {
     "message": "WhatsApp 已连接，正在接收消息"
-  },
-  "whatsapp_reconnectingMsg": {
-    "message": "正在重新连接 WhatsApp..."
   },
   "whatsapp_allowedNumbers": {
     "message": "允许的电话号码"

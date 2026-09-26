@@ -501,6 +501,13 @@
   "sessionMgr_clickToSelectSidePanel": {
     "message": "Clic para seleccionar, doble clic para abrir en el panel lateral"
   },
+  "channels_statusNotConnected": { "message": "No conectado" },
+  "channels_statusConnecting": { "message": "Conectando..." },
+  "channels_statusConnected": { "message": "Conectado" },
+  "channels_statusError": { "message": "Error" },
+  "channels_signInRequired": {
+    "message": "Inicia sesión en tu cuenta de AskTab para conectar canales."
+  },
   "telegram_title": {
     "message": "Bot de Telegram"
   },
@@ -513,11 +520,9 @@
   "telegram_botToken": {
     "message": "Token del bot"
   },
-  "telegram_validate": {
-    "message": "Validar"
-  },
-  "telegram_tokenValid": {
-    "message": "Token válido"
+  "telegram_connect": { "message": "Conectar" },
+  "telegram_tokenHint": {
+    "message": "El servidor de AskTab verifica y guarda el token; no se almacena en el navegador. Introduce un token nuevo para reemplazarlo."
   },
   "telegram_invalidToken": {
     "message": "Token inválido"
@@ -543,6 +548,7 @@
   "telegram_toggleFailed": {
     "message": "Error al alternar"
   },
+  "telegram_connectFailed": { "message": "Error de conexión" },
   "agents_newAgent": {
     "message": "Nuevo agente"
   },
@@ -778,7 +784,7 @@
     "message": "WhatsApp"
   },
   "whatsapp_description": {
-    "message": "Conecta WhatsApp para chatear con tu asistente de IA desde tu teléfono. Usa el protocolo de WhatsApp Web — no se necesita servidor externo."
+    "message": "Conecta WhatsApp para chatear con tu asistente de IA desde tu teléfono. El servidor de AskTab mantiene la sesión vinculada de WhatsApp."
   },
   "whatsapp_connection": {
     "message": "Conexión"
@@ -789,17 +795,12 @@
   "whatsapp_disconnect": {
     "message": "Desconectar"
   },
-  "whatsapp_disconnected": {
-    "message": "Desconectado"
-  },
+  "whatsapp_unlink": { "message": "Desvincular" },
   "whatsapp_connecting": {
     "message": "Esperando escaneo del QR..."
   },
   "whatsapp_connected": {
     "message": "Conectado"
-  },
-  "whatsapp_reconnecting": {
-    "message": "Reconectando..."
   },
   "whatsapp_loggedOut": {
     "message": "Sesión cerrada"
@@ -812,9 +813,6 @@
   },
   "whatsapp_connectedMsg": {
     "message": "WhatsApp conectado y recibiendo mensajes"
-  },
-  "whatsapp_reconnectingMsg": {
-    "message": "Reconectando a WhatsApp..."
   },
   "whatsapp_allowedNumbers": {
     "message": "Números de teléfono permitidos"

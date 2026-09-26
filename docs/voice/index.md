@@ -1,5 +1,5 @@
 ---
-summary: "Voice overview — text-to-speech and speech-to-text with local and cloud engines."
+summary: "Voice overview — text-to-speech and speech-to-text through AskTab server models."
 read_when:
   - Setting up voice features
   - Understanding TTS and STT options
@@ -9,14 +9,14 @@ title: "Voice Overview"
 
 # Voice
 
-AskTab supports both text-to-speech (TTS) and speech-to-text (STT) with local on-device and cloud-based engines. Voice features work in the side panel chat and through messaging channels.
+AskTab supports both text-to-speech (TTS) and speech-to-text (STT) through models published by the AskTab server. Voice features work in the side panel chat and through messaging channels.
 
 ## Engines
 
-| Feature | Local | Cloud |
-|---------|-------|-------|
-| **[TTS](/voice/tts)** | Kokoro-82M ONNX (on-device) | OpenAI TTS API |
-| **[STT](/voice/stt)** | Whisper ONNX via Transformers.js | OpenAI Whisper API |
+| Feature | Engine |
+|---------|--------|
+| **[TTS](/voice/tts)** | Server TTS model (OpenAI-compatible) |
+| **[STT](/voice/stt)** | Server STT model (OpenAI-compatible) |
 
 ## Auto-mode
 

@@ -193,45 +193,6 @@ const budgetWorkspaceFiles = (files: WorkspaceFile[]): WorkspaceFile[] => {
 };
 
 // ──────────────────────────────────────────────
-// Minimal Mode Workspace
-// ──────────────────────────────────────────────
-
-const MINIMAL_WORKSPACE_ALLOWLIST = new Set(['AGENTS.md', 'TOOLS.md']);
-
-const buildWorkspaceMinimalSection = (config: SystemPromptConfig): string | null => {
-  const allowed = config.workspaceFiles?.filter(
-    f => f.content && MINIMAL_WORKSPACE_ALLOWLIST.has(f.name),
-  );
-  if (!allowed || allowed.length === 0) return null;
-  const sections = allowed.map(f => `### ${f.name}\n${f.content}`).join('\n\n');
-  return `## Workspace\n\n${sections}`;
-};
-
-// ──────────────────────────────────────────────
-// Provider-Specific Builders
-// ──────────────────────────────────────────────
-
-/**
- * Build system prompt for local providers (e.g. Ollama, llama.cpp).
- *
- * Minimal prompt: identity + safety + minimal workspace.
- * Omits `## Tooling` because local-llm-bridge injects its own XML tool instructions.
- */
-const buildLocalSystemPrompt = (config: SystemPromptConfig): SystemPromptResult => {
-  const parts: string[] = [];
-  const identity = buildIdentitySection(config);
-  if (identity) parts.push(identity);
-  parts.push(buildSafetySection());
-
-  // NO buildToolsSection — XML tool prompt is injected by local-llm-bridge
-  const workspace = buildWorkspaceMinimalSection(config);
-  if (workspace) parts.push(workspace);
-
-  const text = parts.join('\n\n');
-  return { text, estimatedTokens: Math.ceil(text.length / 4) };
-};
-
-// ──────────────────────────────────────────────
 // Main Builder
 // ──────────────────────────────────────────────
 
@@ -244,7 +205,7 @@ const buildLocalSystemPrompt = (config: SystemPromptConfig): SystemPromptResult 
  *
  * Modes:
  * - 'full': all sections
- * - 'minimal': identity + safety only (for tiny local models with small input budgets)
+ * - 'minimal': identity + safety + tool listing (for subagents with small prompt budgets)
  * - 'none': identity only
  */
 const buildSystemPrompt = (config: SystemPromptConfig): SystemPromptResult => {
@@ -263,10 +224,9 @@ const buildSystemPrompt = (config: SystemPromptConfig): SystemPromptResult => {
   parts.push(buildSafetySection());
 
   if (config.mode === 'minimal') {
-    // Minimal mode is for tiny local models (≤1B params). Keep the prompt short
-    // so it fits within aggressive input budgets. Include identity + safety + tool
-    // listing so the model knows what tools are available. Skip: sandbox, tool style,
-    // tool prompt hints, workspace, skills, runtime metadata.
+    // Keep the prompt short: identity + safety + tool listing so the model knows
+    // what tools are available. Skip: sandbox, tool style, tool prompt hints,
+    // workspace, skills, runtime metadata.
     const tools = buildToolsSection(config);
     if (tools) parts.push(tools);
     const text = parts.join('\n\n');
@@ -320,7 +280,6 @@ export {
   toolStylePrompt,
   sandboxPrompt,
   buildSystemPrompt,
-  buildLocalSystemPrompt,
   isMemoryFile,
   BOOTSTRAP_FILENAMES,
   MAX_PER_FILE_CHARS,
