@@ -111,7 +111,10 @@ const resolveGroupWindow = async (session: AgentTabGroupSession): Promise<number
       session.groupId = null;
     }
   }
-  if (session.windowId == null) return null;
+  if (session.windowId == null) {
+    session.windowId = await getFocusedWindowId();
+    return session.windowId;
+  }
   try {
     await chrome.windows.get(session.windowId);
     return session.windowId;
@@ -124,6 +127,7 @@ const resolveGroupWindow = async (session: AgentTabGroupSession): Promise<number
 const addToGroup = async (session: AgentTabGroupSession, tab: chrome.tabs.Tab): Promise<void> => {
   if (tab.id == null) return;
   if (session.windowId != null && tab.windowId !== session.windowId) return;
+  if (session.groupId != null && tab.groupId === session.groupId) return;
   if (session.groupId == null) {
     await createGroup(session, tab as GroupableTab);
     return;
@@ -150,15 +154,6 @@ const beginAgentTabGroup = async (
     chain: Promise.resolve(),
   };
   sessions.set(chatId, session);
-  await enqueue(session, async () => {
-    const windowId = await getFocusedWindowId();
-    if (windowId == null) return;
-    session.windowId = windowId;
-    const [tab] = await chrome.tabs.query({ active: true, windowId });
-    if (isGroupable(tab)) await createGroup(session, tab);
-  }).catch(err => {
-    tabGroupLog.warn('Agent tab group creation failed', { chatId, error: String(err) });
-  });
 };
 
 const endAgentTabGroup = (chatId: string | undefined): void => {
@@ -167,6 +162,19 @@ const endAgentTabGroup = (chatId: string | undefined): void => {
   if (!session) return;
   session.refs -= 1;
   if (session.refs <= 0) sessions.delete(chatId);
+};
+
+const groupAgentTab = async (chatId: string | undefined, tabId: number): Promise<void> => {
+  const session = chatId ? sessions.get(chatId) : undefined;
+  if (!session) return;
+  await enqueue(session, async () => {
+    const tab = await chrome.tabs.get(tabId);
+    if (!isGroupable(tab)) return;
+    await resolveGroupWindow(session);
+    await addToGroup(session, tab);
+  }).catch(err => {
+    tabGroupLog.warn('Adding tab to agent group failed', { chatId, tabId, error: String(err) });
+  });
 };
 
 const openAgentTab = async (
@@ -185,4 +193,4 @@ const openAgentTab = async (
   });
 };
 
-export { beginAgentTabGroup, endAgentTabGroup, getFocusedWindowId, openAgentTab };
+export { beginAgentTabGroup, endAgentTabGroup, getFocusedWindowId, groupAgentTab, openAgentTab };

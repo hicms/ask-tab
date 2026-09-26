@@ -10,7 +10,7 @@ vi.mock('@extension/env', () => ({
   },
 }));
 
-vi.mock('../logging/logger-buffer', () => ({
+vi.mock('../../chrome-extension/src/background/logging/logger-buffer', () => ({
   createLogger: () => ({
     debug: vi.fn(),
     info: vi.fn(),
@@ -33,6 +33,7 @@ const activeTab = (overrides: Partial<chrome.tabs.Tab> = {}): chrome.tabs.Tab =>
   }) as chrome.tabs.Tab;
 
 const mockTabsQuery = vi.fn<(info: chrome.tabs.QueryInfo) => Promise<chrome.tabs.Tab[]>>();
+const mockTabsGet = vi.fn<(id: number) => Promise<chrome.tabs.Tab>>();
 const mockTabsCreate = vi.fn<(props: chrome.tabs.CreateProperties) => Promise<chrome.tabs.Tab>>();
 const mockTabsGroup = vi.fn<(opts: chrome.tabs.GroupOptions) => Promise<number>>();
 const mockTabsUngroup = vi.fn();
@@ -47,6 +48,7 @@ const mockWindowsGetLastFocused = vi.fn<() => Promise<chrome.windows.Window>>();
 const chromeMock = {
   tabs: {
     query: mockTabsQuery,
+    get: mockTabsGet,
     create: mockTabsCreate,
     group: mockTabsGroup as typeof mockTabsGroup | undefined,
     ungroup: mockTabsUngroup,
@@ -61,7 +63,7 @@ Object.defineProperty(globalThis, 'chrome', {
   configurable: true,
 });
 
-let mod: typeof import('./agent-tab-group');
+let mod: typeof import('../../chrome-extension/src/background/tools/agent-tab-group');
 
 beforeEach(async () => {
   vi.resetModules();
@@ -72,11 +74,18 @@ beforeEach(async () => {
   mockTabsQuery.mockImplementation(async info =>
     info.lastFocusedWindow ? [activeTab()] : [activeTab({ windowId: info.windowId ?? 1 })],
   );
+  const groupedTabs = new Map<number, number>();
+  mockTabsGet.mockImplementation(async id => activeTab({ id, groupId: groupedTabs.get(id) ?? -1 }));
   let nextTabId = 50;
   mockTabsCreate.mockImplementation(async props =>
     activeTab({ id: nextTabId++, url: props.url, active: false, windowId: props.windowId ?? 1 }),
   );
-  mockTabsGroup.mockImplementation(async opts => opts.groupId ?? 100);
+  mockTabsGroup.mockImplementation(async opts => {
+    const groupId = opts.groupId ?? 100;
+    const ids = typeof opts.tabIds === 'number' ? [opts.tabIds] : opts.tabIds;
+    for (const id of ids ?? []) groupedTabs.set(id, groupId);
+    return groupId;
+  });
   mockTabGroupsUpdate.mockImplementation(
     async id => ({ id, windowId: 1 }) as chrome.tabGroups.TabGroup,
   );
@@ -86,14 +95,15 @@ beforeEach(async () => {
   mockWindowsGet.mockImplementation(async id => ({ id }) as chrome.windows.Window);
   mockWindowsGetLastFocused.mockResolvedValue({ id: 1 } as chrome.windows.Window);
 
-  mod = await import('./agent-tab-group');
+  mod = await import('../../chrome-extension/src/background/tools/agent-tab-group');
 });
 
 describe('beginAgentTabGroup', () => {
-  it('groups the active tab and sets title, palette color, and expanded state', async () => {
+  it('groups the operated tab and sets title, palette color, and expanded state', async () => {
     await mod.beginAgentTabGroup('chat-1', 'Find flights to Tokyo');
+    await mod.groupAgentTab('chat-1', 10);
 
-    expect(mockTabsQuery).toHaveBeenCalledWith({ active: true, windowId: 1 });
+    expect(mockTabsGet).toHaveBeenCalledWith(10);
     expect(mockTabsGroup).toHaveBeenCalledTimes(1);
     expect(mockTabsGroup).toHaveBeenCalledWith({ tabIds: [10] });
     expect(mockTabGroupsUpdate).toHaveBeenCalledTimes(1);
@@ -107,6 +117,7 @@ describe('beginAgentTabGroup', () => {
   it('collapses whitespace and truncates long titles to 40 characters', async () => {
     const prompt = `  Compare   the\nprices ${'x'.repeat(60)}  `;
     await mod.beginAgentTabGroup('chat-1', prompt);
+    await mod.groupAgentTab('chat-1', 10);
 
     const title = mockTabGroupsUpdate.mock.calls[0]![1].title!;
     expect(title).toHaveLength(40);
@@ -125,9 +136,11 @@ describe('beginAgentTabGroup', () => {
       timestamp: 0,
     } as AgentMessage;
     await mod.beginAgentTabGroup('chat-1', message);
+    await mod.groupAgentTab('chat-1', 10);
     expect(mockTabGroupsUpdate.mock.calls[0]![1].title).toBe('Summarize this page');
 
     await mod.beginAgentTabGroup('chat-2', '   ');
+    await mod.groupAgentTab('chat-2', 10);
     expect(mockTabGroupsUpdate.mock.calls[1]![1].title).toBe('Agent');
   });
 
@@ -137,6 +150,7 @@ describe('beginAgentTabGroup', () => {
       mod.beginAgentTabGroup('chat-1', 'Subagent task'),
     ]);
     await mod.beginAgentTabGroup('chat-1', 'Another nested task');
+    await mod.groupAgentTab('chat-1', 10);
 
     expect(mockTabsGroup).toHaveBeenCalledTimes(1);
     expect(mockTabGroupsUpdate).toHaveBeenCalledTimes(1);
@@ -145,14 +159,18 @@ describe('beginAgentTabGroup', () => {
 
   it('forgets the run after the last end and never ungroups', async () => {
     await mod.beginAgentTabGroup('chat-1', 'First');
+    await mod.groupAgentTab('chat-1', 10);
     await mod.beginAgentTabGroup('chat-1', 'Nested');
+    await mod.groupAgentTab('chat-1', 10);
     mod.endAgentTabGroup('chat-1');
     await mod.beginAgentTabGroup('chat-1', 'Still nested');
+    await mod.groupAgentTab('chat-1', 10);
     expect(mockTabsGroup).toHaveBeenCalledTimes(1);
 
     mod.endAgentTabGroup('chat-1');
     mod.endAgentTabGroup('chat-1');
     await mod.beginAgentTabGroup('chat-1', 'Next message');
+    await mod.groupAgentTab('chat-1', 10);
 
     expect(mockTabsGroup).toHaveBeenCalledTimes(2);
     expect(mockTabGroupsUpdate.mock.calls[1]![1].title).toBe('Next message');
@@ -165,31 +183,56 @@ describe('beginAgentTabGroup', () => {
     ['extension page', { url: 'chrome-extension://abc/side-panel/index.html' }],
     ['about: page', { url: 'about:blank' }],
     ['tab without url', { url: undefined }],
-  ])('does not group an ungroupable active tab (%s)', async (_label, overrides) => {
-    mockTabsQuery.mockImplementation(async () => [activeTab(overrides)]);
+  ])('does not group an ungroupable operated tab (%s)', async (_label, overrides) => {
+    mockTabsGet.mockResolvedValue(activeTab(overrides));
 
     await mod.beginAgentTabGroup('chat-1', 'Task');
+    await mod.groupAgentTab('chat-1', 10);
 
     expect(mockTabsGroup).not.toHaveBeenCalled();
   });
 
   it('groups file:// tabs', async () => {
-    mockTabsQuery.mockImplementation(async () => [activeTab({ url: 'file:///C:/notes.txt' })]);
+    mockTabsGet.mockResolvedValue(activeTab({ url: 'file:///C:/notes.txt' }));
 
     await mod.beginAgentTabGroup('chat-1', 'Task');
+    await mod.groupAgentTab('chat-1', 10);
 
     expect(mockTabsGroup).toHaveBeenCalledWith({ tabIds: [10] });
   });
 
-  it('only looks at the active tab of the focused window', async () => {
+  it('groups the operated tab in the focused window', async () => {
+    mockTabsGet.mockResolvedValue(activeTab({ windowId: 2 }));
     mockTabsQuery.mockImplementation(async info =>
       info.lastFocusedWindow ? [activeTab({ windowId: 2 })] : [activeTab({ windowId: 2 })],
     );
 
     await mod.beginAgentTabGroup('chat-1', 'Task');
+    await mod.groupAgentTab('chat-1', 10);
 
-    expect(mockTabsQuery).toHaveBeenCalledWith({ active: true, windowId: 2 });
+    expect(mockTabsQuery).toHaveBeenCalledWith({ active: true, lastFocusedWindow: true });
     expect(mockTabsQuery).not.toHaveBeenCalledWith(expect.objectContaining({ windowId: 1 }));
+    expect(mockTabsGroup).toHaveBeenCalledWith({ tabIds: [10] });
+  });
+
+  it('does not pull an operated tab from another window into the task', async () => {
+    mockTabsGet.mockResolvedValue(activeTab({ windowId: 2 }));
+    await mod.beginAgentTabGroup('chat-1', 'Task');
+    await mod.groupAgentTab('chat-1', 10);
+    expect(mockTabsGroup).not.toHaveBeenCalled();
+  });
+
+  it('serializes a first page operation and a concurrent open into one group', async () => {
+    await mod.beginAgentTabGroup('chat-1', 'Task');
+    await Promise.all([
+      mod.groupAgentTab('chat-1', 10),
+      mod.openAgentTab('chat-1', { url: 'https://a.com', active: false }),
+    ]);
+    await mod.groupAgentTab('chat-1', 10);
+    expect(mockTabsGroup.mock.calls).toEqual([
+      [{ tabIds: [10] }],
+      [{ tabIds: [50], groupId: 100 }],
+    ]);
   });
 
   it('is a no-op without a chatId', async () => {
@@ -222,11 +265,12 @@ describe('beginAgentTabGroup', () => {
   it('logs and resolves when grouping fails', async () => {
     mockTabsGroup.mockRejectedValueOnce(new Error('Tabs cannot be edited right now'));
 
-    await expect(mod.beginAgentTabGroup('chat-1', 'Task')).resolves.toBeUndefined();
+    await mod.beginAgentTabGroup('chat-1', 'Task');
+    await expect(mod.groupAgentTab('chat-1', 10)).resolves.toBeUndefined();
 
     expect(mockTabGroupsUpdate).not.toHaveBeenCalled();
     expect(mockWarn).toHaveBeenCalledWith(
-      'Agent tab group creation failed',
+      'Adding tab to agent group failed',
       expect.objectContaining({ chatId: 'chat-1' }),
     );
   });
@@ -234,6 +278,7 @@ describe('beginAgentTabGroup', () => {
   it('keeps the group when only the title/color update fails', async () => {
     mockTabGroupsUpdate.mockRejectedValueOnce(new Error('boom'));
     await mod.beginAgentTabGroup('chat-1', 'Task');
+    await mod.groupAgentTab('chat-1', 10);
 
     await mod.openAgentTab('chat-1', { url: 'https://a.com', active: false });
 
@@ -246,6 +291,15 @@ describe('beginAgentTabGroup', () => {
 });
 
 describe('openAgentTab', () => {
+  it('groups a newly opened tab while its URL is still pending', async () => {
+    await mod.beginAgentTabGroup('chat-1', 'Task');
+    mockTabsCreate.mockResolvedValueOnce(
+      activeTab({ id: 50, url: '', pendingUrl: 'https://a.com' }),
+    );
+    await mod.openAgentTab('chat-1', { url: 'https://a.com', active: false });
+    expect(mockTabsGroup).toHaveBeenCalledWith({ tabIds: [50] });
+  });
+
   it('creates a plain tab when the chat has no running agent', async () => {
     const tab = await mod.openAgentTab('chat-1', { url: 'https://a.com', active: false });
 
@@ -256,6 +310,7 @@ describe('openAgentTab', () => {
 
   it("adds new tabs to the run's group in the group's window", async () => {
     await mod.beginAgentTabGroup('chat-1', 'Task');
+    await mod.groupAgentTab('chat-1', 10);
 
     const tab = await mod.openAgentTab('chat-1', { url: 'https://a.com', active: false });
 
@@ -271,6 +326,7 @@ describe('openAgentTab', () => {
 
   it('follows the group when the user moved it to another window', async () => {
     await mod.beginAgentTabGroup('chat-1', 'Task');
+    await mod.groupAgentTab('chat-1', 10);
     mockTabGroupsGet.mockResolvedValueOnce({ id: 100, windowId: 3 } as chrome.tabGroups.TabGroup);
 
     await mod.openAgentTab('chat-1', { url: 'https://a.com', active: false });
@@ -281,6 +337,7 @@ describe('openAgentTab', () => {
 
   it('does not group a tab that ended up in another window', async () => {
     await mod.beginAgentTabGroup('chat-1', 'Task');
+    await mod.groupAgentTab('chat-1', 10);
     mockTabsCreate.mockResolvedValueOnce(activeTab({ id: 77, windowId: 2 }));
 
     const tab = await mod.openAgentTab('chat-1', { url: 'https://a.com', active: false });
@@ -290,8 +347,7 @@ describe('openAgentTab', () => {
     expect(mockTabsGroup).not.toHaveBeenCalledWith(expect.objectContaining({ tabIds: [77] }));
   });
 
-  it('lazily creates the group with the first opened tab when the active tab was ungroupable', async () => {
-    mockTabsQuery.mockImplementation(async () => [activeTab({ url: 'chrome://newtab' })]);
+  it('creates the group with the first opened tab without grouping the unrelated active tab', async () => {
     await mod.beginAgentTabGroup('chat-1', 'Lazy task');
     expect(mockTabsGroup).not.toHaveBeenCalled();
 
@@ -313,7 +369,6 @@ describe('openAgentTab', () => {
   });
 
   it('creates only one group when tabs are opened in parallel before a group exists', async () => {
-    mockTabsQuery.mockImplementation(async () => [activeTab({ pinned: true })]);
     await mod.beginAgentTabGroup('chat-1', 'Task');
 
     await Promise.all([
@@ -329,6 +384,8 @@ describe('openAgentTab', () => {
   it('opens in the default window and regroups when the group window was closed', async () => {
     mockTabsQuery.mockImplementation(async () => [activeTab({ url: 'chrome://newtab' })]);
     await mod.beginAgentTabGroup('chat-1', 'Task');
+    await mod.groupAgentTab('chat-1', 10);
+    mockTabGroupsGet.mockRejectedValueOnce(new Error('No group with id: 100.'));
     mockWindowsGet.mockRejectedValueOnce(new Error('No window with id: 1.'));
     mockTabsCreate.mockResolvedValueOnce(activeTab({ id: 60, windowId: 4 }));
 
@@ -341,6 +398,7 @@ describe('openAgentTab', () => {
 
   it('starts a new group when the previous one no longer exists', async () => {
     await mod.beginAgentTabGroup('chat-1', 'Task');
+    await mod.groupAgentTab('chat-1', 10);
     mockTabGroupsGet.mockRejectedValueOnce(new Error('No group with id: 100.'));
     mockTabsGroup.mockResolvedValueOnce(200);
 
@@ -353,6 +411,7 @@ describe('openAgentTab', () => {
 
   it('returns the tab and logs when adding it to the group fails', async () => {
     await mod.beginAgentTabGroup('chat-1', 'Task');
+    await mod.groupAgentTab('chat-1', 10);
     mockTabsGroup.mockRejectedValueOnce(new Error('Tabs cannot be edited right now'));
 
     const tab = await mod.openAgentTab('chat-1', { url: 'https://a.com', active: false });
@@ -369,6 +428,7 @@ describe('openAgentTab', () => {
 
   it('propagates tab creation errors', async () => {
     await mod.beginAgentTabGroup('chat-1', 'Task');
+    await mod.groupAgentTab('chat-1', 10);
     mockTabsCreate.mockRejectedValueOnce(new Error('Invalid url'));
 
     await expect(mod.openAgentTab('chat-1', { url: 'bad://x', active: false })).rejects.toThrow(

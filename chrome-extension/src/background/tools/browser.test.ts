@@ -3242,7 +3242,7 @@ describe('open with an agent tab group', () => {
       active: false,
       windowId: 1,
     });
-    expect(mockTabsGroup).toHaveBeenCalledWith({ tabIds: [99], groupId: 100 });
+    expect(mockTabsGroup).toHaveBeenCalledWith({ tabIds: [99] });
     expect(args.tabId).toBe(99);
   });
 

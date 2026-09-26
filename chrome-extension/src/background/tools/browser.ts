@@ -1,4 +1,4 @@
-import { getFocusedWindowId, openAgentTab } from './agent-tab-group';
+import { getFocusedWindowId, groupAgentTab, openAgentTab } from './agent-tab-group';
 import { clickByRef, getBoxCenter } from './browser-click';
 import { clearFirefoxSnapshot, executeBrowserFirefox } from './browser-firefox';
 import { runBrowserTabAction } from './browser-lifecycle';
@@ -1044,8 +1044,8 @@ const executeBrowserAction = async (
   const noHighlight = args.action === 'tabs' || args.action === 'close' || isTabGroupAction;
   let indicatorTabId: number | undefined = !noHighlight ? (args.tabId ?? undefined) : undefined;
 
-  // Inject before action (when tabId is known upfront)
   if (indicatorTabId != null) {
+    if (args.action !== 'open') await groupAgentTab(chatId, indicatorTabId);
     await injectControlIndicator(indicatorTabId);
   }
 
