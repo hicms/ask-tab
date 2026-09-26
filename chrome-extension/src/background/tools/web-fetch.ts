@@ -3,13 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { fetchViaBrowserPage, waitForTabLoad } from './web-fetch-browser';
-import {
-  normalizeCacheKey,
-  readCache,
-  readResponseText,
-  writeCache,
-  withTimeout,
-} from './web-shared';
+import { readCache, readResponseText, writeCache, withTimeout } from './web-shared';
 import { createLogger } from '../logging/logger-buffer';
 import { IS_FIREFOX } from '@extension/env';
 import { Type } from '@sinclair/typebox';
@@ -19,6 +13,13 @@ import type { Static } from '@sinclair/typebox';
 
 const log = createLogger('tool');
 
+const parameterScalarSchema = Type.Union([Type.String(), Type.Number(), Type.Boolean()]);
+const parameterValueSchema = Type.Union([
+  parameterScalarSchema,
+  Type.Array(parameterScalarSchema),
+  Type.Null(),
+]);
+
 // ---------------------------------------------------------------------------
 // Schema
 // ---------------------------------------------------------------------------
@@ -26,8 +27,22 @@ const log = createLogger('tool');
 const webFetchSchema = Type.Object({
   url: Type.String({ description: 'The URL to fetch content from' }),
   method: Type.Optional(
-    Type.Union([Type.Literal('GET'), Type.Literal('POST')], {
-      description: 'HTTP method (default: GET)',
+    Type.Union(
+      [
+        Type.Literal('GET'),
+        Type.Literal('HEAD'),
+        Type.Literal('POST'),
+        Type.Literal('PUT'),
+        Type.Literal('PATCH'),
+        Type.Literal('DELETE'),
+        Type.Literal('OPTIONS'),
+      ],
+      { description: 'HTTP method (default: GET)' },
+    ),
+  ),
+  params: Type.Optional(
+    Type.Record(Type.String(), parameterValueSchema, {
+      description: 'URL query parameters. Arrays repeat the key; null removes it.',
     }),
   ),
   headers: Type.Optional(
@@ -36,12 +51,27 @@ const webFetchSchema = Type.Object({
     }),
   ),
   body: Type.Optional(
-    Type.String({ description: 'Request body (typically JSON string for POST requests)' }),
+    Type.String({ description: 'Raw request body for POST, PUT, PATCH, DELETE, or OPTIONS' }),
+  ),
+  json: Type.Optional(
+    Type.Union([Type.Record(Type.String(), Type.Unknown()), Type.Array(Type.Unknown())], {
+      description: 'Structured JSON request body; sets Content-Type unless provided',
+    }),
+  ),
+  form: Type.Optional(
+    Type.Record(Type.String(), parameterValueSchema, {
+      description: 'URL-encoded form body; sets Content-Type unless provided',
+    }),
+  ),
+  credentials: Type.Optional(
+    Type.Union([Type.Literal('omit'), Type.Literal('same-origin'), Type.Literal('include')], {
+      description: 'HTTP fetch credential policy. Omit to use the browser default.',
+    }),
   ),
   extractMode: Type.Optional(
     Type.Union([Type.Literal('text'), Type.Literal('html'), Type.Literal('binary')], {
       description:
-        'Extraction mode: "text" strips HTML (default), "html" returns raw, "binary" returns base64 data URI for images/files',
+        'Extraction mode: "text" reads page text or preserves API text/JSON (default), "html" returns HTML, "binary" returns a base64 data URI',
     }),
   ),
   maxChars: Type.Optional(
@@ -50,6 +80,7 @@ const webFetchSchema = Type.Object({
 });
 
 type WebFetchArgs = Static<typeof webFetchSchema>;
+type Parameters = NonNullable<WebFetchArgs['params']>;
 
 interface WebFetchResult {
   text: string;
@@ -76,6 +107,22 @@ const CACHE_TTL_MS = 5 * 60_000;
 const DEFAULT_MAX_CHARS = 30_000;
 const BINARY_DEFAULT_MAX_CHARS = 2_000_000;
 const BINARY_MAX_BYTES = 10_000_000; // 10 MB hard limit
+
+const appendParameters = (target: URLSearchParams, params: Parameters): void => {
+  for (const [key, value] of Object.entries(params)) {
+    target.delete(key);
+    if (value === null) continue;
+    const values = Array.isArray(value) ? value : [value];
+    for (const item of values) target.append(key, String(item));
+  }
+};
+
+const resolveFetchUrl = (url: string, params?: Parameters): string => {
+  const parsed = new URL(url);
+  if (!params) return url;
+  appendParameters(parsed.searchParams, params);
+  return parsed.toString();
+};
 
 // ---------------------------------------------------------------------------
 // Base64 encoding — chunked to avoid stack overflow on large arrays
@@ -236,25 +283,31 @@ const fetchViaBrowserFallback = async (url: string, maxChars: number): Promise<W
 // ---------------------------------------------------------------------------
 
 const executeWebFetch = async (args: WebFetchArgs): Promise<WebFetchResult> => {
-  const { url, method, headers, body, extractMode, maxChars = DEFAULT_MAX_CHARS } = args;
-  const isPost = method === 'POST';
-  log.trace('[webFetch] fetching', { url, method, extractMode, maxChars });
-
-  // Skip personalized requests so credentials and login changes never share a cache entry.
-  const cacheKey = normalizeCacheKey(
-    `${method ?? 'GET'}:${url}:${extractMode ?? 'text'}:${maxChars}`,
-  );
-  if (!isPost && !headers) {
-    const cached = readCache(FETCH_CACHE, cacheKey, CACHE_TTL_MS);
-    if (cached) {
-      log.trace('[webFetch] cache hit', { url });
-      return cached;
-    }
+  const {
+    url,
+    method,
+    params,
+    headers,
+    body,
+    json,
+    form,
+    credentials,
+    extractMode,
+    maxChars = DEFAULT_MAX_CHARS,
+  } = args;
+  const effectiveMethod = method ?? 'GET';
+  const bodyCount =
+    Number(body !== undefined) + Number(json !== undefined) + Number(form !== undefined);
+  if (bodyCount > 1) {
+    return { text: '', status: 0, error: 'Specify only one of body, json, or form.' };
+  }
+  if ((effectiveMethod === 'GET' || effectiveMethod === 'HEAD') && bodyCount > 0) {
+    return { text: '', status: 0, error: `${effectiveMethod} requests cannot have a body.` };
   }
 
-  // Validate URL before attempting fetch
+  let requestUrl: string;
   try {
-    new URL(url);
+    requestUrl = resolveFetchUrl(url, params);
   } catch {
     return {
       text: '',
@@ -262,15 +315,48 @@ const executeWebFetch = async (args: WebFetchArgs): Promise<WebFetchResult> => {
       error: `Invalid URL: "${url}". Ensure the URL includes a protocol (e.g., https://).`,
     };
   }
+  log.trace('[webFetch] fetching', {
+    url: requestUrl,
+    method: effectiveMethod,
+    extractMode,
+    maxChars,
+  });
+
+  // Personalized and non-GET requests must not reuse a cached response.
+  const cacheable = effectiveMethod === 'GET' && !headers && !credentials;
+  const cacheKey = `${effectiveMethod}:${requestUrl}:${extractMode ?? 'text'}:${maxChars}`;
+  if (cacheable) {
+    const cached = readCache(FETCH_CACHE, cacheKey, CACHE_TTL_MS);
+    if (cached) {
+      log.trace('[webFetch] cache hit', { url: requestUrl });
+      return cached;
+    }
+  }
 
   const fetchInit: RequestInit = { signal: withTimeout(30) };
   if (method) fetchInit.method = method;
+  if (credentials) fetchInit.credentials = credentials;
   if (body) fetchInit.body = body;
-  if (headers) fetchInit.headers = headers;
+  if (json !== undefined || form !== undefined) {
+    const requestHeaders = { ...headers };
+    if (!Object.keys(requestHeaders).some(key => key.toLowerCase() === 'content-type')) {
+      requestHeaders['Content-Type'] =
+        json !== undefined ? 'application/json' : 'application/x-www-form-urlencoded;charset=UTF-8';
+    }
+    fetchInit.headers = requestHeaders;
+    if (json !== undefined) fetchInit.body = JSON.stringify(json);
+    if (form !== undefined) {
+      const formData = new URLSearchParams();
+      appendParameters(formData, form);
+      fetchInit.body = formData.toString();
+    }
+  } else if (headers) {
+    fetchInit.headers = headers;
+  }
 
   let response: Response;
   try {
-    response = await fetch(url, fetchInit);
+    response = await fetch(requestUrl, fetchInit);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     const isTimeout =
@@ -278,7 +364,7 @@ const executeWebFetch = async (args: WebFetchArgs): Promise<WebFetchResult> => {
       msg.includes('aborted') ||
       msg.includes('timeout');
 
-    log.trace('[webFetch] fetch failed', { url, error: msg });
+    log.trace('[webFetch] fetch failed', { url: requestUrl, error: msg });
 
     if (isTimeout) {
       return {
@@ -289,8 +375,8 @@ const executeWebFetch = async (args: WebFetchArgs): Promise<WebFetchResult> => {
     }
 
     // CORS/network error — try browser fallback for GET text/html requests
-    if (!isPost && !headers && !body && extractMode !== 'binary') {
-      const fallbackResult = await fetchViaBrowserFallback(url, maxChars);
+    if (cacheable && bodyCount === 0 && extractMode !== 'binary') {
+      const fallbackResult = await fetchViaBrowserFallback(requestUrl, maxChars);
       if (fallbackResult.text.length > 0) {
         writeCache(FETCH_CACHE, cacheKey, fallbackResult);
         return fallbackResult;
@@ -303,7 +389,7 @@ const executeWebFetch = async (args: WebFetchArgs): Promise<WebFetchResult> => {
       };
     }
 
-    // POST/binary — no fallback available
+    // Requests with custom semantics cannot be retried as a browser navigation.
     return {
       text: '',
       status: 0,
@@ -311,11 +397,27 @@ const executeWebFetch = async (args: WebFetchArgs): Promise<WebFetchResult> => {
     };
   }
 
+  if (effectiveMethod === 'HEAD') {
+    const mimeType = response.headers?.get('content-type')?.split(';')[0]?.trim() || undefined;
+    const contentLength = response.headers?.get('content-length');
+    const sizeBytes =
+      contentLength != null && Number.isFinite(Number(contentLength))
+        ? Number(contentLength)
+        : undefined;
+    return {
+      text: '',
+      status: response.status,
+      mimeType,
+      sizeBytes,
+      ...(!response.ok && { error: `HTTP ${response.status} ${response.statusText}` }),
+    };
+  }
+
   // Handle non-2xx responses for binary mode early (no useful content to extract)
   if (!response.ok && extractMode === 'binary') {
     const errorBody = await readResponseText(response);
     const detail = `HTTP ${response.status} ${response.statusText}${errorBody ? `: ${errorBody}` : ''}`;
-    log.trace('[webFetch] non-OK response', { url, status: response.status });
+    log.trace('[webFetch] non-OK response', { url: requestUrl, status: response.status });
     return { text: '', status: response.status, error: detail };
   }
 
@@ -378,30 +480,41 @@ const executeWebFetch = async (args: WebFetchArgs): Promise<WebFetchResult> => {
     };
   }
 
-  // ── Text / HTML modes (unchanged) ──
-  const html = await response.text();
+  // ── Text / HTML modes ──
+  const responseText = await response.text();
+  const contentType = response.headers?.get('content-type')?.toLowerCase() ?? '';
+  const isHtml =
+    !contentType ||
+    contentType.includes('text/html') ||
+    contentType.includes('application/xhtml+xml');
 
   // Extract title from <title> tag
-  const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html);
+  const titleMatch = isHtml ? /<title[^>]*>([\s\S]*?)<\/title>/i.exec(responseText) : null;
   const title = titleMatch?.[1]?.trim() ? decodeEntities(titleMatch[1].trim()) : undefined;
 
   let text: string;
   if (extractMode === 'html') {
-    text = html.slice(0, maxChars);
+    text = responseText.slice(0, maxChars);
+  } else if (!isHtml) {
+    text = responseText.slice(0, maxChars);
   } else {
-    text = extractText(html, maxChars);
+    text = extractText(responseText, maxChars);
   }
 
-  const result: WebFetchResult = { text, title, status: response.status };
+  const result: WebFetchResult = {
+    text,
+    title,
+    status: response.status,
+    mimeType: contentType.split(';')[0]?.trim() || undefined,
+  };
 
   // Flag non-2xx responses with error detail while preserving extracted content
   if (!response.ok) {
     result.error = `HTTP ${response.status} ${response.statusText}`;
-    log.trace('[webFetch] non-OK response', { url, status: response.status });
+    log.trace('[webFetch] non-OK response', { url: requestUrl, status: response.status });
   }
 
-  // Cache successful text results (skip for POST — non-idempotent)
-  if (!isPost && !headers && response.ok && text.length > 0) {
+  if (cacheable && response.ok && text.length > 0) {
     writeCache(FETCH_CACHE, cacheKey, result);
   }
 
@@ -411,20 +524,24 @@ const executeWebFetch = async (args: WebFetchArgs): Promise<WebFetchResult> => {
 const executeBrowserAwareWebFetch = async (args: WebFetchArgs): Promise<WebFetchResult> => {
   if (
     IS_FIREFOX ||
-    args.method === 'POST' ||
+    (args.method !== undefined && args.method !== 'GET') ||
     args.headers ||
-    args.body ||
+    args.body !== undefined ||
+    args.json !== undefined ||
+    args.form !== undefined ||
+    args.credentials !== undefined ||
     args.extractMode === 'binary'
   ) {
     return executeWebFetch(args);
   }
+  let requestUrl: string;
   try {
-    new URL(args.url);
+    requestUrl = resolveFetchUrl(args.url, args.params);
   } catch {
     return executeWebFetch(args);
   }
   return fetchViaBrowserPage(
-    args.url,
+    requestUrl,
     args.extractMode ?? 'text',
     args.maxChars ?? DEFAULT_MAX_CHARS,
   );
@@ -436,7 +553,7 @@ const webFetchToolDef: ToolRegistration = {
   name: 'web_fetch',
   label: 'Fetch URL',
   description:
-    'Read a URL. In Chrome, a plain GET uses an existing matching tab or opens an inactive browser tab and returns rendered page text (default) or current DOM HTML, using that browser profile and site login. POST, binary, and requests with custom headers or body use HTTP fetch instead. For POST, set method: "POST" with body and headers.',
+    'Read an HTTP(S) URL. Supports GET, HEAD, POST, PUT, PATCH, DELETE, and OPTIONS; params adds URL query values. In Chrome, a plain GET reads a browser tab with the site login. Other methods, binary responses, custom headers, credentials, and request bodies use HTTP fetch. Send one of body (raw string), json (structured JSON), or form (URL-encoded fields).',
   schema: webFetchSchema,
   execute: args => executeBrowserAwareWebFetch(args as WebFetchArgs),
   formatResult: (raw): ToolResult => {

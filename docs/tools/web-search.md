@@ -53,15 +53,23 @@ Fetch and extract content from a URL with multiple extraction modes.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `url` | string | (required) | URL to fetch |
-| `method` | `GET` \| `POST` | `GET` | HTTP method |
+| `method` | `GET` \| `HEAD` \| `POST` \| `PUT` \| `PATCH` \| `DELETE` \| `OPTIONS` | `GET` | HTTP method |
+| `params` | object | — | URL query parameters; arrays produce repeated keys, `null` removes an existing key |
 | `headers` | object | — | Custom request headers |
-| `body` | string | — | Request body for POST |
+| `body` | string | — | Raw request body |
+| `json` | object or array | — | JSON request body; automatically adds `Content-Type: application/json` |
+| `form` | object | — | URL-encoded form body; automatically adds its content type |
+| `credentials` | `omit` \| `same-origin` \| `include` | Browser default | Credential policy for HTTP fetch requests |
 | `extractMode` | `text` \| `html` \| `binary` | `text` | Content extraction mode |
 | `maxChars` | number | 30,000 | Maximum characters to return |
 
+Specify only one of `body`, `json`, or `form`. GET and HEAD cannot have a request body. Custom `Content-Type` headers override the automatic JSON/form values. Query parameters work with every method and replace existing URL parameters with the same name.
+
+For example, `{"url":"https://example.com/search","params":{"q":"hello world","tag":["a","b"]}}` loads `https://example.com/search?q=hello+world&tag=a&tag=b`. To update an API resource, use `{"url":"https://example.com/api/items/1","method":"PATCH","json":{"name":"New name"}}`.
+
 ### Extraction modes
 
-- **text** — On Chrome, reads the rendered page's visible text for ordinary GET requests. Best for reading articles and signed-in pages.
+- **text** — On Chrome, reads the rendered page's visible text for ordinary GET requests. Programmable requests strip HTML but preserve JSON and plain text responses as returned by the server.
 - **html** — On Chrome, returns the current DOM HTML for ordinary GET requests, including changes made by page scripts. Programmable requests return raw response HTML.
 - **binary** — Returns base64-encoded data URIs. Used for downloading images and other binary files.
 
@@ -88,8 +96,10 @@ On Chrome, ordinary GET requests without custom headers or body read a browser p
 
 Pages that render content after the load event may still require the browser tool to wait and interact with them. Restricted browser pages cannot be scripted. A missing HTTP status is reported as `0`, never assumed to be `200`.
 
-POST, binary, and requests with custom headers or body continue to use the extension's HTTP `fetch()`. Firefox also keeps that path. On its network failure, a plain GET text/HTML request may try the legacy browser fallback.
+HEAD, POST, PUT, PATCH, DELETE, OPTIONS, binary reads, and requests with custom headers, an explicit credential policy, or a request body use the extension's HTTP `fetch()`. HEAD returns status and available content type/length without reading a body. Firefox keeps the HTTP `fetch()` path for all methods. On its network failure, a plain GET text/HTML request may try the legacy browser fallback.
+
+This tool is for HTTP(S) URLs. Other schemes such as `ws:`, `wss:`, or `ftp:` require separate protocol-specific tools; changing the HTTP method cannot make `fetch()` speak those protocols.
 
 ### Caching
 
-Programmable successful GET text/HTML results without custom headers are cached for 5 minutes by `method:url:extractMode:maxChars`. POST requests, requests with custom headers, and Chrome browser page reads skip the cache, so a login change is reflected in the next page read.
+Programmable successful GET text/HTML results without custom headers or an explicit credential policy are cached for 5 minutes by `method:resolvedUrl:extractMode:maxChars`. Non-GET methods, requests with custom headers or an explicit credential policy, and Chrome browser page reads skip the cache, so a login change is reflected in the next page read.
