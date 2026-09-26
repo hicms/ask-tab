@@ -1,10 +1,11 @@
 <#
 .SYNOPSIS
-Pushes the version tag that starts the GitHub release workflow.
+Publishes a version tag and verifies the GitHub Release.
 
 .DESCRIPTION
 Requires a clean, pushed main branch and matching root and Chrome extension versions.
 GitHub Actions builds and publishes the production package after the tag is pushed.
+The command waits for the workflow and verifies both release assets.
 
 .PARAMETER Publish
 Create and push the matching version tag to origin.
@@ -27,8 +28,8 @@ $usage = @'
 Usage: .\scripts\release.ps1 -Publish
        .\scripts\release.ps1 -Help
 
--Publish tags the current main commit as v<package.json version> and pushes
-the tag to origin, starting the GitHub production release workflow.
+-Publish tags the current main commit as v<package.json version>, pushes the
+tag to origin, waits for GitHub Actions, and checks the ZIP and SHA-256 assets.
 Configure the repository Actions variable ASKTAB_RELEASE_SERVICE_URL first.
 '@
 
@@ -48,6 +49,16 @@ function Invoke-Git {
     $output = & git @GitArgs 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "git $($GitArgs -join ' ') failed (exit $LASTEXITCODE): $($output -join ' ')"
+    }
+    return $output
+}
+
+function Invoke-Gh {
+    param([string[]] $GhArgs)
+
+    $output = & gh @GhArgs 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "gh $($GhArgs -join ' ') failed (exit $LASTEXITCODE): $($output -join ' ')"
     }
     return $output
 }
@@ -85,13 +96,58 @@ try {
             throw "Remote tag $tag already exists."
         }
 
+        if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+            throw 'GitHub CLI (gh) is required to verify the release.'
+        }
+        $repo = Invoke-Gh -GhArgs @('repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner')
+        if (-not $repo) {
+            throw 'Could not identify the GitHub repository.'
+        }
+        $serviceUrl = Invoke-Gh -GhArgs @('variable', 'get', 'ASKTAB_RELEASE_SERVICE_URL', '--repo', $repo)
+        $serviceUri = $null
+        if (-not [uri]::TryCreate($serviceUrl, [UriKind]::Absolute, [ref] $serviceUri) -or
+            $serviceUri.Scheme -cne 'https' -or
+            $serviceUri.UserInfo -or
+            $serviceUri.AbsoluteUri -cne "$($serviceUri.GetLeftPart([UriPartial]::Authority))/") {
+            throw 'ASKTAB_RELEASE_SERVICE_URL must be an HTTPS origin without a path or credentials.'
+        }
+
         Invoke-Git -GitArgs @('tag', '-a', $tag, '-m', "Release $tag") | Out-Null
         try {
             Invoke-Git -GitArgs @('push', 'origin', "refs/tags/$tag") | Out-Host
         } catch {
             throw "Created local tag $tag, but could not push it. $($_.Exception.Message)"
         }
-        Write-Host "Pushed $tag to origin. The GitHub release workflow will build and publish it."
+        Write-Host "Pushed $tag to origin. Waiting for the GitHub release workflow..."
+
+        $runId = $null
+        for ($attempt = 0; $attempt -lt 60; $attempt++) {
+            $runs = Invoke-Gh -GhArgs @('run', 'list', '--repo', $repo, '--workflow', 'release.yml', '--branch', $tag, '--event', 'push', '--limit', '20', '--json', 'databaseId,headSha,headBranch') | ConvertFrom-Json
+            $run = $runs | Where-Object { $_.headSha -ceq $localHead -and $_.headBranch -ceq $tag } | Select-Object -First 1
+            if ($run) {
+                $runId = $run.databaseId
+                break
+            }
+            Start-Sleep -Seconds 2
+        }
+        if (-not $runId) {
+            throw "No GitHub Actions release run appeared for $tag. Check the tag and Actions page."
+        }
+
+        & gh run watch $runId --repo $repo --exit-status
+        if ($LASTEXITCODE -ne 0) {
+            throw "GitHub Actions release workflow failed: https://github.com/$repo/actions/runs/$runId"
+        }
+
+        $release = Invoke-Gh -GhArgs @('release', 'view', $tag, '--repo', $repo, '--json', 'url,assets') | ConvertFrom-Json
+        $expectedAssets = @("asktab-chrome-$tag.zip", "asktab-chrome-$tag.sha256")
+        $actualAssets = @($release.assets | ForEach-Object { $_.name })
+        foreach ($asset in $expectedAssets) {
+            if ($asset -cnotin $actualAssets) {
+                throw "GitHub Release $tag is missing $asset."
+            }
+        }
+        Write-Host "Release published and verified: $($release.url)"
     } finally {
         Pop-Location
     }

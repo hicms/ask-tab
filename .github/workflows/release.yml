@@ -28,6 +28,14 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: cp .example.env .env
+      - name: Check release configuration
+        run: |
+          if [ -z "$ASKTAB_RELEASE_SERVICE_URL" ]; then
+            echo 'Set the repository Actions variable ASKTAB_RELEASE_SERVICE_URL before tagging a release.' >&2
+            exit 1
+          fi
+      - name: Build workspace packages for tests
+        run: pnpm exec turbo ready
       - run: pnpm quality
       - name: Package Chrome extension
         run: pnpm release:package "$GITHUB_REF_NAME"

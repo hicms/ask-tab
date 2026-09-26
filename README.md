@@ -59,10 +59,10 @@ Set the HTTPS origin of the AskTab service that the release should use, then pac
 
 ```powershell
 $env:ASKTAB_RELEASE_SERVICE_URL = 'https://asktab.example.com'
-pnpm release:package v0.1.0
+pnpm release:package v0.1.1
 ```
 
-The command builds the Chrome extension and writes `asktab-chrome-v0.1.0.zip` and `asktab-chrome-v0.1.0.sha256` to `dist-zip/`. It checks the built manifest version and restores the local `.env` after packaging. It packages files locally; it does not create a Git tag or GitHub Release.
+The command builds the Chrome extension and writes `asktab-chrome-v0.1.1.zip` and `asktab-chrome-v0.1.1.sha256` to `dist-zip/`. It checks the built manifest version and restores the local `.env` after packaging. It packages files locally; it does not create a Git tag or GitHub Release.
 
 For an automated GitHub release, set the repository Actions variable `ASKTAB_RELEASE_SERVICE_URL` to the production HTTPS service origin. Update both package versions and push the source commit, then run this from a clean `main` branch:
 
@@ -70,7 +70,7 @@ For an automated GitHub release, set the repository Actions variable `ASKTAB_REL
 .\scripts\release.ps1 -Publish
 ```
 
-The script verifies that `main` matches `origin/main`, derives the `v<version>` tag from `package.json`, checks that the tag is unused, and pushes it to trigger the [release workflow](.github/workflows/release.yml). The workflow runs checks, builds with the production service URL, and publishes the ZIP and checksum as GitHub Release assets. A missing or invalid service URL stops the workflow before packaging. Run `.\scripts\release.ps1 -Help` to see its usage.
+The script verifies that `main` matches `origin/main`, derives the `v<version>` tag from `package.json`, checks that the tag is unused, and pushes it to trigger the [release workflow](.github/workflows/release.yml). It waits for the workflow and confirms that the GitHub Release contains both the ZIP and checksum. The workflow builds workspace packages before running checks, then builds with the production service URL. A missing service URL stops the workflow before checks. The URL is embedded in the extension; the build does not contact the service, so deploy it before expecting service-backed features to work. Run `.\scripts\release.ps1 -Help` to see its usage.
 
 The monorepo contains `chrome-extension/` for the background worker and manifest, `pages/` for extension views, `packages/` for shared modules, and `tests/` for integration and end-to-end coverage. See [installation](docs/start/installation.md), [development](docs/development/index.md), and the [documentation index](docs/index.md) for details.
 
