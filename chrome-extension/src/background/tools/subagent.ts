@@ -145,6 +145,7 @@ const releaseKeepAlive = (): void => {
 /** Context passed to executeSpawnSubagent for result injection. */
 interface ToolContext {
   chatId?: string;
+  signal?: AbortSignal;
 }
 
 /** Internal-only options (not in the schema, not visible to the LLM). */
@@ -243,6 +244,7 @@ const runSubagentBackground = async (
     }
 
     // Run the agent — blocks until complete
+    run.abortController.signal.throwIfAborted();
     log.info('Subagent calling runAgent', {
       runId: run.runId,
       modelId: model.id,
@@ -338,6 +340,7 @@ const runSubagentBackground = async (
       },
     });
 
+    run.abortController.signal.throwIfAborted();
     const durationMs = Date.now() - run.startedAt;
 
     log.info('Subagent runAgent returned', {
@@ -442,6 +445,22 @@ const runSubagentBackground = async (
     run.error = errorMsg;
     const displayTask = options?.label ?? args.task;
 
+    if (run.abortController.signal.aborted) {
+      if (chatId) {
+        await chrome.runtime
+          .sendMessage({
+            type: 'SUBAGENT_COMPLETE',
+            chatId,
+            runId: run.runId,
+            task: displayTask,
+            findings: 'Subagent cancelled.',
+            startedAt: run.startedAt,
+          })
+          .catch(() => {});
+      }
+      return;
+    }
+
     log.error('Subagent failed', {
       runId: run.runId,
       error: errorMsg,
@@ -514,6 +533,7 @@ const executeSpawnSubagent = async (
   context?: ToolContext,
   options?: SpawnSubagentOptions,
 ): Promise<string> => {
+  context?.signal?.throwIfAborted();
   const runId = nanoid(10);
 
   // Check concurrency
@@ -526,6 +546,8 @@ const executeSpawnSubagent = async (
 
   // Set up abort
   const abortController = new AbortController();
+  const abortFromParent = () => abortController.abort(context?.signal?.reason);
+  context?.signal?.addEventListener('abort', abortFromParent, { once: true });
   const displayTask = options?.label ?? args.task;
   const run: SubagentRun = {
     runId,
@@ -539,7 +561,9 @@ const executeSpawnSubagent = async (
   log.info('Spawning subagent (non-blocking)', { runId, task: displayTask.slice(0, 100) });
 
   // Fire background run — intentionally unawaited
-  void runSubagentBackground(run, args, context?.chatId, options);
+  void runSubagentBackground(run, args, context?.chatId, options).finally(() => {
+    context?.signal?.removeEventListener('abort', abortFromParent);
+  });
 
   return JSON.stringify({
     runId,
@@ -604,6 +628,7 @@ const subagentToolDefs: ToolRegistration[] = [
     execute: (args, context) =>
       executeSpawnSubagent(args as Parameters<typeof executeSpawnSubagent>[0], {
         chatId: context?.chatId,
+        signal: context?.signal,
       }),
   },
   {

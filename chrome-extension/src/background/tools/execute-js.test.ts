@@ -159,6 +159,42 @@ beforeEach(async () => {
 // ── executeCode ─────────────────────────────────
 
 describe('executeCode', () => {
+  it('terminates a stopped sandbox script and allows another execution', async () => {
+    const controller = new AbortController();
+    const running = executeCode(
+      'return new Promise(() => {})',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      controller.signal,
+    );
+    await vi.waitFor(() =>
+      expect(
+        mockDebuggerSendCommand.mock.calls.some(
+          call => call[1] === 'Runtime.evaluate' && call[2]?.awaitPromise,
+        ),
+      ).toBe(true),
+    );
+    controller.abort();
+    await expect(running).rejects.toThrow();
+    expect(mockDebuggerSendCommand).toHaveBeenCalledWith(
+      { tabId: SANDBOX_TAB_ID },
+      'Runtime.terminateExecution',
+      {},
+      expect.any(Function),
+    );
+    expect(mockTabsRemove).toHaveBeenCalledWith(SANDBOX_TAB_ID);
+    expect(await executeCode('return 42')).toBe('42');
+  });
+
+  it('does not create a sandbox for an already stopped command', async () => {
+    await expect(
+      executeCode('return 42', undefined, undefined, undefined, undefined, AbortSignal.abort()),
+    ).rejects.toThrow();
+    expect(mockTabsCreate).not.toHaveBeenCalled();
+  });
+
   it('executes simple JS and returns result', async () => {
     const result = await executeCode('return 2 + 2');
     expect(result).toBe('4');

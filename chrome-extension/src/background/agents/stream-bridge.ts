@@ -6,6 +6,7 @@
  * tool definitions, and event emission — no manual bridging needed.
  */
 
+import { withAbort } from './cancellation';
 import { chatModelToPiModel } from './model-adapter';
 import { confirmSessionAfterModelError, requireSession } from '../ask-service/client';
 import { requestLocalGeneration } from '../local-llm-bridge';
@@ -188,7 +189,7 @@ export const completeText = async (
   modelConfig: ChatModel,
   systemPrompt: string,
   userContent: string,
-  opts?: { maxTokens?: number },
+  opts?: { maxTokens?: number; signal?: AbortSignal },
 ): Promise<string> => {
   if (modelConfig.provider === 'local') {
     throw new Error(
@@ -197,15 +198,19 @@ export const completeText = async (
   }
 
   const { model } = chatModelToPiModel(modelConfig);
-  const session = await requireSession();
+  const session = await withAbort(opts?.signal, () => requireSession());
   const context: Context = {
     systemPrompt,
     messages: [{ role: 'user', content: userContent, timestamp: Date.now() }],
   };
-  const result = await completeSimple(model, context, {
-    maxTokens: opts?.maxTokens,
-    apiKey: (await requireSession(session)).token,
-  });
+  const apiKey = (await withAbort(opts?.signal, () => requireSession(session))).token;
+  const result = await withAbort(opts?.signal, () =>
+    completeSimple(model, context, {
+      maxTokens: opts?.maxTokens,
+      apiKey,
+      signal: opts?.signal,
+    }),
+  );
   if (result.stopReason === 'error')
     void confirmSessionAfterModelError(model.baseUrl, session.token);
   return result.content

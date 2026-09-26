@@ -546,6 +546,7 @@ const compactMessagesWithSummary = async (
   modelId: string,
   modelConfig: ChatModel,
   options: {
+    signal?: AbortSignal;
     systemPromptTokens?: number;
     existingSummary?: string;
     contextWindowOverride?: number;
@@ -554,6 +555,7 @@ const compactMessagesWithSummary = async (
     compactionConfig?: Partial<CompactionConfig>;
   } = {},
 ): Promise<CompactionResult> => {
+  options.signal?.throwIfAborted();
   const startTime = Date.now();
   const {
     systemPromptTokens = 0,
@@ -813,6 +815,7 @@ const compactMessagesWithSummary = async (
 
         // Build summarizer options from compaction config
         const summarizerOpts: SummarizerOptions = {
+          signal: options.signal,
           criticalRules,
           qualityGuardEnabled: compactionConfig?.qualityGuardEnabled,
           qualityGuardMaxRetries: compactionConfig?.qualityGuardMaxRetries,
@@ -902,6 +905,7 @@ const compactMessagesWithSummary = async (
     return summarizationResult;
   } catch (err) {
     clearTimeout(timeoutId);
+    options.signal?.throwIfAborted();
     // Summarization or timeout failed — fall back to sliding window
     // truncated is safe to reuse here: the summarization IIFE creates its own copies
     compactionLog.info('compaction: fell back to sliding-window', {

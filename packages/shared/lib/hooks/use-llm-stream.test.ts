@@ -92,6 +92,71 @@ const HANDLE_ERROR_IDX = 3;
 // useRef capture order: 0: portRef  1: abortedRef  2: assistantMessageRef  3: isFirstMessageRef
 const ASSISTANT_MSG_REF_IDX = 2;
 
+describe('useLLMStream — stop and resume', () => {
+  beforeEach(() => {
+    useStateIndex = 0;
+    stateSlots.length = 0;
+    capturedCallbacks.length = 0;
+    capturedRefs.length = 0;
+    vi.clearAllMocks();
+  });
+
+  it('marks pending tool cards stopped while preserving completed results', () => {
+    const hook = useLLMStream({ chatId: 'test-chat', model: mockModel });
+    hook.sendMessage('Work');
+    const port = vi.mocked(chrome.runtime.connect).mock.results[0].value as chrome.runtime.Port;
+    const receive = vi.mocked(port.onMessage.addListener).mock.calls[0][0];
+    receive(
+      {
+        type: 'LLM_STREAM_CHUNK',
+        toolCall: { id: 'done', name: 'read', args: {} },
+        state: 'input-available',
+      },
+      port,
+    );
+    receive({ type: 'LLM_STREAM_CHUNK', toolResult: { id: 'done', result: 'Known result' } }, port);
+    receive(
+      {
+        type: 'LLM_STREAM_CHUNK',
+        toolCall: { id: 'pending', name: 'write', args: {} },
+        state: 'input-available',
+      },
+      port,
+    );
+    hook.stop();
+    const assistant = (stateSlots[0].value as ChatMessage[]).at(-1)!;
+    expect(assistant.parts).toEqual([
+      expect.objectContaining({
+        toolCallId: 'done',
+        state: 'output-available',
+        result: 'Known result',
+      }),
+      expect.objectContaining({ toolCallId: 'pending', state: 'output-error' }),
+    ]);
+    expect(stateSlots[1].value).toBe('idle');
+    expect(port.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it('ignores late chunks and disconnect callbacks from a stopped connection', () => {
+    const hook = useLLMStream({ chatId: 'test-chat', model: mockModel });
+    hook.sendMessage('First');
+    const oldPort = vi.mocked(chrome.runtime.connect).mock.results[0].value as chrome.runtime.Port;
+    hook.stop();
+    hook.sendMessage('Continue');
+    const newPort = vi.mocked(chrome.runtime.connect).mock.results[1].value as chrome.runtime.Port;
+    vi.mocked(oldPort.onDisconnect.addListener).mock.calls[0][0](oldPort);
+    vi.mocked(oldPort.onMessage.addListener).mock.calls[0][0](
+      { type: 'LLM_STREAM_CHUNK', delta: 'stale text' },
+      oldPort,
+    );
+    expect(capturedRefs[0].current).toBe(newPort);
+    expect((stateSlots[0].value as ChatMessage[]).at(-1)?.parts).toEqual([]);
+    expect(stateSlots[1].value).toBe('connecting');
+    hook.stop();
+    expect(newPort.disconnect).toHaveBeenCalledOnce();
+  });
+});
+
 // ── Tests ────────────────────────────────────────────────
 
 describe('useLLMStream — handleEnd awaits onStreamComplete', () => {

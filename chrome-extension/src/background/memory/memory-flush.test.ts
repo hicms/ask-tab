@@ -81,6 +81,24 @@ describe('resolveMemoryFlushPromptForRun', () => {
 });
 
 describe('runMemoryFlushIfNeeded', () => {
+  it('forwards cancellation to the flush agent and does not mark an aborted flush complete', async () => {
+    const controller = new AbortController();
+    vi.mocked(runAgent).mockImplementationOnce(async opts => {
+      expect(opts.signal).toBe(controller.signal);
+      controller.abort();
+      return { stepCount: 1 } as never;
+    });
+    await expect(
+      runMemoryFlushIfNeeded({
+        chatId: 'chat-1',
+        modelConfig: testModel,
+        systemPrompt: '',
+        systemPromptTokens: 0,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow();
+    expect(updateMemoryFlush).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
   });

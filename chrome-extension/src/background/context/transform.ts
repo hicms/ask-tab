@@ -65,8 +65,9 @@ const createTransformContext = (
 
   const transformContext = async (
     messages: AgentMessage[],
-    _signal?: AbortSignal,
+    signal?: AbortSignal,
   ): Promise<AgentMessage[]> => {
+    signal?.throwIfAborted();
     // Convert AgentMessage[] → ChatMessage[] for the existing compaction API
     const chatMessages = agentMessagesToChatMessages(messages, opts.chatId);
 
@@ -93,6 +94,7 @@ const createTransformContext = (
     // Load agent's compaction config (if any)
     const agentConfig = opts.agentId ? await getAgent(opts.agentId) : undefined;
     const compactionConfig = agentConfig?.compactionConfig;
+    signal?.throwIfAborted();
 
     // Pre-compaction: enforce tool result budget to prevent massive results from reaching compaction
     const guardedMessages = enforceToolResultBudget(
@@ -132,6 +134,7 @@ const createTransformContext = (
           effectiveContextWindow,
         )
       : await compactMessagesWithSummary(guardedMessages, opts.modelConfig.id, opts.modelConfig, {
+          signal,
           systemPromptTokens: opts.systemPromptTokens,
           existingSummary,
           contextWindowOverride: effectiveContextWindow,
@@ -139,6 +142,7 @@ const createTransformContext = (
           compactionConfig,
         });
 
+    signal?.throwIfAborted();
     // Track summary compaction attempts
     if (wasCompacted && compactionMethod === 'summary') {
       summaryCompactionAttempts++;

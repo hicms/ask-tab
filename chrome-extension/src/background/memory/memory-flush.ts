@@ -43,6 +43,7 @@ const resolveMemoryFlushPromptForRun = (prompt: string): string => {
 // ── Main flush function ─────────────────────────
 
 interface MemoryFlushParams {
+  signal?: AbortSignal;
   chatId: string;
   modelConfig: ChatModel;
   systemPrompt: string;
@@ -58,7 +59,8 @@ interface MemoryFlushParams {
  * 3. Flush hasn't already run for this compaction cycle
  */
 const runMemoryFlushIfNeeded = async (params: MemoryFlushParams): Promise<void> => {
-  const { chatId, modelConfig, systemPrompt, systemPromptTokens } = params;
+  const { chatId, modelConfig, systemPrompt, systemPromptTokens, signal } = params;
+  signal?.throwIfAborted();
 
   // 1. Load chat record for compaction count
   const chatRecord = await getChat(chatId);
@@ -102,13 +104,16 @@ const runMemoryFlushIfNeeded = async (params: MemoryFlushParams): Promise<void> 
   flushLog.info('Memory flush starting', { chatId, totalTokens });
 
   try {
+    signal?.throwIfAborted();
     const result = await runAgent({
+      signal,
       model: modelConfig,
       systemPrompt: flushSystemPrompt,
       prompt: flushPrompt,
       headlessTools: true, // uses write + memory_search tools, no scheduler/research
       convertToLlm: makeConvertToLlm(),
     });
+    signal?.throwIfAborted();
 
     // 7. Update memoryFlushCompactionCount
     //    If the flush turn itself triggered compaction, the count was already
@@ -118,6 +123,7 @@ const runMemoryFlushIfNeeded = async (params: MemoryFlushParams): Promise<void> 
       const updated = await getChat(chatId);
       memoryFlushCompactionCount = updated?.compactionCount ?? memoryFlushCompactionCount;
     }
+    signal?.throwIfAborted();
     await updateMemoryFlush(chatId, memoryFlushCompactionCount);
 
     flushLog.info('Memory flush complete', {
@@ -126,6 +132,7 @@ const runMemoryFlushIfNeeded = async (params: MemoryFlushParams): Promise<void> 
       timedOut: result.timedOut,
     });
   } catch (err) {
+    signal?.throwIfAborted();
     flushLog.warn('Memory flush failed', { chatId, error: String(err) });
   }
 };

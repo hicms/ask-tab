@@ -1,9 +1,15 @@
 import { buildHeadlessSystemPrompt, runAgent } from './agent-setup';
 import { chatMessagesToPiMessages, makeConvertToLlm } from './message-adapter';
-import { createModelCheckpoint, loadModelHistory, modelSourceKey } from './model-transcript';
+import {
+  createModelCheckpoint,
+  interruptedHistoryAsContext,
+  loadModelHistory,
+  modelSourceKey,
+} from './model-transcript';
 import { createTransformContext } from '../context/transform';
 import { createLogger } from '../logging/logger-buffer';
 import { runMemoryFlushIfNeeded } from '../memory/memory-flush';
+import { markInterruptedToolCalls } from '@extension/shared';
 import { activeAgentStorage, saveArtifact } from '@extension/storage';
 import type { chatModelToPiModel } from './model-adapter';
 import type {
@@ -94,19 +100,14 @@ const maybeSendTtsAudio = async (
   }
 };
 
-const handleLLMStream = async (
+const runLLMStream = async (
   port: chrome.runtime.Port,
   request: LLMRequestMessage,
+  controller: AbortController,
 ): Promise<void> => {
   const { chatId, messages, model: modelConfig, assistantMessageId } = request;
   const assistantParts: ChatMessagePart[] = [];
   let turnPartStart = 0;
-  const controller = new AbortController();
-  const onDisconnect = () => controller.abort();
-  // Stopping the chat (or closing its UI) disconnects the port. Forward that
-  // cancellation to the agent so its finally block releases page markers.
-  port.onDisconnect.addListener(onDisconnect);
-
   streamLog.info('Stream started', { chatId, model: modelConfig.id });
   streamLog.trace('Stream request detail', {
     chatId,
@@ -177,6 +178,7 @@ const handleLLMStream = async (
 
     // Pre-turn memory flush agent-based
     await runMemoryFlushIfNeeded({
+      signal: controller.signal,
       chatId,
       modelConfig,
       systemPrompt: freshSystemPrompt,
@@ -417,19 +419,29 @@ const handleLLMStream = async (
         id: assistantMessageId,
         chatId,
         role: 'assistant' as const,
-        parts: assistantParts,
+        parts: controller.signal.aborted
+          ? markInterruptedToolCalls(assistantParts)
+          : assistantParts,
         createdAt: Date.now(),
         model: modelConfig.id,
       };
-      if (runResult.error) await addMessage(assistantMessage);
+      if (controller.signal.aborted) {
+        await finishModelTurn(
+          assistantMessage,
+          sourceKey,
+          interruptedHistoryAsContext(runResult.agent.state.messages),
+        );
+      } else if (runResult.error) await addMessage(assistantMessage);
       else await finishModelTurn(assistantMessage, sourceKey, runResult.agent.state.messages);
       await touchChat(chatId);
     }
     if (endPayload) sendEnd(port, endPayload);
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    streamLog.error('Stream error', { chatId, error: errorMsg });
-    sendError(port, chatId, errorMsg);
+    if (!controller.signal.aborted) {
+      streamLog.error('Stream error', { chatId, error: errorMsg });
+      sendError(port, chatId, errorMsg);
+    }
 
     // Persist partial assistant message on error so it's not lost on reload
     if (assistantParts.length > 0 && assistantMessageId) {
@@ -439,7 +451,9 @@ const handleLLMStream = async (
           id: assistantMessageId,
           chatId,
           role: 'assistant',
-          parts: assistantParts,
+          parts: controller.signal.aborted
+            ? markInterruptedToolCalls(assistantParts)
+            : assistantParts,
           createdAt: Date.now(),
           model: modelConfig.id,
         });
@@ -448,8 +462,36 @@ const handleLLMStream = async (
         // Best-effort — already in error path
       }
     }
+  }
+};
+
+// Wait for the prior turn's cleanup and durable writes before replacing it.
+const activeStreams = new Map<string, { controller: AbortController; done: Promise<void> }>();
+
+const handleLLMStream = async (
+  port: chrome.runtime.Port,
+  request: LLMRequestMessage,
+): Promise<void> => {
+  const controller = new AbortController();
+  const onDisconnect = () => controller.abort();
+  port.onDisconnect.addListener(onDisconnect);
+  const previous = activeStreams.get(request.chatId);
+  let finish!: () => void;
+  const active = {
+    controller,
+    done: new Promise<void>(resolve => {
+      finish = resolve;
+    }),
+  };
+  activeStreams.set(request.chatId, active);
+  previous?.controller.abort();
+  try {
+    await previous?.done;
+    if (!controller.signal.aborted) await runLLMStream(port, request, controller);
   } finally {
     port.onDisconnect.removeListener(onDisconnect);
+    if (activeStreams.get(request.chatId) === active) activeStreams.delete(request.chatId);
+    finish();
   }
 };
 

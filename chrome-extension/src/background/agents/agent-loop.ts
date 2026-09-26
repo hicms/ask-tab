@@ -5,6 +5,7 @@
  * stream.end() fires on unhandled errors, preventing service worker hangs.
  */
 
+import { withAbort } from './cancellation';
 import {
   createToolLoopState,
   detectToolCallLoop,
@@ -61,7 +62,7 @@ const agentLoop = (
     try {
       await runLoop(currentContext, newMessages, config, signal, stream, streamFn);
     } catch (err) {
-      emitLoopError(err, newMessages, stream, config);
+      emitLoopError(err, newMessages, stream, config, signal);
     }
   })();
 
@@ -97,7 +98,7 @@ const agentLoopContinue = (
     try {
       await runLoop(currentContext, newMessages, config, signal, stream, streamFn);
     } catch (err) {
-      emitLoopError(err, newMessages, stream, config);
+      emitLoopError(err, newMessages, stream, config, signal);
     }
   })();
 
@@ -167,9 +168,14 @@ const emitLoopError = (
   newMessages: AgentMessage[],
   stream: EventStream<AgentEvent, AgentMessage[]>,
   config: CheckpointConfig,
+  signal?: AbortSignal,
 ): void => {
-  const errorText = err instanceof Error ? err.message : String(err);
-  diagnostics.error('[agent-loop] runLoop threw:', err);
+  const errorText = signal?.aborted
+    ? 'Request was aborted'
+    : err instanceof Error
+      ? err.message
+      : String(err);
+  if (!signal?.aborted) diagnostics.error('[agent-loop] runLoop threw:', err);
 
   const errorMsg: AssistantMessage = {
     role: 'assistant',
@@ -178,7 +184,7 @@ const emitLoopError = (
     provider: config.model?.provider ?? 'unknown',
     model: config.model?.id ?? 'unknown',
     usage: ZERO_USAGE,
-    stopReason: 'error',
+    stopReason: signal?.aborted ? 'aborted' : 'error',
     errorMessage: errorText,
     timestamp: Date.now(),
   };
@@ -208,8 +214,10 @@ const runLoop = async (
   stream: EventStream<AgentEvent, AgentMessage[]>,
   streamFn?: StreamFn,
 ): Promise<void> => {
+  signal?.throwIfAborted();
   let firstTurn = true;
-  let pendingMessages: AgentMessage[] = (await config.getSteeringMessages?.()) || [];
+  let pendingMessages: AgentMessage[] =
+    (await withAbort(signal, () => config.getSteeringMessages?.())) || [];
   const toolLoopState = createToolLoopState();
 
   // Outer loop: continues when queued follow-up messages arrive after agent would stop
@@ -219,6 +227,7 @@ const runLoop = async (
 
     // Inner loop: process tool calls and steering messages
     while (hasMoreToolCalls || pendingMessages.length > 0) {
+      signal?.throwIfAborted();
       if (!firstTurn) {
         stream.push({ type: 'turn_start' });
       } else {
@@ -243,6 +252,7 @@ const runLoop = async (
         streamFn,
       );
       newMessages.push(message);
+      signal?.throwIfAborted();
 
       if (message.stopReason !== 'error' && message.stopReason !== 'aborted') {
         await config.onCheckpoint?.(currentContext.messages.slice());
@@ -283,11 +293,11 @@ const runLoop = async (
         pendingMessages = steeringAfterTools;
         steeringAfterTools = null;
       } else {
-        pendingMessages = (await config.getSteeringMessages?.()) || [];
+        pendingMessages = (await withAbort(signal, () => config.getSteeringMessages?.())) || [];
       }
     }
 
-    const followUpMessages = (await config.getFollowUpMessages?.()) || [];
+    const followUpMessages = (await withAbort(signal, () => config.getFollowUpMessages?.())) || [];
     if (followUpMessages.length > 0) {
       pendingMessages = followUpMessages;
       continue;
@@ -312,10 +322,10 @@ const streamAssistantResponse = async (
 ): Promise<AssistantMessage> => {
   let messages = context.messages;
   if (config.transformContext) {
-    messages = await config.transformContext(messages, signal);
+    messages = await withAbort(signal, () => config.transformContext!(messages, signal));
   }
 
-  const llmMessages = await config.convertToLlm(messages);
+  const llmMessages = await withAbort(signal, () => config.convertToLlm(messages));
 
   const llmContext: Context = {
     systemPrompt: context.systemPrompt,
@@ -328,7 +338,7 @@ const streamAssistantResponse = async (
   }
 
   const resolvedApiKey = config.getApiKey
-    ? await config.getApiKey(config.model.provider)
+    ? await withAbort(signal, () => config.getApiKey!(config.model.provider))
     : undefined;
 
   agentLoopLog.trace('LLM request', {
@@ -337,16 +347,22 @@ const streamAssistantResponse = async (
     ...summarizeLlmContext(llmContext),
   });
 
-  const response = await streamFn(config.model, llmContext, {
-    ...config,
-    apiKey: resolvedApiKey,
-    signal,
-  });
+  const response = await withAbort(signal, () =>
+    streamFn(config.model, llmContext, {
+      ...config,
+      apiKey: resolvedApiKey,
+      signal,
+    }),
+  );
 
   let partialMessage: AssistantMessage | null = null;
   let addedPartial = false;
 
-  for await (const event of response) {
+  const iterator = response[Symbol.asyncIterator]();
+  while (true) {
+    const next = await withAbort(signal, () => iterator.next());
+    if (next.done) break;
+    const event = next.value;
     switch (event.type) {
       case 'start':
         partialMessage = event.partial;
@@ -377,7 +393,7 @@ const streamAssistantResponse = async (
 
       case 'done':
       case 'error': {
-        const finalMessage = await response.result();
+        const finalMessage = await withAbort(signal, () => response.result());
         agentLoopLog.trace('LLM response', {
           eventType: event.type,
           ...summarizeLlmResponse(finalMessage),
@@ -396,7 +412,7 @@ const streamAssistantResponse = async (
     }
   }
 
-  return await response.result();
+  return await withAbort(signal, () => response.result());
 };
 
 /**
@@ -416,6 +432,7 @@ const executeToolCalls = async (
   let steeringMessages: AgentMessage[] | undefined;
 
   for (let index = 0; index < toolCalls.length; index++) {
+    signal?.throwIfAborted();
     const toolCall = toolCalls[index];
     const tool = tools?.find(t => t.name === toolCall.name);
 
@@ -423,6 +440,7 @@ const executeToolCalls = async (
     if (toolLoopState) {
       await recordToolCall(toolLoopState, toolCall.name, toolCall.arguments, toolCall.id);
       const loopCheck = await detectToolCallLoop(toolLoopState, toolCall.name, toolCall.arguments);
+      signal?.throwIfAborted();
       if (loopCheck.shouldBlock) {
         agentLoopLog.warn('Tool loop detected — blocking', {
           toolName: toolCall.name,
@@ -497,16 +515,20 @@ const executeToolCalls = async (
 
       const validatedArgs = validateToolArguments(tool, toolCall);
 
-      result = await tool.execute(toolCall.id, validatedArgs, signal, partialResult => {
-        stream.push({
-          type: 'tool_execution_update',
-          toolCallId: toolCall.id,
-          toolName: toolCall.name,
-          args: toolCall.arguments,
-          partialResult,
-        });
-      });
+      result = await withAbort(signal, () =>
+        tool.execute(toolCall.id, validatedArgs, signal, partialResult => {
+          if (signal?.aborted) return;
+          stream.push({
+            type: 'tool_execution_update',
+            toolCallId: toolCall.id,
+            toolName: toolCall.name,
+            args: toolCall.arguments,
+            partialResult,
+          });
+        }),
+      );
     } catch (e) {
+      signal?.throwIfAborted();
       result = {
         content: [{ type: 'text', text: e instanceof Error ? e.message : String(e) }],
         details: {},
@@ -560,7 +582,7 @@ const executeToolCalls = async (
     await onResult?.(toolResultMessage);
 
     if (getSteeringMessages) {
-      const steering = await getSteeringMessages();
+      const steering = await withAbort(signal, () => getSteeringMessages());
       if (steering.length > 0) {
         steeringMessages = steering;
         const remainingCalls = toolCalls.slice(index + 1);

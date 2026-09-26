@@ -147,7 +147,9 @@ vi.mock('../logging/logger-buffer', () => ({
   })),
 }));
 
-vi.mock('@extension/shared', () => ({
+vi.mock('@extension/shared', async () => ({
+  markInterruptedToolCalls: (await import('../../../../packages/shared/lib/chat-cancellation'))
+    .markInterruptedToolCalls,
   getModelContextLimit: vi.fn(() => 4096),
 }));
 

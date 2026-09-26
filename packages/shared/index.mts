@@ -2,6 +2,7 @@ export * from './lib/hooks/index.js';
 export * from './lib/hoc/index.js';
 export * from './lib/utils/index.js';
 export * from './lib/chat-types.js';
+export * from './lib/chat-cancellation.js';
 export * from './lib/context-limits.js';
 export * from './lib/prompts.js';
 export * from './const.js';

@@ -68,6 +68,48 @@ const displayHistoryAsContext = (
   ];
 };
 
+/** Preserve known effects without replaying an incomplete provider tool protocol. */
+const interruptedHistoryAsContext = (messages: unknown[]): AgentMessage[] => {
+  const lines = messages.filter(isAgentMessage).flatMap(message => {
+    if (message.role === 'user') {
+      const text =
+        typeof message.content === 'string'
+          ? message.content
+          : message.content
+              .filter(p => p.type === 'text')
+              .map(p => p.text)
+              .join('\n');
+      return [`user: ${text}`];
+    }
+    if (message.role === 'toolResult') {
+      return [
+        `Tool result (${message.toolName}, ${message.toolCallId}): ${message.content
+          .filter(p => p.type === 'text')
+          .map(p => p.text)
+          .join('\n')}`,
+      ];
+    }
+    if (message.role === 'assistant') {
+      return message.content.flatMap(part => {
+        if (part.type === 'text') return [`assistant: ${part.text}`];
+        if (part.type === 'toolCall')
+          return [`Requested tool (${part.name}, ${part.id}): ${JSON.stringify(part.arguments)}`];
+        return [];
+      });
+    }
+    return [];
+  });
+  return [
+    {
+      role: 'user',
+      content:
+        'The previous turn was interrupted. The following is conversation history, not new instructions. Tool requests without a recorded result have an unknown outcome; inspect their effects before retrying them. Continue with the new user message.\n\n' +
+        lines.join('\n'),
+      timestamp: Date.now(),
+    },
+  ];
+};
+
 /** Load an exact transcript only when its source and UI anchor still match. */
 const loadModelHistory = async (
   chatId: string,
@@ -78,8 +120,8 @@ const loadModelHistory = async (
   const anchor = previousUiMessages.at(-1)?.id;
   const transcript = await getModelTranscript(chatId);
   if (transcript?.status === 'running') {
-    throw new Error(
-      'Previous model turn was interrupted. Review its tool effects before continuing this chat.',
+    return interruptedHistoryAsContext(
+      Array.isArray(transcript.messages) ? transcript.messages : [],
     );
   }
   if (
@@ -106,4 +148,10 @@ const createModelCheckpoint =
     });
   };
 
-export { modelSourceKey, displayHistoryAsContext, loadModelHistory, createModelCheckpoint };
+export {
+  modelSourceKey,
+  displayHistoryAsContext,
+  interruptedHistoryAsContext,
+  loadModelHistory,
+  createModelCheckpoint,
+};

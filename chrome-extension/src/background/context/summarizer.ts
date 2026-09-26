@@ -3,6 +3,7 @@ import {
   computePartCount,
   splitMessagesByTokenShare,
 } from './adaptive-compaction';
+import { withAbort } from '../agents/cancellation';
 import { completeText } from '../agents/stream-bridge';
 import { createLogger } from '../logging/logger-buffer';
 import type { ChatMessage, ChatModel } from '@extension/shared';
@@ -457,6 +458,7 @@ const SUMMARIZATION_TIMEOUT_MS = 120_000;
  * Internal implementation of summarizeMessages with quality audit and retry.
  */
 interface SummarizerOptions {
+  signal?: AbortSignal;
   criticalRules?: string;
   qualityGuardEnabled?: boolean;
   qualityGuardMaxRetries?: number;
@@ -498,8 +500,9 @@ const summarizeMessagesImpl = async (
   let lastIssues: string[] = [];
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
+    options.signal?.throwIfAborted();
     if (attempt > 0) {
-      await backoffDelay(attempt - 1);
+      await withAbort(options.signal, () => backoffDelay(attempt - 1));
       summarizerLog.trace('summarizeMessages: retry', { attempt, issues: lastIssues });
     }
 
@@ -511,7 +514,9 @@ const summarizeMessagesImpl = async (
 
       lastSummary = await completeText(modelConfig, prompt, enrichedTranscript, {
         maxTokens: 1200,
+        signal: options.signal,
       });
+      options.signal?.throwIfAborted();
 
       // Cap LLM output before appending recent turns
       if (lastSummary.length > MAX_SUMMARY_CHARS) {
@@ -544,6 +549,7 @@ const summarizeMessagesImpl = async (
         issues: audit.issues,
       });
     } catch (err) {
+      options.signal?.throwIfAborted();
       // On the last attempt, throw. Otherwise retry.
       if (attempt === maxRetries - 1) throw err;
       summarizerLog.trace('summarizeMessages: LLM error, will retry', {
@@ -574,12 +580,19 @@ const summarizeMessages = async (
   const opts: SummarizerOptions =
     typeof options === 'string' ? { criticalRules: options } : (options ?? {});
 
-  return Promise.race([
-    summarizeMessagesImpl(messages, modelConfig, opts),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Summarization timeout')), SUMMARIZATION_TIMEOUT_MS),
-    ),
-  ]);
+  const timeout = new AbortController();
+  const signal = opts.signal ? AbortSignal.any([opts.signal, timeout.signal]) : timeout.signal;
+  const timer = setTimeout(
+    () => timeout.abort(new Error('Summarization timeout')),
+    SUMMARIZATION_TIMEOUT_MS,
+  );
+  try {
+    return await withAbort(signal, () =>
+      summarizeMessagesImpl(messages, modelConfig, { ...opts, signal }),
+    );
+  } finally {
+    clearTimeout(timer);
+  }
 };
 
 /**
@@ -598,6 +611,7 @@ const summarizeInStages = async (
   const opts: SummarizerOptions =
     typeof options === 'string' ? { criticalRules: options } : (options ?? {});
   const { criticalRules } = opts;
+  opts.signal?.throwIfAborted();
   const partCount = computePartCount(messages, modelId, contextWindowOverride);
   const parts = splitMessagesByTokenShare(messages, partCount);
 
@@ -625,12 +639,13 @@ const summarizeInStages = async (
         modelConfig,
         `${SUMMARY_PROMPT}\n\nThis is part ${i + 1} of ${parts.length} of the conversation.`,
         enrichedTranscript,
-        { maxTokens: 1200 },
+        { maxTokens: 1200, signal: opts.signal },
       );
     }),
   );
 
   // Check if ALL chunks failed — if so, throw to trigger sliding-window fallback
+  opts.signal?.throwIfAborted();
   const allFailed = settledResults.every(r => r.status === 'rejected');
   if (allFailed) {
     throw new Error('All summarization chunks failed');
@@ -660,6 +675,7 @@ const summarizeInStages = async (
 
   let finalSummary = await completeText(modelConfig, MERGE_PROMPT, mergeInput, {
     maxTokens: 1200,
+    signal: opts.signal,
   });
 
   // Append recent turns from the last part

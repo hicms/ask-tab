@@ -14,6 +14,27 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessage, ChatModel } from '@extension/shared';
 
+it('cancels an in-flight summary without retrying after a late failure', async () => {
+  const controller = new AbortController();
+  let rejectRequest!: (error: Error) => void;
+  mockCompleteText.mockReset();
+  mockCompleteText.mockImplementationOnce((_model, _system, _content, opts) => {
+    expect(opts.signal).toBeInstanceOf(AbortSignal);
+    return new Promise((_, reject) => {
+      rejectRequest = reject;
+    });
+  });
+  const running = summarizeMessages([makeMessage()], mockModelConfig, {
+    signal: controller.signal,
+  });
+  await vi.waitFor(() => expect(mockCompleteText).toHaveBeenCalledOnce());
+  controller.abort();
+  await expect(running).rejects.toThrow();
+  rejectRequest(new Error('Late network failure'));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(mockCompleteText).toHaveBeenCalledOnce();
+});
+
 // Mock completeText from pi-stream-bridge
 const mockCompleteText = vi.fn();
 vi.mock('../agents/stream-bridge', () => ({

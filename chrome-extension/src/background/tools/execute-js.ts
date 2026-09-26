@@ -1,6 +1,7 @@
 import { cdpAttach, cdpSend } from './cdp';
 import { injectControlIndicator, removeControlIndicator } from './tab-indicator';
 import { getActiveAgentId, getWorkspaceFile } from './tool-utils';
+import { withAbort } from '../agents/cancellation';
 import { IS_FIREFOX } from '@extension/env';
 import { createAgentToolConfig, getAgent, updateAgent } from '@extension/storage';
 import { Type } from '@sinclair/typebox';
@@ -270,13 +271,15 @@ const ensureSandboxTab = async (): Promise<number> => {
 /**
  * Execute JavaScript code via CDP Runtime.evaluate in a sandbox or target tab.
  */
-const executeCode = async (
+const executeCodeInTarget = async (
   code: string,
   args?: Record<string, unknown>,
   timeout?: number,
   targetTabId?: number,
   exportAs?: string,
+  signal?: AbortSignal,
 ): Promise<string> => {
+  signal?.throwIfAborted();
   if (IS_FIREFOX) {
     const { executeCodeFirefox } = await import('./execute-js-firefox');
     return executeCodeFirefox(code, args, timeout, targetTabId, exportAs);
@@ -304,6 +307,7 @@ const executeCode = async (
   }
 
   // 2. Inject console capture
+  signal?.throwIfAborted();
   await cdpSend(tabId, 'Runtime.evaluate', {
     expression: `(function() {
       if (!window.__cc) {
@@ -348,17 +352,41 @@ const executeCode = async (
   }
 
   // 4. Execute
+  signal?.throwIfAborted();
   const effectiveTimeout = Math.min(Math.max(timeout ?? DEFAULT_TIMEOUT_MS, 1000), MAX_TIMEOUT_MS);
 
-  const result = await cdpSend<{
-    result: { type: string; value?: unknown; description?: string; subtype?: string };
-    exceptionDetails?: { text: string; exception?: { description?: string } };
-  }>(tabId, 'Runtime.evaluate', {
-    expression,
-    returnByValue: true,
-    awaitPromise: true,
-    timeout: effectiveTimeout,
-  });
+  let cancellation: Promise<unknown> | undefined;
+  const onAbort = () => {
+    cancellation = Promise.allSettled([
+      withAbort(AbortSignal.timeout(5000), () => cdpSend(tabId, 'Runtime.terminateExecution')),
+      ...(targetTabId == null
+        ? [withAbort(AbortSignal.timeout(5000), () => chrome.tabs.remove(tabId))]
+        : []),
+    ]);
+    if (targetTabId == null) {
+      sandboxTabId = null;
+      sandboxReady = null;
+    }
+  };
+  signal?.addEventListener('abort', onAbort, { once: true });
+  let result;
+  try {
+    result = await withAbort(signal, () =>
+      cdpSend<{
+        result: { type: string; value?: unknown; description?: string; subtype?: string };
+        exceptionDetails?: { text: string; exception?: { description?: string } };
+      }>(tabId, 'Runtime.evaluate', {
+        expression,
+        returnByValue: true,
+        awaitPromise: true,
+        timeout: effectiveTimeout,
+      }),
+    );
+  } finally {
+    signal?.removeEventListener('abort', onAbort);
+    await cancellation;
+  }
+  signal?.throwIfAborted();
 
   // 5. Read console logs
   let logs: Array<{ l: string; m: string }> = [];
@@ -407,6 +435,28 @@ const executeCode = async (
   return returnValue;
 };
 
+const codeQueues = new Map<string, Promise<unknown>>();
+const executeCode = async (
+  code: string,
+  args?: Record<string, unknown>,
+  timeout?: number,
+  targetTabId?: number,
+  exportAs?: string,
+  signal?: AbortSignal,
+): Promise<string> => {
+  signal?.throwIfAborted();
+  const key = targetTabId == null ? 'sandbox' : `tab:${targetTabId}`;
+  const pending = (codeQueues.get(key) ?? Promise.resolve())
+    .catch(() => {})
+    .then(() => executeCodeInTarget(code, args, timeout, targetTabId, exportAs, signal));
+  codeQueues.set(key, pending);
+  try {
+    return await pending;
+  } finally {
+    if (codeQueues.get(key) === pending) codeQueues.delete(key);
+  }
+};
+
 /**
  * Execute a custom tool by reading its workspace file and running it.
  */
@@ -414,13 +464,21 @@ const executeCustomTool = async (
   toolDef: CustomToolDef,
   args: Record<string, unknown>,
   agentId?: string,
+  signal?: AbortSignal,
 ): Promise<string> => {
   try {
     const file = await getWorkspaceFile(toolDef.path, agentId);
     if (!file) {
       return `Error: Workspace file not found: ${toolDef.path}`;
     }
-    return await executeCode(maybeAutoReturn(file.content), args);
+    return await executeCode(
+      maybeAutoReturn(file.content),
+      args,
+      undefined,
+      undefined,
+      undefined,
+      signal,
+    );
   } catch (err) {
     return `Error executing custom tool "${toolDef.name}": ${err instanceof Error ? err.message : String(err)}`;
   }
@@ -428,7 +486,8 @@ const executeCustomTool = async (
 
 // ── Main execute function ───────────────────────
 
-const executeJs = async (args: ExecuteJsArgs): Promise<string> => {
+const executeJs = async (args: ExecuteJsArgs, signal?: AbortSignal): Promise<string> => {
+  signal?.throwIfAborted();
   const { action } = args;
 
   if (action === 'execute') {
@@ -448,7 +507,7 @@ const executeJs = async (args: ExecuteJsArgs): Promise<string> => {
 
       if (args.tabId != null) await injectControlIndicator(args.tabId);
       try {
-        return await executeCode(code, args.args, args.timeout, args.tabId, args.exportAs);
+        return await executeCode(code, args.args, args.timeout, args.tabId, args.exportAs, signal);
       } finally {
         if (args.tabId != null) removeControlIndicator(args.tabId).catch(() => {});
       }
@@ -494,7 +553,7 @@ ${maybeAutoReturn(file.content)}
       const bundled = parts.join('\n');
       if (args.tabId != null) await injectControlIndicator(args.tabId);
       try {
-        return await executeCode(bundled, args.args, args.timeout, args.tabId);
+        return await executeCode(bundled, args.args, args.timeout, args.tabId, undefined, signal);
       } finally {
         if (args.tabId != null) removeControlIndicator(args.tabId).catch(() => {});
       }
@@ -579,7 +638,8 @@ const executeJsToolDef: ToolRegistration = {
     'register (parse tool metadata and save), unregister (remove a custom tool). ' +
     'Supports configurable timeout, module registry (exportAs), and console output capture.',
   schema: executeJsSchema,
-  execute: args => executeJs(args as Parameters<typeof executeJs>[0]),
+  needsContext: true,
+  execute: (args, context) => executeJs(args as Parameters<typeof executeJs>[0], context?.signal),
 };
 
 export {

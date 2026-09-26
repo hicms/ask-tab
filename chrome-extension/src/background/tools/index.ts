@@ -132,6 +132,7 @@ const getAgentTools = async (opts?: {
       description: def.description,
       parameters: def.schema,
       execute: async (_toolCallId, params, signal) => {
+        signal?.throwIfAborted();
         const context: ToolContext | undefined = def.needsContext
           ? { chatId: opts?.chatId, signal }
           : undefined;
@@ -154,8 +155,13 @@ const getAgentTools = async (opts?: {
           label: ct.name,
           description: ct.description,
           parameters: buildCustomToolSchema(ct.params),
-          execute: async (_toolCallId, params) => {
-            const result = await executeCustomTool(ct, params as Record<string, unknown>, agentId);
+          execute: async (_toolCallId, params, signal) => {
+            const result = await executeCustomTool(
+              ct,
+              params as Record<string, unknown>,
+              agentId,
+              signal,
+            );
             return defaultFormatResult(result);
           },
         });

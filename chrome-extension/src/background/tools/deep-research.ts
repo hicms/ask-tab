@@ -48,6 +48,7 @@ type DeepResearchArgs = Static<typeof deepResearchSchema>;
 /** Context passed to executeDeepResearch for subagent chatId injection. */
 interface ToolContext {
   chatId?: string;
+  signal?: AbortSignal;
 }
 
 // ---------------------------------------------------------------------------
@@ -156,8 +157,7 @@ const deepResearchToolDef: ToolRegistration = {
   schema: deepResearchSchema,
   excludeInHeadless: true,
   needsContext: true,
-  execute: (args, context) =>
-    executeDeepResearch(args as DeepResearchArgs, { chatId: context?.chatId }),
+  execute: (args, context) => executeDeepResearch(args as DeepResearchArgs, context),
 };
 
 export {

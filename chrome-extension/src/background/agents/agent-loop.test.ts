@@ -6,6 +6,7 @@
 
 import { agentLoop, agentLoopContinue } from './agent-loop';
 import { createAssistantMessageEventStream } from '@mariozechner/pi-ai';
+import { Type } from '@sinclair/typebox';
 import { describe, it, expect, vi } from 'vitest';
 import type {
   AgentContext,
@@ -125,6 +126,102 @@ const collectEvents = async (stream: AsyncIterable<AgentEvent>): Promise<AgentEv
 // ── Tests ────────────────────────────────────────────────
 
 describe('agentLoop', () => {
+  it('ends on cancellation even if a model stream never yields again', async () => {
+    const controller = new AbortController();
+    const response = createAssistantMessageEventStream();
+    const streamFn = vi.fn(() => response);
+    const running = collectEvents(
+      agentLoop(
+        [{ role: 'user', content: 'Hi', timestamp: 1 }],
+        makeContext(),
+        makeConfig(),
+        controller.signal,
+        streamFn,
+      ),
+    );
+    await vi.waitFor(() => expect(streamFn).toHaveBeenCalledOnce());
+    controller.abort();
+    const events = await running;
+    expect(events.at(-1)?.type).toBe('agent_end');
+    expect(
+      events.some(
+        e =>
+          e.type === 'message_end' &&
+          e.message.role === 'assistant' &&
+          e.message.stopReason === 'aborted',
+      ),
+    ).toBe(true);
+  });
+
+  it('stops a pending tool without executing the next tool or model turn', async () => {
+    const controller = new AbortController();
+    let finish!: (result: { content: []; details: Record<string, never> }) => void;
+    const execute = vi.fn(
+      () =>
+        new Promise<{ content: []; details: Record<string, never> }>(resolve => {
+          finish = resolve;
+        }),
+    );
+    const response = {
+      ...makeAssistantMessage('toolUse'),
+      content: [
+        { type: 'toolCall' as const, id: 'first', name: 'work', arguments: {} },
+        { type: 'toolCall' as const, id: 'second', name: 'work', arguments: {} },
+      ],
+    };
+    const streamFn = vi.fn(createMockStreamFn(response));
+    const context = {
+      ...makeContext(),
+      tools: [
+        { name: 'work', label: 'Work', description: 'Work', parameters: Type.Object({}), execute },
+      ],
+    };
+    const running = collectEvents(
+      agentLoop(
+        [{ role: 'user', content: 'Work', timestamp: 1 }],
+        context,
+        makeConfig(),
+        controller.signal,
+        streamFn,
+      ),
+    );
+    await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce());
+    controller.abort();
+    const events = await running;
+    expect(events.at(-1)?.type).toBe('agent_end');
+    finish({ content: [], details: {} });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(execute).toHaveBeenCalledOnce();
+    expect(streamFn).toHaveBeenCalledOnce();
+  });
+
+  it('does not call the provider when cancelled during context preparation', async () => {
+    const controller = new AbortController();
+    let finish!: (messages: AgentMessage[]) => void;
+    const transformContext = vi.fn(
+      () =>
+        new Promise<AgentMessage[]>(resolve => {
+          finish = resolve;
+        }),
+    );
+    const streamFn = vi.fn(createMockStreamFn());
+    const running = collectEvents(
+      agentLoop(
+        [{ role: 'user', content: 'Hi', timestamp: 1 }],
+        makeContext(),
+        { ...makeConfig(), transformContext },
+        controller.signal,
+        streamFn,
+      ),
+    );
+    await vi.waitFor(() => expect(transformContext).toHaveBeenCalledOnce());
+    controller.abort();
+    await running;
+    finish([]);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(streamFn).not.toHaveBeenCalled();
+  });
+
   it('checkpoints each model response before tool execution and each result before the next request', async () => {
     const prompt: AgentMessage = { role: 'user', content: 'Use the tool', timestamp: 1 };
     const toolResponse: AssistantMessage = {

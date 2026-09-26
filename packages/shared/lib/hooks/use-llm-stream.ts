@@ -1,3 +1,4 @@
+import { markInterruptedToolCalls } from '../chat-cancellation.js';
 import { nanoid } from 'nanoid';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import type {
@@ -162,8 +163,9 @@ const useLLMStream = ({
         ]);
       }
       setStatus('idle');
-      portRef.current?.disconnect();
+      const port = portRef.current;
       portRef.current = null;
+      port?.disconnect();
       if (assistantMessageRef.current) {
         const usage = end.usage
           ? {
@@ -191,8 +193,9 @@ const useLLMStream = ({
         ...parts,
         { type: 'text' as const, text: `\n\nError: ${error.error}` },
       ]);
-      portRef.current?.disconnect();
+      const port = portRef.current;
       portRef.current = null;
+      port?.disconnect();
       // Save partial assistant message on error so it's not lost on reload
       if (partialMessage) {
         await onStreamComplete?.(partialMessage);
@@ -262,6 +265,7 @@ const useLLMStream = ({
         portRef.current = port;
 
         port.onMessage.addListener((msg: Record<string, unknown>) => {
+          if (portRef.current !== port) return;
           switch (msg.type) {
             case 'LLM_STREAM_CHUNK':
               handleChunk(msg as unknown as LLMStreamChunk);
@@ -287,6 +291,7 @@ const useLLMStream = ({
         });
 
         port.onDisconnect.addListener(() => {
+          if (portRef.current !== port) return;
           if (!abortedRef.current && status !== 'idle') {
             setStatus('error');
           }
@@ -323,8 +328,16 @@ const useLLMStream = ({
 
   const stop = useCallback(() => {
     abortedRef.current = true;
-    portRef.current?.disconnect();
+    const port = portRef.current;
     portRef.current = null;
+    port?.disconnect();
+    const assistantId = assistantMessageRef.current?.id;
+    setMessages(previous =>
+      previous.map(message => {
+        if (message.id !== assistantId) return message;
+        return { ...message, parts: markInterruptedToolCalls(message.parts) };
+      }),
+    );
     setStatus('idle');
   }, []);
 

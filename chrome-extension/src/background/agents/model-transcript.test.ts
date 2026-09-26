@@ -182,16 +182,30 @@ describe('model transcript replay', () => {
     expect(displayHistoryAsContext([])).toEqual([]);
   });
 
-  it('refuses to replay an interrupted turn with unknown tool effects', async () => {
+  it('recovers interrupted history as context without replaying tool calls or reasoning', async () => {
     await saveModelTranscript({
       chatId: 'chat-1',
       schemaVersion: 1,
       status: 'running',
       sourceKey: modelSourceKey(model),
-      messages: [assistant([{ type: 'toolCall', id: 'call-1', name: 'write', arguments: {} }], 1)],
+      messages: [
+        assistant(
+          [
+            { type: 'thinking', thinking: 'private interrupted reasoning' },
+            { type: 'toolCall', id: 'call-1', name: 'write', arguments: { path: 'notes.md' } },
+          ],
+          1,
+        ),
+      ],
     });
-    await expect(
-      loadModelHistory('chat-1', [uiMessage('new-user', 'user', 'Continue')], model),
-    ).rejects.toThrow('interrupted');
+    const history = await loadModelHistory(
+      'chat-1',
+      [uiMessage('new-user', 'user', 'Continue')],
+      model,
+    );
+    expect(history.map(m => m.role)).toEqual(['user']);
+    expect(JSON.stringify(history)).toContain('unknown outcome');
+    expect(JSON.stringify(history)).toContain('notes.md');
+    expect(JSON.stringify(history)).not.toContain('private interrupted reasoning');
   });
 });

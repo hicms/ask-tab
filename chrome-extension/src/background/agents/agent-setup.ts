@@ -359,12 +359,13 @@ const executeAttempt = async (opts: {
 
   // Wire abort: combine external signal + wall-clock timeout
   const internalController = new AbortController();
+  const abortAttempt = () => internalController.abort();
 
   if (signal) {
     if (signal.aborted) {
       internalController.abort();
     } else {
-      signal.addEventListener('abort', () => internalController.abort(), { once: true });
+      signal.addEventListener('abort', abortAttempt, { once: true });
     }
   }
 
@@ -391,6 +392,7 @@ const executeAttempt = async (opts: {
     hasSignal: !!signal,
   });
   try {
+    internalController.signal.throwIfAborted();
     if (typeof prompt === 'string') {
       await agent.prompt(prompt);
     } else {
@@ -398,6 +400,7 @@ const executeAttempt = async (opts: {
     }
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener('abort', abortAttempt);
   }
   agentLog.trace('Agent prompt completed', { stepCount, timedOut });
 

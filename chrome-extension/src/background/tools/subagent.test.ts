@@ -164,6 +164,30 @@ describe('subagent tool', () => {
   });
 
   describe('executeSpawnSubagent — non-blocking', () => {
+    it('cancels its background agent with the parent and skips completion hooks', async () => {
+      const controller = new AbortController();
+      const onComplete = vi.fn();
+      let childSignal: AbortSignal | undefined;
+      mockRunAgent.mockImplementationOnce((opts: { signal: AbortSignal }) => {
+        childSignal = opts.signal;
+        return new Promise((_, reject) =>
+          opts.signal.addEventListener('abort', () => reject(opts.signal.reason), { once: true }),
+        );
+      });
+      const result = JSON.parse(
+        await executeSpawnSubagent(
+          { task: 'research' },
+          { chatId: 'cancel-chat', signal: controller.signal },
+          { onComplete },
+        ),
+      );
+      await vi.waitFor(() => expect(childSignal).toBeDefined());
+      controller.abort();
+      await vi.waitFor(() => expect(registry.get(result.runId)?.status).toBe('cancelled'));
+      expect(childSignal?.aborted).toBe(true);
+      expect(onComplete).not.toHaveBeenCalled();
+    });
+
     it('returns immediately with status "spawned"', async () => {
       const result = JSON.parse(await executeSpawnSubagent({ task: 'research AI' }));
 

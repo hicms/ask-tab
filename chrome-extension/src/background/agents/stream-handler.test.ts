@@ -90,7 +90,7 @@ const makeMessage = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
 const createMockPort = () => ({
   postMessage: vi.fn(),
   onMessage: { addListener: vi.fn() },
-  onDisconnect: { addListener: vi.fn() },
+  onDisconnect: { addListener: vi.fn(), removeListener: vi.fn() },
 });
 
 const makeRequest = (overrides: Partial<LLMRequestMessage> = {}): LLMRequestMessage => ({
@@ -105,6 +105,48 @@ const makeRequest = (overrides: Partial<LLMRequestMessage> = {}): LLMRequestMess
 
 describe('handleLLMStream', () => {
   const mockRunAgent = vi.mocked(runAgent);
+
+  it('waits for a stopped turn to settle before starting its replacement', async () => {
+    let finish!: () => void;
+    const pending = new Promise<void>(resolve => {
+      finish = resolve;
+    });
+    mockRunAgent.mockImplementationOnce(async opts => {
+      opts.onToolCallEnd?.({ id: 'pending', name: 'work', args: {} });
+      await pending;
+      return {
+        responseText: '',
+        parts: [],
+        usage: { inputTokens: 0, outputTokens: 0 },
+        agent: { state: { messages: [] } } as never,
+        stepCount: 0,
+        timedOut: false,
+        retryAttempts: 0,
+        error: 'Request was aborted',
+      };
+    });
+    const firstPort = createMockPort();
+    const first = handleLLMStream(
+      firstPort as never,
+      makeRequest({ assistantMessageId: 'stopped-assistant' }),
+    );
+    await vi.waitFor(() => expect(mockRunAgent).toHaveBeenCalledOnce());
+    const firstSignal = mockRunAgent.mock.calls[0][0].signal!;
+    const second = handleLLMStream(createMockPort() as never, makeRequest());
+    expect(firstSignal.aborted).toBe(true);
+    expect(mockRunAgent).toHaveBeenCalledOnce();
+    finish();
+    await Promise.all([first, second]);
+    expect(mockRunAgent).toHaveBeenCalledTimes(2);
+    expect(finishModelTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'stopped-assistant',
+        parts: [expect.objectContaining({ toolCallId: 'pending', state: 'output-error' })],
+      }),
+      expect.any(String),
+      expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
+    );
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
