@@ -231,6 +231,51 @@ describe('ASK_SYNC_MODELS', () => {
     expect(JSON.stringify(store.values.models)).not.toContain('sk-should-not-store');
   });
 
+  it('maps every native Gemini chat model in the catalog to the Google SDK', async () => {
+    store.values.session = { token: 'tok', userId: 'u', email: 'a@b.co', expiresAt: 9999999999999 };
+    const gemini = {
+      ...models[0],
+      protocol: 'gemini-generate-content',
+      supportsReasoning: true,
+    };
+    fetchMock.mockResolvedValueOnce(
+      json(200, [
+        { ...gemini, id: 'gemini-3-8-flash', name: 'Gemini-3.8-Flash', isDefault: true },
+        { ...gemini, id: 'gemini-next-pro', name: 'Gemini-Next-Pro', contextWindow: 1048576 },
+      ]),
+    );
+    expect(await handleAskMessage({ type: 'ASK_SYNC_MODELS' })).toEqual({ models: 2 });
+    expect(store.values.models).toEqual([
+      {
+        id: 'ask:gemini-3-8-flash',
+        modelId: 'gemini-3-8-flash',
+        name: 'Gemini-3.8-Flash',
+        provider: 'google',
+        supportsTools: true,
+        supportsReasoning: true,
+      },
+      {
+        id: 'ask:gemini-next-pro',
+        modelId: 'gemini-next-pro',
+        name: 'Gemini-Next-Pro',
+        provider: 'google',
+        supportsTools: true,
+        supportsReasoning: true,
+        contextWindow: 1048576,
+      },
+    ]);
+    expect(store.values.selected).toBe('ask:gemini-3-8-flash');
+  });
+
+  it('rejects a chat protocol the extension has no SDK for', async () => {
+    store.values.session = { token: 'tok', userId: 'u', email: 'a@b.co', expiresAt: 9999999999999 };
+    fetchMock.mockResolvedValueOnce(json(200, [{ ...models[0], protocol: 'openai-responses' }]));
+    await expect(handleAskMessage({ type: 'ASK_SYNC_MODELS' })).rejects.toThrow(
+      'Invalid server model catalog',
+    );
+    expect(store.values.models).toBeUndefined();
+  });
+
   it('rejects a model whose kind disagrees with its protocol', async () => {
     store.values.session = { token: 'tok', userId: 'u', email: 'a@b.co', expiresAt: 9999999999999 };
     fetchMock.mockResolvedValueOnce(json(200, [{ ...models[0], kind: 'embedding' }]));
@@ -286,6 +331,16 @@ describe('confirmSessionAfterModelError', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('http://ask.test/api/auth/me');
     expect(store.values.session).toBeNull();
     expect(store.values.models).toEqual([]);
+  });
+
+  it('re-checks the session after a failed native Gemini relay call', async () => {
+    store.values.session = { token: 'tok', userId: 'u', email: 'a@b.co', expiresAt: 9999999999999 };
+    fetchMock.mockResolvedValueOnce(json(401, { error: 'expired' }));
+
+    await confirmSessionAfterModelError('http://ask.test/api/llm/gemini-3-8-flash/v1beta', 'tok');
+
+    expect(fetchMock.mock.calls[0][0]).toBe('http://ask.test/api/auth/me');
+    expect(store.values.session).toBeNull();
   });
 
   it('keeps the session when the token is still valid', async () => {

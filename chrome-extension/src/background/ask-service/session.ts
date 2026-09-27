@@ -13,6 +13,7 @@ import {
   serverModelsStorage,
   selectedModelStorage,
 } from '@extension/storage';
+import type { ModelProvider } from '@extension/shared';
 import type { DbChatModel, PublicModel } from '@extension/storage';
 
 interface SessionResponse {
@@ -21,9 +22,15 @@ interface SessionResponse {
   user: { id: string; email: string };
 }
 
+/** The relay never converts between chat protocols, so each one selects its own SDK. */
+const chatProviders: Record<string, ModelProvider> = {
+  'openai-completions': 'custom',
+  'anthropic-messages': 'anthropic',
+  'gemini-generate-content': 'google',
+};
+
 const protocolKinds: Record<string, PublicModel['kind']> = {
-  'openai-completions': 'chat',
-  'anthropic-messages': 'chat',
+  ...Object.fromEntries(Object.keys(chatProviders).map(protocol => [protocol, 'chat' as const])),
   'openai-transcriptions': 'stt',
   'azure-transcriptions': 'stt',
   'openai-speech': 'tts',
@@ -69,18 +76,15 @@ const toPublicModel = (value: unknown): PublicModel => {
 };
 
 /** Persist only the public catalog entry. The JWT belongs exclusively to AskSession. */
-const toChatModel = (model: PublicModel): DbChatModel => {
-  const anthropic = model.protocol === 'anthropic-messages';
-  return {
-    id: `ask:${model.id}`,
-    modelId: model.id,
-    name: model.name,
-    provider: anthropic ? 'anthropic' : 'custom',
-    supportsTools: model.supportsTools,
-    supportsReasoning: model.supportsReasoning,
-    ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
-  };
-};
+const toChatModel = (model: PublicModel): DbChatModel => ({
+  id: `ask:${model.id}`,
+  modelId: model.id,
+  name: model.name,
+  provider: chatProviders[model.protocol],
+  supportsTools: model.supportsTools,
+  supportsReasoning: model.supportsReasoning,
+  ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
+});
 
 const syncServerModels = async (): Promise<number> => {
   const session = await requireSession();

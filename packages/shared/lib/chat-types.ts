@@ -97,7 +97,7 @@ interface SessionUsage {
 }
 
 /** Provider identifiers */
-type ModelProvider = 'anthropic' | 'custom';
+type ModelProvider = 'anthropic' | 'custom' | 'google';
 
 /** Model configuration */
 interface ChatModel {

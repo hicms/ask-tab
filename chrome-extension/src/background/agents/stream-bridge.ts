@@ -10,12 +10,26 @@ import { withAbort } from './cancellation';
 import { chatModelToPiModel } from './model-adapter';
 import { confirmSessionAfterModelError, requireSession } from '../ask-service/client';
 import { createLogger } from '../logging/logger-buffer';
-import { completeSimple, streamSimple } from '@mariozechner/pi-ai';
+import { completeSimple, streamGoogle, streamSimple } from '@mariozechner/pi-ai';
+import { buildBaseOptions } from '@mariozechner/pi-ai/dist/providers/simple-options.js';
 import type { ChatModel } from '@extension/shared';
 import type { StreamFn } from '@mariozechner/pi-agent-core';
 import type { Api, Context, Model, SimpleStreamOptions, TextContent } from '@mariozechner/pi-ai';
 
 const bridgeLog = createLogger('stream');
+
+/**
+ * Without an effort level, streamSimple sends no thinkingConfig and Gemini
+ * hides its thought summaries. Ask for them while keeping the model's own
+ * thinking level.
+ */
+const streamModel = (model: Model<Api>, context: Context, options?: SimpleStreamOptions) =>
+  model.api === 'google-generative-ai' && !options?.reasoning
+    ? streamGoogle(model as Model<'google-generative-ai'>, context, {
+        ...buildBaseOptions(model, options),
+        thinking: { enabled: model.reasoning },
+      })
+    : streamSimple(model, context, options);
 
 /**
  * Create a StreamFn using pi-mono's native streaming.
@@ -34,7 +48,7 @@ export const createStreamFn = (modelConfig: ChatModel): StreamFn => {
       contextWindow: model.contextWindow,
       maxTokens: model.maxTokens,
     });
-    const stream = streamSimple(model, context, options);
+    const stream = streamModel(model, context, options);
     void stream.result().then(message => {
       if (message.stopReason === 'error')
         void confirmSessionAfterModelError(model.baseUrl, options?.apiKey);

@@ -26,12 +26,23 @@ describe('chatModelToPiModel', () => {
     expect(resolved.model.baseUrl).toMatch(/\/api\/llm\/claude-public$/);
   });
 
+  it('uses the native Gemini relay with the API version in the SDK base URL', () => {
+    const resolved = chatModelToPiModel(
+      model({ provider: 'google', id: 'gemini-3-8-flash', supportsReasoning: true }),
+    );
+    expect(resolved.model.api).toBe('google-generative-ai');
+    expect(resolved.model.provider).toBe('google');
+    expect(resolved.model.baseUrl).toMatch(/\/api\/llm\/gemini-3-8-flash\/v1beta$/);
+    expect(resolved.model.reasoning).toBe(true);
+    expect(resolved.model.compat).toBeUndefined();
+  });
+
   it('encodes public IDs as a single route segment', () => {
     expect(chatModelToPiModel(model({ id: 'a/b' })).model.baseUrl).toMatch(/\/api\/llm\/a%2Fb$/);
   });
 
   it('rejects retired direct, web, and local providers', () => {
-    for (const provider of ['openai', 'google', 'azure', 'web', 'local'] as const) {
+    for (const provider of ['openai', 'azure', 'web', 'local', 'constructor'] as const) {
       expect(() => chatModelToPiModel(model({ provider }))).toThrow(
         'Unsupported remote model provider',
       );

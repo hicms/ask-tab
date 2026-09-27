@@ -180,7 +180,7 @@ const emitLoopError = (
   const errorMsg: AssistantMessage = {
     role: 'assistant',
     content: [{ type: 'text', text: '' }],
-    api: config.model?.provider === 'anthropic' ? 'anthropic-messages' : 'openai-completions',
+    api: config.model?.api ?? 'openai-completions',
     provider: config.model?.provider ?? 'unknown',
     model: config.model?.id ?? 'unknown',
     usage: ZERO_USAGE,

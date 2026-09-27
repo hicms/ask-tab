@@ -171,7 +171,7 @@ type ChatMessagePart =
 interface ChatModel {
   id: string; name: string;
   dbId?: string;
-  provider: 'custom' | 'anthropic';
+  provider: 'custom' | 'anthropic' | 'google'; // openai-completions | anthropic-messages | gemini-generate-content
   description?: string;
   supportsTools?: boolean; supportsReasoning?: boolean;
   toolTimeoutSeconds?: number;

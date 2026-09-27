@@ -317,6 +317,29 @@ describe('agentLoop', () => {
     expect(result).toBeDefined();
   });
 
+  it('labels a loop failure with the protocol of the model that was called', async () => {
+    const gemini: Model<'google-generative-ai'> = {
+      ...TEST_MODEL,
+      id: 'gemini-3-8-flash',
+      api: 'google-generative-ai',
+      provider: 'google',
+    };
+    const stream = agentLoop(
+      [{ role: 'user', content: 'Hi', timestamp: Date.now() }],
+      makeContext(),
+      { ...makeConfig(), model: gemini },
+      undefined,
+      createThrowingStreamFn('Network failure'),
+    );
+    const failure = (await stream.result()).at(-1) as AssistantMessage;
+    expect(failure).toMatchObject({
+      api: 'google-generative-ai',
+      provider: 'google',
+      model: 'gemini-3-8-flash',
+      stopReason: 'error',
+    });
+  });
+
   it('when no streamFn provided — stream terminates with agent_end', async () => {
     const prompt: AgentMessage = {
       role: 'user',
