@@ -68,7 +68,8 @@ describe('commit-derived release notes', { timeout: 30_000 }, () => {
     const notes = readFileSync(output, 'utf8');
     expect(notes.startsWith("## What's Changed\n")).toBe(true);
     expect(notes).toContain('\n## Install / Run\n');
-    expect(notes.indexOf('## Install / Run')).toBeGreaterThan(notes.indexOf('[完整变更对比]'));
+    expect(notes.indexOf('## Install / Run')).toBeGreaterThan(notes.indexOf('[Full Changelog]'));
+    expect(notes).not.toMatch(/\p{Script=Han}/u);
     expect(notes).toContain(
       'https://github.com/test/app/releases/download/v0.1.2/asktab-chrome-v0.1.2.zip',
     );
@@ -76,12 +77,18 @@ describe('commit-derived release notes', { timeout: 30_000 }, () => {
       'https://github.com/test/app/releases/download/v0.1.2/asktab-chrome-v0.1.2.sha256',
     );
     expect(notes).toContain('https://github.com/test/app/blob/v0.1.2/docs/start/installation.md');
-    expect(notes).toContain('v0.1.1 → v0.1.2 · 5 项提交更新');
+    expect(notes).toContain('v0.1.1 → v0.1.2 · 5 commits');
     expect(notes).toContain(
       `- Add selectable icons ([${feature.slice(0, 7)}](https://github.com/test/app/commit/${feature}))`,
     );
     expect(notes).toContain('  > Preserve messages.\n  > \n  > Keep attachments available.');
-    for (const heading of ['新功能', '问题修复', '优化与调整', '构建与维护', '其他更新']) {
+    for (const heading of [
+      'Features',
+      'Fixes',
+      'Improvements',
+      'Build & Maintenance',
+      'Other Changes',
+    ]) {
       expect(notes).toContain(`### ${heading}`);
     }
     expect(notes).not.toContain('Initial application');
@@ -95,7 +102,7 @@ describe('commit-derived release notes', { timeout: 30_000 }, () => {
     git('tag', 'v0.1.0');
     expect(generate('v0.1.0', 'fork/ask-tab').status).toBe(0);
     const notes = readFileSync(output, 'utf8');
-    expect(notes).toContain('首次发布 · 2 项提交更新');
+    expect(notes).toContain('Initial release · 2 commits');
     expect(notes).toContain('新增聊天归档');
     expect(notes).toContain('Initial application');
     expect(notes).toContain('https://github.com/fork/ask-tab/commits/v0.1.0');
@@ -135,7 +142,7 @@ describe('commit-derived release notes', { timeout: 30_000 }, () => {
     git('tag', 'v1.0.0');
     expect(generate('v1.0.0').status).toBe(0);
     const notes = readFileSync(output, 'utf8');
-    expect(notes).toContain('### 新功能');
+    expect(notes).toContain('### Features');
     expect(notes).toContain('support \\[links\\] and \\<tags\\> with \\`code\\`');
     expect(notes).toContain('  > BREAKING CHANGE: use the new setting.');
     expect(notes).toContain(`/commit/${hash}`);
@@ -161,7 +168,9 @@ describe('commit-derived release notes', { timeout: 30_000 }, () => {
     commit('Release v0.1.1');
     git('tag', 'v0.1.1');
     expect(generate('v0.1.1').status).toBe(0);
-    expect(readFileSync(output, 'utf8')).toContain('本版本没有新增的功能或修复提交。');
+    expect(readFileSync(output, 'utf8')).toContain(
+      'No additional changes beyond the version update.',
+    );
   });
 
   it('does not filter a release subject with substantive body details', () => {

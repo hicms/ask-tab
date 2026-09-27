@@ -16,17 +16,18 @@ const isOlder = (candidate, target) => {
 };
 
 const categoryFor = subject => {
-  if (/^(feat(?:\([^)]*\))?!?:|add\b|新增|添加|支持)/i.test(subject)) return '新功能';
-  if (/^(fix(?:\([^)]*\))?!?:|fix\b|修复)/i.test(subject)) return '问题修复';
+  if (/^(feat(?:\([^)]*\))?!?:|add\b|新增|添加|支持)/i.test(subject)) return 'Features';
+  if (/^(fix(?:\([^)]*\))?!?:|fix\b|修复)/i.test(subject)) return 'Fixes';
   if (
     /^(?:perf|refactor)(?:\([^)]*\))?!?:|^(?:improve|optimize|speed up|simplify|replace)\b|^(?:优化|改进)/i.test(
       subject,
     )
   ) {
-    return '优化与调整';
+    return 'Improvements';
   }
-  if (/^(?:build|ci|chore|docs|test|style)(?:\([^)]*\))?!?:/i.test(subject)) return '构建与维护';
-  return '其他更新';
+  if (/^(?:build|ci|chore|docs|test|style)(?:\([^)]*\))?!?:/i.test(subject))
+    return 'Build & Maintenance';
+  return 'Other Changes';
 };
 
 const generate = () => {
@@ -54,7 +55,10 @@ const generate = () => {
     '--',
   ).split('\0');
   const groups = new Map(
-    ['新功能', '问题修复', '优化与调整', '构建与维护', '其他更新'].map(name => [name, []]),
+    ['Features', 'Fixes', 'Improvements', 'Build & Maintenance', 'Other Changes'].map(name => [
+      name,
+      [],
+    ]),
   );
   let count = 0;
   for (let index = 0; index + 2 < fields.length; index += 3) {
@@ -80,7 +84,7 @@ const generate = () => {
   const lines = [
     "## What's Changed",
     '',
-    `${date} · ${previous ? `${previous} → ${tag}` : `${tag} · 首次发布`} · ${count} 项提交更新`,
+    `${date} · ${previous ? `${previous} → ${tag}` : `${tag} · Initial release`} · ${count} ${count === 1 ? 'commit' : 'commits'}`,
     '',
   ];
   for (const [name, commits] of groups) {
@@ -92,11 +96,11 @@ const generate = () => {
     }
     lines.push('');
   }
-  if (!count) lines.push('本版本没有新增的功能或修复提交。', '');
+  if (!count) lines.push('No additional changes beyond the version update.', '');
   lines.push(
     previous
-      ? `[完整变更对比](${repo}/compare/${previous}...${tag})`
-      : `[完整提交记录](${repo}/commits/${tag})`,
+      ? `[Full Changelog](${repo}/compare/${previous}...${tag})`
+      : `[Full Commit History](${repo}/commits/${tag})`,
     '',
   );
   const archive = `asktab-chrome-${tag}.zip`;
@@ -105,22 +109,22 @@ const generate = () => {
   lines.push(
     '## Install / Run',
     '',
-    `[下载 Chrome 扩展（${archive}）](${downloads}/${archive}) · [SHA-256 校验文件](${downloads}/${checksum})`,
+    `[Download Chrome extension (${archive})](${downloads}/${archive}) · [SHA-256 checksum](${downloads}/${checksum})`,
     '',
-    '### 安装与使用',
+    '### Install and Get Started',
     '',
-    '1. 下载上面的扩展 ZIP，解压到固定文件夹。',
-    '2. 在 Chrome 地址栏输入 `chrome://extensions`，打开右上角的「开发者模式」。',
-    '3. 点击「加载已解压的扩展程序」，选择解压后包含 `manifest.json` 的文件夹。',
-    '4. 打开任意网页，点击浏览器工具栏中的 AskTab 图标；登录并选择模型后，即可开始聊天。',
+    '1. Download the extension ZIP above and extract it to a permanent folder.',
+    '2. Open `chrome://extensions` in Chrome and enable **Developer mode** in the top-right corner.',
+    '3. Click **Load unpacked** and select the extracted folder containing `manifest.json`.',
+    '4. Open any webpage and click the AskTab toolbar icon. Sign in and select a model to start chatting.',
     '',
-    '发布包已配置服务地址；登录和远程 AI 功能需要能够连接 AskTab 服务。',
+    'The release package includes the service URL. Sign-in and remote AI features require a reachable AskTab service.',
     '',
-    '### 更新已有安装',
+    '### Update an Existing Installation',
     '',
-    '用新版本替换原加载目录中的扩展文件，保持目录路径不变；然后在 `chrome://extensions` 中找到 AskTab，点击「重新加载」。',
+    'Replace the extension files in the original folder with the new version, keeping the same folder path. Then find AskTab at `chrome://extensions` and click **Reload**.',
     '',
-    `[从源码构建与更多安装说明](${repo}/blob/${tag}/docs/start/installation.md)`,
+    `[Build from source and additional installation instructions](${repo}/blob/${tag}/docs/start/installation.md)`,
     '',
   );
   writeFileSync(output, lines.join('\n'), 'utf8');
