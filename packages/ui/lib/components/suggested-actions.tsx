@@ -32,9 +32,9 @@ const SuggestedActions = ({ onSendMessage }: SuggestedActionsProps) => {
       {actions.map((action, index) => (
         <motion.div
           animate={{ opacity: 1, y: 0 }}
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 8 }}
           key={action.id}
-          transition={{ delay: 0.05 * index }}>
+          transition={{ delay: 0.02 * index, duration: 0.18 }}>
           <button
             className={`flex min-h-20 w-full items-center gap-3 rounded-2xl border bg-white/80 px-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 dark:border-slate-700 dark:bg-slate-900/80 dark:hover:border-slate-500 ${getSuggestedActionTone(action.icon).card}`}
             onClick={() => onSendMessage(action.prompt)}

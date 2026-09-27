@@ -23,16 +23,16 @@ const Greeting = () => {
         animate={{ opacity: 1, y: 0 }}
         className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl dark:text-slate-50"
         exit={{ opacity: 0, y: 10 }}
-        initial={{ opacity: 0, y: 10 }}
-        transition={{ delay: 0.5 }}>
+        initial={{ opacity: 0, y: 8 }}
+        transition={{ delay: 0.02, duration: 0.18 }}>
         {t('greeting_hello')}
       </motion.div>
       <motion.div
         animate={{ opacity: 1, y: 0 }}
         className="mt-2 text-sm text-slate-500 sm:text-base dark:text-slate-400"
         exit={{ opacity: 0, y: 10 }}
-        initial={{ opacity: 0, y: 10 }}
-        transition={{ delay: 0.6 }}>
+        initial={{ opacity: 0, y: 8 }}
+        transition={{ delay: 0.06, duration: 0.18 }}>
         {t('greeting_help')}
       </motion.div>
     </div>
