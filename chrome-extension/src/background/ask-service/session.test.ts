@@ -133,9 +133,82 @@ describe('ASK_LOGIN', () => {
 
   it('reports an unreachable server with status 0', async () => {
     fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
-    const result = await handleAskMessage({ type: 'ASK_REGISTER', email: 'a@b.co', password: 'x' });
+    const result = await handleAskMessage({
+      type: 'ASK_REGISTER',
+      email: 'a@b.co',
+      password: 'x',
+      inviteCode: 'Invite-1',
+    });
     expect(result).toMatchObject({ status: 0 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toBe('http://ask.test/api/auth/register');
+  });
+
+  it('ignores an invitation code on sign-in', async () => {
+    fetchMock.mockResolvedValueOnce(json(401, { error: 'Not signed in or session expired' }));
+    await handleAskMessage({
+      type: 'ASK_LOGIN',
+      email: 'a@b.co',
+      password: 'secret-pass',
+      inviteCode: 'Invite-1',
+    });
+    expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string)).toEqual({
+      email: 'a@b.co',
+      password: 'secret-pass',
+    });
+  });
+});
+
+describe('ASK_REGISTER', () => {
+  it('sends the invitation code and signs in with the returned session', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        json(201, {
+          token: 'tok-new',
+          expiresAt: 9999999999999,
+          user: { id: 'n', email: 'n@b.co' },
+        }),
+      )
+      .mockResolvedValueOnce(json(200, models));
+
+    const result = await handleAskMessage({
+      type: 'ASK_REGISTER',
+      email: 'n@b.co',
+      password: 'secret-pass',
+      inviteCode: 'AbC-12 x9',
+    });
+
+    expect(result).toEqual({ email: 'n@b.co', models: 2 });
+    expect(fetchMock.mock.calls[0][0]).toBe('http://ask.test/api/auth/register');
+    expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string)).toEqual({
+      email: 'n@b.co',
+      password: 'secret-pass',
+      inviteCode: 'AbC-12 x9',
+    });
+    expect(store.values.session).toEqual({
+      token: 'tok-new',
+      userId: 'n',
+      email: 'n@b.co',
+      expiresAt: 9999999999999,
+    });
+  });
+
+  it('returns a rejected invitation code without storing a session', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json(400, { error: 'Invitation code is required, invalid, or already used' }),
+    );
+    const result = await handleAskMessage({
+      type: 'ASK_REGISTER',
+      email: 'n@b.co',
+      password: 'secret-pass',
+      inviteCode: 'used-code',
+    });
+    expect(result).toEqual({
+      error: 'Invitation code is required, invalid, or already used',
+      status: 400,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(store.values.session).toBeUndefined();
   });
 });
 

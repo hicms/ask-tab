@@ -156,6 +156,18 @@
   "account_passwordHint": {
     "message": "至少 8 个字符"
   },
+  "account_inviteCode": {
+    "message": "邀请码"
+  },
+  "account_inviteCodeHint": {
+    "message": "注册需要邀请码，每个邀请码只能使用一次。"
+  },
+  "account_inviteCodeRequired": {
+    "message": "请输入邀请码"
+  },
+  "account_inviteCodeRejected": {
+    "message": "邀请码无效或已被使用，请检查后重试。"
+  },
   "account_signIn": {
     "message": "登录"
   },

@@ -1,3 +1,4 @@
+import { accountErrorMessage, accountRequest, validateAccountInput } from './account-form';
 import { Step3AgentSetup } from './first-run-agent-setup';
 import { Step6SpeechSetup } from './first-run-speech-setup';
 import {
@@ -47,9 +48,11 @@ import {
   HardDriveDownloadIcon,
   MailIcon,
   CalendarIcon,
+  TicketIcon,
   ZapIcon,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { AccountMode, AccountResponse } from './account-form';
 import type { TFunction } from '@extension/i18n';
 import type { ReactNode } from 'react';
 
@@ -154,51 +157,40 @@ const StepIndicator = ({ current, t }: { current: number; t: TFunction }) => (
 
 /* ---------- Step 1: Account ---------- */
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MIN_PASSWORD_LENGTH = 8;
-
-type AccountResponse = { email?: string; models?: number; error?: string; status?: number };
-
-const accountErrorMessage = (response: AccountResponse, t: TFunction): string => {
-  switch (response.status) {
-    case 0:
-      return t('account_serverUnreachable');
-    case 401:
-      return t('account_invalidCredentials');
-    case 409:
-      return t('account_emailTaken');
-    default:
-      return response.error ?? t('account_signInFailed');
-  }
-};
-
 const Step1AccountSetup = ({ onNext, t }: { onNext: () => void; t: TFunction }) => {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<AccountMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [inviteCodeError, setInviteCodeError] = useState('');
+  // `submitting` disables the button only after a re-render; this also stops clicks queued before it.
+  const submittingRef = useRef(false);
 
   const handleSubmit = useCallback(async () => {
-    if (!EMAIL_PATTERN.test(email.trim())) {
-      setError(t('account_emailInvalid'));
+    if (submittingRef.current) return;
+    const input = { email, password, inviteCode };
+    const problem = validateAccountInput(mode, input, t);
+    if (problem) {
+      setError(problem.field === 'form' ? problem.message : '');
+      setInviteCodeError(problem.field === 'inviteCode' ? problem.message : '');
       return;
     }
-    if (password.length < MIN_PASSWORD_LENGTH) {
-      setError(t('account_passwordTooShort'));
-      return;
-    }
+    submittingRef.current = true;
     setSubmitting(true);
     setError('');
+    setInviteCodeError('');
     try {
-      const response = (await chrome.runtime.sendMessage({
-        type: mode === 'login' ? 'ASK_LOGIN' : 'ASK_REGISTER',
-        email: email.trim(),
-        password,
-      })) as AccountResponse;
+      const response = (await chrome.runtime.sendMessage(
+        accountRequest(mode, input),
+      )) as AccountResponse;
       if (response.error !== undefined) {
         setError(accountErrorMessage(response, t));
-      } else if (!response.models) {
+        return;
+      }
+      setInviteCode('');
+      if (!response.models) {
         // Without models the wizard cannot continue; don't leave a session behind.
         await chrome.runtime.sendMessage({ type: 'ASK_LOGOUT' });
         setError(t('account_noModels'));
@@ -208,9 +200,10 @@ const Step1AccountSetup = ({ onNext, t }: { onNext: () => void; t: TFunction }) 
     } catch {
       setError(t('account_signInFailed'));
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
-  }, [email, password, mode, onNext, t]);
+  }, [email, password, inviteCode, mode, onNext, t]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -281,12 +274,55 @@ const Step1AccountSetup = ({ onNext, t }: { onNext: () => void; t: TFunction }) 
           )}
         </div>
 
+        {mode === 'register' && (
+          <div className="grid gap-2">
+            <Label htmlFor="setup-invite-code">{t('account_inviteCode')}</Label>
+            <div className="relative">
+              <TicketIcon className="text-muted-foreground absolute left-3 top-1/2 size-4 -translate-y-1/2" />
+              <Input
+                aria-describedby={
+                  inviteCodeError
+                    ? 'setup-invite-code-error setup-invite-code-hint'
+                    : 'setup-invite-code-hint'
+                }
+                aria-invalid={inviteCodeError ? true : undefined}
+                autoComplete="off"
+                className="pl-9"
+                data-testid="setup-invite-code"
+                id="setup-invite-code"
+                onChange={e => {
+                  setInviteCode(e.target.value);
+                  setInviteCodeError('');
+                  setError('');
+                }}
+                onKeyDown={handleKeyDown}
+                required
+                spellCheck={false}
+                value={inviteCode}
+              />
+            </div>
+            {inviteCodeError && (
+              <p
+                className="text-destructive text-xs"
+                data-testid="setup-invite-code-error"
+                id="setup-invite-code-error"
+                role="alert">
+                {inviteCodeError}
+              </p>
+            )}
+            <p className="text-muted-foreground text-xs" id="setup-invite-code-hint">
+              {t('account_inviteCodeHint')}
+            </p>
+          </div>
+        )}
+
         <button
           className="text-muted-foreground hover:text-foreground self-start text-xs underline-offset-2 hover:underline"
           data-testid="setup-account-mode"
           onClick={() => {
             setMode(mode === 'login' ? 'register' : 'login');
             setError('');
+            setInviteCodeError('');
           }}
           type="button">
           {mode === 'login' ? t('account_switchToRegister') : t('account_switchToSignIn')}

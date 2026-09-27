@@ -168,6 +168,18 @@
   "account_passwordHint": {
     "message": "At least 8 characters"
   },
+  "account_inviteCode": {
+    "message": "Invitation code"
+  },
+  "account_inviteCodeHint": {
+    "message": "An invitation code is required to register. Each code can be used only once."
+  },
+  "account_inviteCodeRequired": {
+    "message": "Enter an invitation code"
+  },
+  "account_inviteCodeRejected": {
+    "message": "The invitation code is invalid or has already been used. Check it and try again."
+  },
   "account_signIn": {
     "message": "Sign in"
   },

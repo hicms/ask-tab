@@ -114,11 +114,18 @@ const syncServerModels = async (): Promise<number> => {
   return models.length;
 };
 
-const signIn = async (mode: 'login' | 'register', email: string, password: string) => {
+interface Credentials {
+  email: string;
+  password: string;
+  /** Registration only; the server consumes each code once. */
+  inviteCode?: string;
+}
+
+const signIn = async (mode: 'login' | 'register', credentials: Credentials) => {
   const response = await requestAnonymous(`/api/auth/${mode}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify(credentials),
   });
   const session = (await response.json()) as SessionResponse;
   await replaceSession({
@@ -167,17 +174,20 @@ const handleAskMessage = async (
 ): Promise<Record<string, unknown>> => {
   switch (request.type) {
     case 'ASK_LOGIN':
-    case 'ASK_REGISTER':
+    case 'ASK_REGISTER': {
+      const credentials: Credentials = {
+        email: String(request.email ?? ''),
+        password: String(request.password ?? ''),
+      };
+      if (request.type === 'ASK_REGISTER')
+        credentials.inviteCode = String(request.inviteCode ?? '');
       try {
-        return await signIn(
-          request.type === 'ASK_LOGIN' ? 'login' : 'register',
-          String(request.email ?? ''),
-          String(request.password ?? ''),
-        );
+        return await signIn(request.type === 'ASK_LOGIN' ? 'login' : 'register', credentials);
       } catch (error) {
         if (error instanceof AskServiceError) return { error: error.message, status: error.status };
         throw error;
       }
+    }
     case 'ASK_LOGOUT':
       await signOut();
       return { success: true };
