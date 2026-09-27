@@ -72,6 +72,11 @@ const PreviewMessage = ({ message, isLoading, setMessages, onEditSubmit }: Previ
     [message.parts],
   );
 
+  // The connecting indicator already represents an assistant with no content yet.
+  if (message.role === 'assistant' && message.parts.length === 0) {
+    return null;
+  }
+
   if (mode === 'edit' && message.role === 'user') {
     return (
       <div
