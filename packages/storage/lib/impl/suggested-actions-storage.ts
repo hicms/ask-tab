@@ -1,10 +1,33 @@
 import { createStorage, StorageEnum } from '../base/index.js';
 
+const SUGGESTED_ACTION_ICON_IDS = [
+  'page',
+  'sparkles',
+  'sun',
+  'palm',
+  'code',
+  'pen',
+  'list',
+  'compass',
+  'translate',
+  'chart',
+  'book',
+  'idea',
+] as const;
+const MAX_SUGGESTED_ACTIONS = 8;
+type SuggestedActionIconId = (typeof SUGGESTED_ACTION_ICON_IDS)[number];
+
 interface SuggestedAction {
   id: string;
   label: string;
   prompt: string;
+  icon?: SuggestedActionIconId;
 }
+
+const isSuggestedActionIconId = (value: unknown): value is SuggestedActionIconId =>
+  typeof value === 'string' && SUGGESTED_ACTION_ICON_IDS.some(id => id === value);
+
+const defaultIcons: readonly SuggestedActionIconId[] = ['page', 'sparkles', 'sun', 'palm'];
 
 const localeActions: Record<string, SuggestedAction[]> = {
   en: [
@@ -142,30 +165,35 @@ const localeActions: Record<string, SuggestedAction[]> = {
 };
 
 const getDefaultSuggestedActions = (locale?: string): SuggestedAction[] => {
-  if (locale && localeActions[locale]) return localeActions[locale];
+  if (locale && localeActions[locale])
+    return localeActions[locale].map((action, index) => ({ ...action, icon: defaultIcons[index] }));
   // Try base language (e.g. 'zh_CN' → 'zh')
   if (locale) {
     const base = locale.split(/[_-]/)[0];
-    if (localeActions[base]) return localeActions[base];
+    if (localeActions[base])
+      return localeActions[base].map((action, index) => ({ ...action, icon: defaultIcons[index] }));
   }
-  return localeActions['en'];
+  return localeActions['en'].map((action, index) => ({ ...action, icon: defaultIcons[index] }));
 };
 
 /** Only untouched defaults should be replaced when the display locale changes. */
 const isDefaultActions = (actions: SuggestedAction[]): boolean =>
-  Object.values(localeActions).some(
-    defaults =>
+  Object.keys(localeActions).some(locale => {
+    const defaults = getDefaultSuggestedActions(locale);
+    return (
       actions.length === defaults.length &&
       actions.every(
         (action, index) =>
           action.id === defaults[index].id &&
           action.label === defaults[index].label &&
-          action.prompt === defaults[index].prompt,
-      ),
-  );
+          action.prompt === defaults[index].prompt &&
+          (action.icon === undefined || action.icon === defaults[index].icon),
+      )
+    );
+  });
 
 // Keep English defaults as the storage initial value (backwards compatible)
-const defaultSuggestedActions = localeActions['en'];
+const defaultSuggestedActions = getDefaultSuggestedActions('en');
 
 const suggestedActionsStorage = createStorage<SuggestedAction[]>(
   'suggested-actions',
@@ -176,8 +204,11 @@ const suggestedActionsStorage = createStorage<SuggestedAction[]>(
   },
 );
 
-export type { SuggestedAction };
+export type { SuggestedAction, SuggestedActionIconId };
 export {
+  SUGGESTED_ACTION_ICON_IDS,
+  MAX_SUGGESTED_ACTIONS,
+  isSuggestedActionIconId,
   suggestedActionsStorage,
   defaultSuggestedActions,
   getDefaultSuggestedActions,

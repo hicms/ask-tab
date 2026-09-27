@@ -29,6 +29,7 @@ export type { SessionListProps } from './session-list';
 export { Greeting } from './greeting';
 export { SuggestedActions } from './suggested-actions';
 export type { SuggestedActionsProps } from './suggested-actions';
+export { SuggestedActionIcon } from './suggested-action-icon';
 
 // Setup
 export { FirstRunSetup } from './first-run-setup';

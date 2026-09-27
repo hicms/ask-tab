@@ -1,4 +1,5 @@
 import { chatDb } from './chat-db.js';
+import { isSuggestedActionIconId, MAX_SUGGESTED_ACTIONS } from './suggested-actions-storage.js';
 import { assertToolConfig } from './tool-config-storage.js';
 import type {
   AgentConfig,
@@ -153,12 +154,34 @@ const assertChannelConfigs = (value: unknown): void => {
   }
 };
 
+const assertSuggestedActions = (value: unknown): void => {
+  if (!Array.isArray(value) || value.length > MAX_SUGGESTED_ACTIONS) {
+    throw new Error('Invalid backup configuration: suggested-actions');
+  }
+  const ids = new Set<string>();
+  for (const action of value) {
+    assertFields(action, ['id', 'label', 'prompt', 'icon'], 'suggested-actions');
+    if (
+      typeof action.id !== 'string' ||
+      !action.id ||
+      ids.has(action.id) ||
+      typeof action.label !== 'string' ||
+      typeof action.prompt !== 'string' ||
+      (action.icon !== undefined && !isSuggestedActionIconId(action.icon))
+    ) {
+      throw new Error('Invalid backup configuration: suggested-actions');
+    }
+    ids.add(action.id);
+  }
+};
+
 const assertAiPreferences = (local: Record<string, unknown>): void => {
   if ('settings' in local) assertFields(local.settings, ['theme', 'locale'], 'settings');
   if ('selected-model-id' in local && typeof local['selected-model-id'] !== 'string') {
     throw new Error('Invalid backup configuration: selected-model-id');
   }
   if ('tool-config' in local) assertToolConfig(local['tool-config']);
+  if ('suggested-actions' in local) assertSuggestedActions(local['suggested-actions']);
   if ('stt-config' in local) {
     assertFields(local['stt-config'], ['engine', 'openai', 'language', 'hotkey'], 'stt-config');
     assertFields(

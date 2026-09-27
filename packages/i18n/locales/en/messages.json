@@ -932,10 +932,10 @@
     "message": "Doesn't expand scope unless asked"
   },
   "greeting_hello": {
-    "message": "Hello there!"
+    "message": "What would you like to explore today?"
   },
   "greeting_help": {
-    "message": "How can I help you today?"
+    "message": "Start with a question and see where it takes you."
   },
   "whatsapp_title": {
     "message": "WhatsApp"
@@ -1112,6 +1112,12 @@
   },
   "actions_labelPlaceholder": {
     "message": "Button label (shown on chat screen)"
+  },
+  "actions_chooseIcon": {
+    "message": "Choose icon"
+  },
+  "actions_iconHint": {
+    "message": "Select a preset icon for this shortcut."
   },
   "actions_promptPlaceholder": {
     "message": "Full prompt sent to the AI when clicked"

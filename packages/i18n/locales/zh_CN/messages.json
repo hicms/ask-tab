@@ -1027,6 +1027,12 @@
   "actions_labelPlaceholder": {
     "message": "按钮标签（显示在聊天界面上）"
   },
+  "actions_chooseIcon": {
+    "message": "选择图标"
+  },
+  "actions_iconHint": {
+    "message": "为这条快捷操作选择一个预设图标。"
+  },
   "actions_promptPlaceholder": {
     "message": "点击时发送给 AI 的完整提示"
   },
@@ -1172,8 +1178,8 @@
     "message": "智能体"
   },
   "tab_speech": { "message": "语音" },
-  "greeting_hello": { "message": "你好！" },
-  "greeting_help": { "message": "今天我能帮你什么？" },
+  "greeting_hello": { "message": "你好，今天想了解什么？" },
+  "greeting_help": { "message": "从一个问题开始，发现更多可能。" },
   "firstRun_agentTemplate": { "message": "选择角色" },
   "agent_tpl_ask_creature": { "message": "浏览器驻留任务代理" },
   "agent_tpl_ask_vibe": { "message": "足智多谋、谨慎、能干" },

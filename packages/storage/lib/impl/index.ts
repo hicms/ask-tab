@@ -14,11 +14,15 @@ export {
   type DeepResearchConfig,
 } from './tool-config-storage.js';
 export {
+  SUGGESTED_ACTION_ICON_IDS,
+  MAX_SUGGESTED_ACTIONS,
+  isSuggestedActionIconId,
   suggestedActionsStorage,
   defaultSuggestedActions,
   getDefaultSuggestedActions,
   isDefaultActions,
   type SuggestedAction,
+  type SuggestedActionIconId,
 } from './suggested-actions-storage.js';
 export { selectedModelStorage } from './selected-model-storage.js';
 export { activeAgentStorage } from './active-agent-storage.js';

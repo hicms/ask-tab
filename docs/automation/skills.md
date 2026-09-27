@@ -115,4 +115,4 @@ Explain this code in detail:
 
 ### Suggested actions
 
-In addition to skills, AskTab supports configurable **suggested actions** — quick-action buttons shown below the chat input. These are simpler than skills (no variable substitution) and are managed on the Options page under **Settings** → **Actions**.
+In addition to skills, AskTab supports up to eight configurable **suggested actions** on the empty chat screen. Each action has a title, a prompt, and a selectable preset SVG icon. These are simpler than skills (no variable substitution) and are managed on the Options page under **Settings** → **Actions**. Icon choices are included in account backups.

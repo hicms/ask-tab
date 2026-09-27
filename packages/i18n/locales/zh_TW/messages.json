@@ -955,6 +955,12 @@
   "actions_labelPlaceholder": {
     "message": "按鈕標籤（顯示在聊天畫面上）"
   },
+  "actions_chooseIcon": {
+    "message": "選擇圖示"
+  },
+  "actions_iconHint": {
+    "message": "為這條快捷操作選擇一個預設圖示。"
+  },
   "actions_promptPlaceholder": {
     "message": "點擊時傳送給 AI 的完整提示"
   },
@@ -1094,8 +1100,8 @@
     "message": "代理"
   },
   "tab_speech": { "message": "語音" },
-  "greeting_hello": { "message": "你好！" },
-  "greeting_help": { "message": "今天我能幫你什麼？" },
+  "greeting_hello": { "message": "你好，今天想了解什麼？" },
+  "greeting_help": { "message": "從一個問題開始，發現更多可能。" },
   "firstRun_agentTemplate": { "message": "選擇角色" },
   "agent_tpl_ask_creature": { "message": "瀏覽器駐留任務代理" },
   "agent_tpl_ask_vibe": { "message": "足智多謀、謹慎、能幹" },

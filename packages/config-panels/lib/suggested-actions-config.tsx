@@ -3,6 +3,8 @@ import {
   suggestedActionsStorage,
   getDefaultSuggestedActions,
   isDefaultActions,
+  MAX_SUGGESTED_ACTIONS,
+  SUGGESTED_ACTION_ICON_IDS,
 } from '@extension/storage';
 import {
   Button,
@@ -11,9 +13,15 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
   Input,
   Label,
   Separator,
+  SuggestedActionIcon,
   Textarea,
 } from '@extension/ui';
 import {
@@ -27,14 +35,13 @@ import {
 } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { SuggestedAction } from '@extension/storage';
-
-const MAX_ACTIONS = 8;
+import type { SuggestedAction, SuggestedActionIconId } from '@extension/storage';
 
 const SuggestedActionsConfig = () => {
   const t = useT();
   const [actions, setActions] = useState<SuggestedAction[] | null>(null);
   const [saved, setSaved] = useState(false);
+  const [iconPickerActionId, setIconPickerActionId] = useState<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -99,10 +106,23 @@ const SuggestedActionsConfig = () => {
     [saveDebounced],
   );
 
+  const handleIconChange = useCallback(
+    (id: string, icon: SuggestedActionIconId) => {
+      setActions(prev => {
+        if (!prev) return null;
+        const next = prev.map(action => (action.id === id ? { ...action, icon } : action));
+        saveImmediate(next);
+        return next;
+      });
+      setIconPickerActionId(null);
+    },
+    [saveImmediate],
+  );
+
   const handleAdd = useCallback(() => {
     setActions(prev => {
-      if (!prev || prev.length >= MAX_ACTIONS) return prev;
-      const next = [...prev, { id: nanoid(), label: '', prompt: '' }];
+      if (!prev || prev.length >= MAX_SUGGESTED_ACTIONS) return prev;
+      const next = [...prev, { id: nanoid(), label: '', prompt: '', icon: 'sparkles' as const }];
       saveImmediate(next);
       return next;
     });
@@ -161,7 +181,7 @@ const SuggestedActionsConfig = () => {
           <LightbulbIcon className="size-5" />
           {t('actions_title')}
         </CardTitle>
-        <CardDescription>{t('actions_description', String(MAX_ACTIONS))}</CardDescription>
+        <CardDescription>{t('actions_description', String(MAX_SUGGESTED_ACTIONS))}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between">
@@ -171,7 +191,7 @@ const SuggestedActionsConfig = () => {
               <RotateCcwIcon className="mr-1 size-4" /> {t('actions_resetDefaults')}
             </Button>
             <Button
-              disabled={actions.length >= MAX_ACTIONS}
+              disabled={actions.length >= MAX_SUGGESTED_ACTIONS}
               onClick={handleAdd}
               size="sm"
               variant="outline">
@@ -217,11 +237,22 @@ const SuggestedActionsConfig = () => {
                   </Button>
                 </div>
               </div>
-              <Input
-                onChange={e => handleLabelChange(action.id, e.target.value)}
-                placeholder={t('actions_labelPlaceholder')}
-                value={action.label}
-              />
+              <div className="flex items-center gap-2">
+                <button
+                  aria-label={t('actions_chooseIcon')}
+                  className="border-border hover:bg-muted focus-visible:ring-ring rounded-xl border p-1 transition-colors focus-visible:outline-none focus-visible:ring-2"
+                  onClick={() => setIconPickerActionId(action.id)}
+                  title={t('actions_chooseIcon')}
+                  type="button">
+                  <SuggestedActionIcon className="size-9 rounded-lg" icon={action.icon} />
+                </button>
+                <Input
+                  className="min-w-0 flex-1"
+                  onChange={e => handleLabelChange(action.id, e.target.value)}
+                  placeholder={t('actions_labelPlaceholder')}
+                  value={action.label}
+                />
+              </div>
               <Textarea
                 className="min-h-[60px] resize-none"
                 onChange={e => handlePromptChange(action.id, e.target.value)}
@@ -238,6 +269,31 @@ const SuggestedActionsConfig = () => {
             <CheckCircle2Icon className="size-3" /> {t('common_saved')}
           </span>
         )}
+        <Dialog
+          onOpenChange={open => !open && setIconPickerActionId(null)}
+          open={iconPickerActionId !== null}>
+          <DialogContent className="max-w-sm rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>{t('actions_chooseIcon')}</DialogTitle>
+              <DialogDescription>{t('actions_iconHint')}</DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-4 gap-3" role="group">
+              {SUGGESTED_ACTION_ICON_IDS.map((icon, index) => (
+                <button
+                  aria-label={`${t('actions_chooseIcon')} ${index + 1}`}
+                  aria-pressed={
+                    actions.find(action => action.id === iconPickerActionId)?.icon === icon
+                  }
+                  className="flex items-center justify-center rounded-xl border border-transparent p-2 transition-colors hover:border-slate-200 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 aria-pressed:border-blue-400 aria-pressed:bg-blue-50 dark:hover:border-slate-700 dark:hover:bg-slate-800 dark:aria-pressed:bg-blue-950/40"
+                  key={icon}
+                  onClick={() => iconPickerActionId && handleIconChange(iconPickerActionId, icon)}
+                  type="button">
+                  <SuggestedActionIcon icon={icon} />
+                </button>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );

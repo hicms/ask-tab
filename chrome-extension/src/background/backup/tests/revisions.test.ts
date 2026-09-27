@@ -70,7 +70,16 @@ vi.mock('../../ask-service/client', () => ({
   }),
 }));
 vi.mock('@extension/storage', () => ({ validateFullBackup: vi.fn((value: unknown) => value) }));
-const snapshot = { format: 'asktab-full-backup', version: 2, note: 'x'.repeat(10_000) };
+const snapshot = {
+  format: 'asktab-full-backup',
+  version: 2,
+  note: 'x'.repeat(10_000),
+  local: {
+    'suggested-actions': [
+      { id: 'action-1', label: 'Summarize this page', prompt: 'Summarize', icon: 'page' },
+    ],
+  },
+};
 
 beforeEach(() => {
   server.stored.clear();
