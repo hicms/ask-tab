@@ -235,6 +235,9 @@ const SidePanel = () => {
   // Load models on mount
   useEffect(() => {
     loadModels();
+    // Otherwise the cached catalog only refreshes at sign-in or worker start, so renamed
+    // models linger. The storage subscription below applies the result.
+    chrome.runtime.sendMessage({ type: 'ASK_SYNC_MODELS' }).catch(() => {});
   }, [loadModels]);
 
   // Subscribe to model storage changes so UI stays in sync with options page
