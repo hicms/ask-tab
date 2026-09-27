@@ -1,19 +1,52 @@
-# AskTab
+<p align="center">
+  <img src="chrome-extension/public/icon-128.png" width="80" height="80" alt="AskTab logo">
+</p>
 
-AskTab is an open-source browser extension for AI chat and browser-based tools. Its interface runs in a side panel or full-page view. Remote model requests go through a separate AskTab service, which manages accounts, model configuration, and upstream credentials.
+<h1 align="center">AskTab</h1>
 
-Repository: https://github.com/hicms/ask-tab.git
+<p align="center"><strong>Your AI, one tab away.</strong></p>
 
-## What is in this repository
+<p align="center">
+  Chat, explore ideas, and get things done with an AI assistant that lives in your browser.
+</p>
 
-- A Manifest V3 browser extension built with React, TypeScript, Vite, and Turborepo
-- Chat, agents, workspace files, memory, browser tools, messaging channels, and voice features
-- On-device model and media processing components
-- Source code for the extension, tests, and documentation
+<p align="center">
+  <a href="https://hicms.github.io/">Website</a> ·
+  <a href="https://github.com/hicms/ask-tab/releases/latest">Download</a> ·
+  <a href="docs/index.md">Documentation</a> ·
+  <a href="https://hicms.github.io/ask-tab/privacy.html">Privacy policy</a>
+</p>
 
-The AskTab service is **not included** in this repository. A reachable service with configured models is required for account sign-in and remote AI features. The extension does not ask users to enter upstream model API keys.
+![AskTab full-page chat with a sample weekly plan, browser tools, and message composer](assets/chrome-web-store/screenshot-chat-1280x800.png)
 
-## Build and run
+*A real AskTab conversation with illustrative sample content.*
+
+AskTab is an open-source browser extension with a side panel for browsing and a full-page workspace for focused conversations. It brings chat, browser tools, files, and agent settings into one place.
+
+## What you can do
+
+| Capability | Use it to |
+| --- | --- |
+| AI conversations | Draft, ask questions, and explore ideas with the models available through your AskTab account |
+| Browser tools | Read pages and work with browser tasks from the same conversation |
+| A flexible workspace | Switch between the browser side panel and a full-page view |
+| Organized conversations | Keep chats, files, and agent settings together; archive and restore conversations |
+| Additional integrations | Use messaging channels, voice features, and supported on-device model and media components |
+
+**An AskTab account and a reachable AskTab service are required for sign-in and remote AI features.** Available models and integrations depend on the service configuration. Remote model requests go through that service, which manages accounts and upstream credentials; the extension does not ask users to enter upstream model API keys.
+
+## Install in Chrome
+
+1. Download the Chrome ZIP from the [latest release](https://github.com/hicms/ask-tab/releases/latest) and extract it.
+2. Open `chrome://extensions` and enable **Developer mode**.
+3. Click **Load unpacked** and select the extracted extension folder.
+4. Open AskTab, sign in, and select an available model.
+
+Chrome Web Store listing coming soon. For updates, follow the instructions in the [release notes](https://github.com/hicms/ask-tab/releases).
+
+## Build from source
+
+This repository contains the Manifest V3 extension, built with React, TypeScript, Vite, and Turborepo. The separate AskTab service is **not included**.
 
 Requirements: Node.js 22.15.1 or newer, pnpm 10.11.0, and `bash` available for the project scripts.
 
@@ -85,11 +118,34 @@ node scripts/generate-release-notes.mjs v0.1.2 "$env:TEMP/asktab-v0.1.2-notes.md
 
 Optional [Chrome Web Store upload setup](docs/development/webstore-upload.md) adds an automatic draft upload after each GitHub release. It requires a one-time store item and service-account setup, and stays disabled until configured. Uploading does not submit the extension for review or publish it to users.
 
-The monorepo contains `chrome-extension/` for the background worker and manifest, `pages/` for extension views, `packages/` for shared modules, and `tests/` for integration and end-to-end coverage. See [installation](docs/start/installation.md), [development](docs/development/index.md), and the [documentation index](docs/index.md) for details.
+## Project structure
+
+| Directory | Contents |
+| --- | --- |
+| `chrome-extension/` | Background worker, manifest, and runtime assets |
+| `pages/` | Extension views |
+| `packages/` | Shared modules and UI |
+| `tests/` | Integration and end-to-end coverage |
+| `scripts/` | Build, release, and asset management tools |
+| `assets/` | Shared public images, provenance, and the asset manifest |
+| `docs/` | Installation, development, and feature documentation |
+
+See [installation](docs/start/installation.md), [development](docs/development/index.md), and the [documentation index](docs/index.md) for details.
+
+## Website and public assets
+
+The [AskTab website](https://hicms.github.io/) is maintained in [hicms/hicms.github.io](https://github.com/hicms/hicms.github.io). Public screenshots and promotional images are managed here through [assets/manifest.json](assets/manifest.json). The README uses these source files directly; the website receives selected copies through the sync script.
+
+```powershell
+node scripts/sync-site-assets.mjs ../hicms.github.io
+node scripts/sync-site-assets.mjs ../hicms.github.io --check
+```
+
+See the [asset management guide](assets/README.md) for dimensions, source ownership, and the update workflow. This keeps the website, README, and Chrome Web Store materials consistent.
 
 ## Data and permissions
 
-Chat history and settings are stored in the browser. Remote AI requests and optional account backups use the configured AskTab service. Browser automation, messaging channels, and Google integrations use additional browser permissions; the requested permissions are declared in `chrome-extension/manifest.ts`. Review the permissions and data flows before distributing a build.
+Chat history and settings are stored in the browser. Remote AI requests and optional account backups use the configured AskTab service. Browser automation, messaging channels, and Google integrations use additional browser permissions; the requested permissions are declared in [`chrome-extension/manifest.ts`](chrome-extension/manifest.ts). Read the [privacy policy](https://hicms.github.io/ask-tab/privacy.html) for processing, retention, service providers, and data controls. Review the permissions and data flows before distributing a build.
 
 ## License
 

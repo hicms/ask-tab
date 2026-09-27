@@ -1,0 +1,55 @@
+{
+  "assets": [
+    {
+      "id": "brand-icon",
+      "source": "chrome-extension/public/icon-128.png",
+      "website": "assets/brand/icon-128.png",
+      "width": 128,
+      "height": 128,
+      "usage": "Extension, website, and README brand mark"
+    },
+    {
+      "id": "chat-screenshot",
+      "source": "assets/chrome-web-store/screenshot-chat-1280x800.png",
+      "website": "assets/screenshots/chat.png",
+      "width": 1280,
+      "height": 800,
+      "opaque": true,
+      "usage": "Actual UI with illustrative sample data; homepage, README, and store"
+    },
+    {
+      "id": "welcome-screenshot",
+      "source": "assets/chrome-web-store/screenshot-welcome-1280x800.png",
+      "website": "assets/screenshots/welcome.png",
+      "width": 1280,
+      "height": 800,
+      "opaque": true,
+      "usage": "Actual UI with configured suggested actions; website preview and store"
+    },
+    {
+      "id": "small-promotion",
+      "source": "assets/chrome-web-store/promo-small-440x280.png",
+      "width": 440,
+      "height": 280,
+      "opaque": true,
+      "usage": "Chrome Web Store small promotional tile"
+    },
+    {
+      "id": "marquee-promotion",
+      "source": "assets/chrome-web-store/promo-marquee-1400x560.png",
+      "website": "assets/social/asktab.png",
+      "width": 1400,
+      "height": 560,
+      "opaque": true,
+      "usage": "Chrome Web Store marquee and website social preview"
+    },
+    {
+      "id": "store-icon",
+      "source": "assets/chrome-web-store/icon-128x128.png",
+      "derivedFrom": "chrome-extension/public/icon-128.png",
+      "width": 128,
+      "height": 128,
+      "usage": "Unmodified store upload copy of the runtime brand icon"
+    }
+  ]
+}
