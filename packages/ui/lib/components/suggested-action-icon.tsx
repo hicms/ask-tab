@@ -81,51 +81,51 @@ const iconArt: Record<SuggestedActionIconId, ReactNode> = {
 const iconTones: Record<SuggestedActionIconId, { badge: string; card: string }> = {
   page: {
     badge: 'bg-gradient-to-br from-blue-50 to-sky-100 text-blue-600',
-    card: 'border-blue-100 hover:border-blue-200 hover:bg-blue-50/40',
+    card: 'border-blue-100 hover:border-blue-300',
   },
   sparkles: {
     badge: 'bg-gradient-to-br from-violet-50 to-purple-100 text-violet-600',
-    card: 'border-violet-100 hover:border-violet-200 hover:bg-violet-50/40',
+    card: 'border-violet-100 hover:border-violet-300',
   },
   sun: {
     badge: 'bg-gradient-to-br from-amber-50 to-orange-100 text-amber-600',
-    card: 'border-amber-100 hover:border-amber-200 hover:bg-amber-50/40',
+    card: 'border-amber-100 hover:border-amber-300',
   },
   palm: {
     badge: 'bg-gradient-to-br from-teal-50 to-cyan-100 text-teal-600',
-    card: 'border-teal-100 hover:border-teal-200 hover:bg-teal-50/40',
+    card: 'border-teal-100 hover:border-teal-300',
   },
   code: {
     badge: 'bg-gradient-to-br from-indigo-50 to-blue-100 text-indigo-600',
-    card: 'border-indigo-100 hover:border-indigo-200 hover:bg-indigo-50/40',
+    card: 'border-indigo-100 hover:border-indigo-300',
   },
   pen: {
     badge: 'bg-gradient-to-br from-rose-50 to-pink-100 text-rose-600',
-    card: 'border-rose-100 hover:border-rose-200 hover:bg-rose-50/40',
+    card: 'border-rose-100 hover:border-rose-300',
   },
   list: {
     badge: 'bg-gradient-to-br from-emerald-50 to-green-100 text-emerald-600',
-    card: 'border-emerald-100 hover:border-emerald-200 hover:bg-emerald-50/40',
+    card: 'border-emerald-100 hover:border-emerald-300',
   },
   compass: {
     badge: 'bg-gradient-to-br from-cyan-50 to-blue-100 text-cyan-700',
-    card: 'border-cyan-100 hover:border-cyan-200 hover:bg-cyan-50/40',
+    card: 'border-cyan-100 hover:border-cyan-300',
   },
   translate: {
     badge: 'bg-gradient-to-br from-fuchsia-50 to-purple-100 text-fuchsia-600',
-    card: 'border-fuchsia-100 hover:border-fuchsia-200 hover:bg-fuchsia-50/40',
+    card: 'border-fuchsia-100 hover:border-fuchsia-300',
   },
   chart: {
     badge: 'bg-gradient-to-br from-lime-50 to-green-100 text-lime-700',
-    card: 'border-lime-100 hover:border-lime-200 hover:bg-lime-50/40',
+    card: 'border-lime-100 hover:border-lime-300',
   },
   book: {
     badge: 'bg-gradient-to-br from-slate-50 to-blue-100 text-slate-600',
-    card: 'border-slate-100 hover:border-slate-200 hover:bg-slate-50/40',
+    card: 'border-slate-100 hover:border-slate-300',
   },
   idea: {
     badge: 'bg-gradient-to-br from-yellow-50 to-amber-100 text-yellow-700',
-    card: 'border-yellow-100 hover:border-yellow-200 hover:bg-yellow-50/40',
+    card: 'border-yellow-100 hover:border-yellow-300',
   },
 };
 

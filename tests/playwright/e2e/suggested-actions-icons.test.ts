@@ -24,8 +24,6 @@ test('a selected shortcut icon persists and appears on the eight-card welcome sc
         prompt: label,
         icon: 'page',
       })),
-      'server-models': [{ id: 'custom:test', modelId: 'test', name: 'Test', provider: 'custom' }],
-      'selected-model-id': 'custom:test',
     });
   });
 
@@ -48,6 +46,13 @@ test('a selected shortcut icon persists and appears on the eight-card welcome sc
       }),
     )
     .toBe('book');
+
+  await worker.evaluate(async () =>
+    chrome.storage.local.set({
+      'server-models': [{ id: 'custom:test', modelId: 'test', name: 'Test', provider: 'custom' }],
+      'selected-model-id': 'custom:test',
+    }),
+  );
 
   const chat = await context.newPage();
   await chat.setViewportSize({ width: 662, height: 1215 });

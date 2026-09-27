@@ -36,7 +36,7 @@ const SuggestedActions = ({ onSendMessage }: SuggestedActionsProps) => {
           key={action.id}
           transition={{ delay: 0.05 * index }}>
           <button
-            className={`group flex min-h-20 w-full items-center gap-3 rounded-2xl border bg-white/80 px-3 py-3 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 dark:border-slate-700 dark:bg-slate-900/80 dark:hover:bg-slate-800/80 ${getSuggestedActionTone(action.icon).card}`}
+            className={`flex min-h-20 w-full items-center gap-3 rounded-2xl border bg-white/80 px-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 dark:border-slate-700 dark:bg-slate-900/80 dark:hover:border-slate-500 ${getSuggestedActionTone(action.icon).card}`}
             onClick={() => onSendMessage(action.prompt)}
             title={action.label}
             type="button">
@@ -46,7 +46,7 @@ const SuggestedActions = ({ onSendMessage }: SuggestedActionsProps) => {
             </span>
             <ChevronRightIcon
               aria-hidden="true"
-              className="size-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-0.5 dark:text-slate-500"
+              className="size-4 shrink-0 text-slate-400 dark:text-slate-500"
             />
           </button>
         </motion.div>
