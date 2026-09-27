@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer';
+import { log } from 'node:console';
 import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,5 +45,5 @@ for (const { asset, bytes } of sources) {
     await mkdir(dirname(destination), { recursive: true });
     await writeFile(destination, bytes);
   }
-  console.log(`${check ? 'Verified' : 'Synced'} ${asset.id}: ${asset.website}`);
+  log(`${check ? 'Verified' : 'Synced'} ${asset.id}: ${asset.website}`);
 }
