@@ -1,4 +1,4 @@
-import { MessageIcon, TrashIcon, PencilEditIcon } from './icons';
+import { MessageIcon, PencilEditIcon } from './icons';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,19 +14,22 @@ import {
   DropdownMenuTrigger,
   Input,
   ScrollArea,
+  Button,
 } from './ui';
 import { groupChatsByDate } from '../group-chats-by-date';
+import { useChatArchive } from '../hooks/use-chat-archive';
 import { cn } from '../utils';
 import { useT } from '@extension/i18n';
+import { diagnostics } from '@extension/shared/lib/diagnostics.js';
 import {
   listChats,
-  deleteChat,
   clearAllChatHistory,
   searchChats,
   lastActiveSessionStorage,
   updateChatTitle,
 } from '@extension/storage';
-import { EllipsisVertical, SendIcon } from 'lucide-react';
+import { liveQuery } from 'dexie';
+import { ArchiveIcon, EllipsisVertical, SendIcon } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Chat } from '@extension/shared';
 
@@ -131,6 +134,7 @@ const SessionSection = ({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
+                      aria-label={t('archive_chatMenu', displayTitle)}
                       className="text-muted-foreground hover:bg-accent shrink-0 rounded p-0.5 opacity-50 transition-all hover:opacity-100 data-[state=open]:opacity-100"
                       onClick={e => e.stopPropagation()}
                       type="button">
@@ -147,8 +151,8 @@ const SessionSection = ({
                       <span className="ml-2">{t('session_rename')}</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => onDeleteChat(chat.id)}>
-                      <TrashIcon size={14} />
-                      <span className="ml-2">{t('session_delete')}</span>
+                      <ArchiveIcon size={14} />
+                      <span className="ml-2">{t('archive_action')}</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -172,39 +176,28 @@ const SessionList = ({
   const t = useT();
   const [chats, setChats] = useState<Chat[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const { archive, openArchive, archiveDialog } = useChatArchive();
   const [showClearAll, setShowClearAll] = useState(false);
 
   const loadChats = useCallback(async () => {
     const result = searchQuery
       ? await searchChats(searchQuery, agentId)
-      : await listChats(100, 0, agentId);
-    setChats(result);
+      : await listChats(100, 0, agentId, 'active');
+    return result;
   }, [searchQuery, agentId]);
 
   useEffect(() => {
-    if (isVisible) {
-      loadChats();
-    }
+    if (!isVisible) return;
+    const subscription = liveQuery(loadChats).subscribe({
+      next: setChats,
+      error: diagnostics.error,
+    });
+    return () => subscription.unsubscribe();
   }, [isVisible, loadChats]);
 
-  const handleDelete = useCallback(async () => {
-    if (!deleteTarget) return;
-    if (deleteTarget === currentChatId) {
-      await lastActiveSessionStorage.set('');
-    }
-    await deleteChat(deleteTarget);
-    setDeleteTarget(null);
-    loadChats();
-  }, [deleteTarget, currentChatId, loadChats]);
-
-  const handleRename = useCallback(
-    async (chatId: string, newTitle: string) => {
-      await updateChatTitle(chatId, newTitle);
-      loadChats();
-    },
-    [loadChats],
-  );
+  const handleRename = useCallback(async (chatId: string, newTitle: string) => {
+    await updateChatTitle(chatId, newTitle);
+  }, []);
 
   const handleClearAll = useCallback(async () => {
     await clearAllChatHistory();
@@ -242,7 +235,7 @@ const SessionList = ({
           <SessionSection
             chats={grouped.today}
             currentChatId={currentChatId}
-            onDeleteChat={setDeleteTarget}
+            onDeleteChat={archive}
             onRenameChat={handleRename}
             onSelectChat={onSelectChat}
             title={t('session_today')}
@@ -250,7 +243,7 @@ const SessionList = ({
           <SessionSection
             chats={grouped.yesterday}
             currentChatId={currentChatId}
-            onDeleteChat={setDeleteTarget}
+            onDeleteChat={archive}
             onRenameChat={handleRename}
             onSelectChat={onSelectChat}
             title={t('session_yesterday')}
@@ -258,7 +251,7 @@ const SessionList = ({
           <SessionSection
             chats={grouped.lastWeek}
             currentChatId={currentChatId}
-            onDeleteChat={setDeleteTarget}
+            onDeleteChat={archive}
             onRenameChat={handleRename}
             onSelectChat={onSelectChat}
             title={t('session_last7Days')}
@@ -266,7 +259,7 @@ const SessionList = ({
           <SessionSection
             chats={grouped.lastMonth}
             currentChatId={currentChatId}
-            onDeleteChat={setDeleteTarget}
+            onDeleteChat={archive}
             onRenameChat={handleRename}
             onSelectChat={onSelectChat}
             title={t('session_last30Days')}
@@ -274,7 +267,7 @@ const SessionList = ({
           <SessionSection
             chats={grouped.older}
             currentChatId={currentChatId}
-            onDeleteChat={setDeleteTarget}
+            onDeleteChat={archive}
             onRenameChat={handleRename}
             onSelectChat={onSelectChat}
             title={t('session_older')}
@@ -282,20 +275,18 @@ const SessionList = ({
         </div>
       </ScrollArea>
 
-      {/* Delete confirmation */}
-      <AlertDialog onOpenChange={open => !open && setDeleteTarget(null)} open={!!deleteTarget}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('session_deleteTitle')}</AlertDialogTitle>
-            <AlertDialogDescription>{t('session_deleteDescription')}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t('common_cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>{t('common_delete')}</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <div className="border-t p-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground w-full justify-start"
+          onClick={openArchive}>
+          <ArchiveIcon className="size-4" />
+          {t('archive_title')}
+        </Button>
+      </div>
 
+      {archiveDialog}
       {/* Clear all confirmation */}
       <AlertDialog onOpenChange={setShowClearAll} open={showClearAll}>
         <AlertDialogContent>

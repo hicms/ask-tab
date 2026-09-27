@@ -42,6 +42,7 @@ interface DbChannelMeta {
 interface DbChat {
   id: string;
   title: string;
+  archivedAt?: number;
   createdAt: number;
   updatedAt: number;
   model?: string;

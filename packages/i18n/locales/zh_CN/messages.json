@@ -1199,5 +1199,74 @@
   "firstRun_agentCreature": { "message": "类型" },
   "firstRun_agentVibe": { "message": "风格" },
   "firstRun_agentStrengths": { "message": "优势" },
-  "firstRun_agentBoundaries": { "message": "边界" }
+  "firstRun_agentBoundaries": { "message": "边界" },
+  "archive_title": {
+    "message": "已归档的聊天"
+  },
+  "archive_action": {
+    "message": "归档"
+  },
+  "archive_view": {
+    "message": "查看"
+  },
+  "archive_undo": {
+    "message": "撤销"
+  },
+  "archive_close": {
+    "message": "关闭提示"
+  },
+  "archive_restore": {
+    "message": "取消归档"
+  },
+  "archive_search": {
+    "message": "搜索已归档的聊天"
+  },
+  "archive_source": {
+    "message": "按聊天来源筛选"
+  },
+  "archive_agent": {
+    "message": "按智能体筛选"
+  },
+  "archive_allChats": {
+    "message": "全部聊天"
+  },
+  "archive_allAgents": {
+    "message": "所有智能体"
+  },
+  "archive_noAgent": {
+    "message": "无智能体"
+  },
+  "archive_web": {
+    "message": "浏览器聊天"
+  },
+  "archive_count": {
+    "message": "$1 个聊天"
+  },
+  "archive_empty": {
+    "message": "暂无已归档的聊天"
+  },
+  "archive_delete": {
+    "message": "永久删除"
+  },
+  "archive_deleteChat": {
+    "message": "永久删除：$1"
+  },
+  "archive_archiveChat": {
+    "message": "归档：$1"
+  },
+  "archive_chatMenu": {
+    "message": "会话操作：$1"
+  },
+  "archive_deleteDescription": {
+    "message": "永久删除这 $1 个已归档的聊天？消息和附件将一并删除，此操作无法撤销。删除范围包含所选的全部聊天，不受当前筛选条件影响。"
+  },
+  "archive_actionFailed": {
+    "message": "操作失败，请重试。"
+  },
+  "archive_loadFailed": {
+    "message": "无法加载已归档的聊天。"
+  },
+  "archive_retry": {
+    "message": "重试"
+  }
 }

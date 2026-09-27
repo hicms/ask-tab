@@ -7,3 +7,4 @@ export {
 export { useScrollToBottom } from './use-scroll-to-bottom';
 export { useSubagentProgress } from './use-subagent-progress';
 export { useInputHistory } from './use-input-history';
+export { useChatArchive, useArchivedSession } from './use-chat-archive';

@@ -1262,5 +1262,74 @@
   },
   "agents_title": {
     "message": "Agents"
+  },
+  "archive_title": {
+    "message": "Archived chats"
+  },
+  "archive_action": {
+    "message": "Archive"
+  },
+  "archive_view": {
+    "message": "View"
+  },
+  "archive_undo": {
+    "message": "Undo"
+  },
+  "archive_close": {
+    "message": "Close notification"
+  },
+  "archive_restore": {
+    "message": "Unarchive"
+  },
+  "archive_search": {
+    "message": "Search archived chats"
+  },
+  "archive_source": {
+    "message": "Filter by chat source"
+  },
+  "archive_agent": {
+    "message": "Filter by agent"
+  },
+  "archive_allChats": {
+    "message": "All chats"
+  },
+  "archive_allAgents": {
+    "message": "All agents"
+  },
+  "archive_noAgent": {
+    "message": "No agent"
+  },
+  "archive_web": {
+    "message": "Browser chats"
+  },
+  "archive_count": {
+    "message": "$1 chats"
+  },
+  "archive_empty": {
+    "message": "No archived chats"
+  },
+  "archive_delete": {
+    "message": "Permanently delete"
+  },
+  "archive_deleteChat": {
+    "message": "Permanently delete: $1"
+  },
+  "archive_archiveChat": {
+    "message": "Archive: $1"
+  },
+  "archive_chatMenu": {
+    "message": "Chat actions: $1"
+  },
+  "archive_deleteDescription": {
+    "message": "Permanently delete $1 archived chat(s)? Messages and attachments will be removed. This cannot be undone. This includes all selected chats, regardless of the current filters."
+  },
+  "archive_actionFailed": {
+    "message": "Could not update the chat. Please try again."
+  },
+  "archive_loadFailed": {
+    "message": "Could not load archived chats."
+  },
+  "archive_retry": {
+    "message": "Retry"
   }
 }

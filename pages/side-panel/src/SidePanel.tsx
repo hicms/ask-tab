@@ -29,6 +29,7 @@ import {
   ErrorDisplay,
   LoadingSpinner,
   useSubagentProgress,
+  useArchivedSession,
   toastIfVisible,
 } from '@extension/ui';
 import { nanoid } from 'nanoid';
@@ -122,7 +123,7 @@ const SidePanel = () => {
         const storedId = await lastActiveSessionStorage.get();
         if (storedId) {
           const chat = await getChat(storedId);
-          if (chat) {
+          if (chat && chat.archivedAt === undefined) {
             const msgs = await getMessagesByChatId(chat.id);
             const mapped = msgs.map(m => ({
               id: m.id,
@@ -335,6 +336,8 @@ const SidePanel = () => {
 
   const handleSelectChat = useCallback(
     async (chat: ChatType) => {
+      const storedChat = await getChat(chat.id);
+      if (!storedChat || storedChat.archivedAt !== undefined) return;
       triggerJournal(currentChatIdRef.current);
       const msgs = await getMessagesByChatId(chat.id);
       const mapped = msgs.map(m => ({
@@ -424,28 +427,33 @@ const SidePanel = () => {
 
   const loadAndSwitchToChat = useCallback((streamChatId: string, title?: string) => {
     const seq = ++channelSeqRef.current;
-    getMessagesByChatId(streamChatId).then(dbMsgs => {
-      if (channelSeqRef.current !== seq) return; // R10: stale read
-      const mapped = dbMsgs.map(m => ({
-        id: m.id,
-        chatId: m.chatId,
-        role: m.role,
-        parts: m.parts as ChatMessagePart[],
-        createdAt: m.createdAt,
-        model: m.model,
-      })) as ChatMessage[];
+    Promise.all([getChat(streamChatId), getMessagesByChatId(streamChatId)]).then(
+      ([chat, dbMsgs]) => {
+        if (chat?.archivedAt !== undefined) return;
+        if (channelSeqRef.current !== seq) return; // R10: stale read
+        const mapped = dbMsgs.map(m => ({
+          id: m.id,
+          chatId: m.chatId,
+          role: m.role,
+          parts: m.parts as ChatMessagePart[],
+          createdAt: m.createdAt,
+          model: m.model,
+        })) as ChatMessage[];
 
-      setChatId(streamChatId);
-      setChatTitle(title);
-      setInitialMessages(mapped);
-      setChatKey(k => k + 1);
-      lastActiveSessionStorage.set(streamChatId);
-    });
+        setChatId(streamChatId);
+        setChatTitle(title);
+        setInitialMessages(mapped);
+        setChatKey(k => k + 1);
+        lastActiveSessionStorage.set(streamChatId);
+      },
+    );
   }, []);
 
   const stopSubagent = useCallback((runId: string) => {
     chrome.runtime.sendMessage({ type: 'SUBAGENT_STOP', runId }).catch(() => {});
   }, []);
+
+  useArchivedSession(chatId, handleNewChat);
 
   // Track subagent progress via shared hook
   const activeSubagents = useSubagentProgress(chatId, {

@@ -107,13 +107,25 @@ const createChat = async (chat: DbChat): Promise<void> => {
 
 const getChat = async (id: string): Promise<DbChat | undefined> => chatDb.chats.get(id);
 
-const listChats = async (limit = 100, offset = 0, agentId?: string): Promise<DbChat[]> => {
+const listChats = async (
+  limit = 100,
+  offset = 0,
+  agentId?: string,
+  visibility: 'all' | 'active' = 'all',
+): Promise<DbChat[]> => {
+  const isVisible = (chat: DbChat) => visibility === 'all' || chat.archivedAt === undefined;
   if (agentId) {
-    const all = await chatDb.chats.where('agentId').equals(agentId).toArray();
+    const all = await chatDb.chats.where('agentId').equals(agentId).filter(isVisible).toArray();
     all.sort((a, b) => b.updatedAt - a.updatedAt);
     return all.slice(offset, offset + limit);
   }
-  return chatDb.chats.orderBy('updatedAt').reverse().offset(offset).limit(limit).toArray();
+  return chatDb.chats
+    .orderBy('updatedAt')
+    .reverse()
+    .filter(isVisible)
+    .offset(offset)
+    .limit(limit)
+    .toArray();
 };
 
 const updateChatTitle = async (id: string, title: string): Promise<void> => {
@@ -244,7 +256,7 @@ const searchChats = async (query: string, agentId?: string): Promise<DbChat[]> =
     ? chatDb.chats.where('agentId').equals(agentId)
     : chatDb.chats.toCollection();
   const filtered = await collection
-    .filter(chat => chat.title.toLowerCase().includes(lowerQuery))
+    .filter(chat => chat.archivedAt === undefined && chat.title.toLowerCase().includes(lowerQuery))
     .toArray();
   filtered.sort((a, b) => b.updatedAt - a.updatedAt);
   return filtered;
@@ -285,14 +297,8 @@ const updateCompactionMetadata = async (
   await chatDb.chats.update(chatId, metadata);
 };
 
-const getMostRecentChat = async (agentId?: string): Promise<DbChat | undefined> => {
-  if (agentId) {
-    const all = await chatDb.chats.where('agentId').equals(agentId).toArray();
-    all.sort((a, b) => b.updatedAt - a.updatedAt);
-    return all[0];
-  }
-  return chatDb.chats.orderBy('updatedAt').reverse().first();
-};
+const getMostRecentChat = async (agentId?: string): Promise<DbChat | undefined> =>
+  (await listChats(1, 0, agentId, 'active'))[0];
 
 const touchChat = async (chatId: string): Promise<void> => {
   await chatDb.chats.update(chatId, { updatedAt: Date.now() });
@@ -308,25 +314,42 @@ const updateMemoryFlush = async (chatId: string, compactionCount: number): Promi
 const PRUNE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 const PRUNE_MAX_SESSIONS = 500;
 
+const deleteUnarchivedChat = async (candidate: DbChat): Promise<number> =>
+  chatDb.transaction(
+    'rw',
+    [chatDb.chats, chatDb.messages, chatDb.modelTranscripts, chatDb.artifacts],
+    async () => {
+      const chat = await chatDb.chats.get(candidate.id);
+      if (!chat || chat.archivedAt !== undefined || chat.updatedAt !== candidate.updatedAt)
+        return 0;
+      await deleteChat(chat.id);
+      return 1;
+    },
+  );
+
 const pruneOldSessions = async (): Promise<number> => {
   const cutoff = Date.now() - PRUNE_MAX_AGE_MS;
   let pruned = 0;
 
   // Delete sessions older than 90 days
-  const oldChats = await chatDb.chats.filter(c => c.updatedAt < cutoff).toArray();
+  const oldChats = await chatDb.chats
+    .filter(c => c.archivedAt === undefined && c.updatedAt < cutoff)
+    .toArray();
   for (const chat of oldChats) {
-    await deleteChat(chat.id);
-    pruned++;
+    pruned += await deleteUnarchivedChat(chat);
   }
 
-  // Cap at 500 total — delete oldest excess
-  const totalCount = await chatDb.chats.count();
+  // Archived chats are retained until explicitly deleted.
+  const totalCount = await chatDb.chats.filter(c => c.archivedAt === undefined).count();
   if (totalCount > PRUNE_MAX_SESSIONS) {
     const excess = totalCount - PRUNE_MAX_SESSIONS;
-    const oldestChats = await chatDb.chats.orderBy('updatedAt').limit(excess).toArray();
+    const oldestChats = await chatDb.chats
+      .orderBy('updatedAt')
+      .filter(c => c.archivedAt === undefined)
+      .limit(excess)
+      .toArray();
     for (const chat of oldestChats) {
-      await deleteChat(chat.id);
-      pruned++;
+      pruned += await deleteUnarchivedChat(chat);
     }
   }
 
@@ -347,10 +370,11 @@ const reapCronSessions = async (retentionMs?: number): Promise<number> => {
   const expired = await chatDb.chats
     .where('source')
     .equals('cron')
-    .filter(c => c.updatedAt < cutoff)
+    .filter(c => c.archivedAt === undefined && c.updatedAt < cutoff)
     .toArray();
-  for (const chat of expired) await deleteChat(chat.id);
-  return expired.length;
+  let reaped = 0;
+  for (const chat of expired) reaped += await deleteUnarchivedChat(chat);
+  return reaped;
 };
 
 /** Reset throttle state — for testing only. */

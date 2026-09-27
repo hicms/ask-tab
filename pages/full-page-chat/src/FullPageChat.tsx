@@ -33,6 +33,7 @@ import {
   LoadingSpinner,
   cn,
   useSubagentProgress,
+  useArchivedSession,
   toastIfVisible,
 } from '@extension/ui';
 import { nanoid } from 'nanoid';
@@ -134,7 +135,7 @@ const FullPageChat = () => {
         const storedId = await lastActiveSessionStorage.get();
         if (storedId) {
           const chat = await getChat(storedId);
-          if (chat) {
+          if (chat && chat.archivedAt === undefined) {
             const msgs = await getMessagesByChatId(chat.id);
             const mapped = msgs.map(m => ({
               id: m.id,
@@ -289,10 +290,10 @@ const FullPageChat = () => {
 
   const handleOpenSession = useCallback(
     async (targetChatId: string) => {
-      triggerJournal(currentChatIdRef.current);
-      await lastActiveSessionStorage.set(targetChatId);
       const chat = await getChat(targetChatId);
-      if (chat) {
+      if (chat && chat.archivedAt === undefined) {
+        triggerJournal(currentChatIdRef.current);
+        await lastActiveSessionStorage.set(targetChatId);
         const msgs = await getMessagesByChatId(chat.id);
         const mapped = msgs.map(m => ({
           id: m.id,
@@ -453,6 +454,8 @@ const FullPageChat = () => {
     setSelectedModelId(modelId);
     selectedModelStorage.set(modelId);
   }, []);
+
+  useArchivedSession(chatId, handleNewChat);
 
   const handleStreamComplete = useCallback(
     async (assistantMessage: ChatMessage, usage?: SessionUsage) => {

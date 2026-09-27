@@ -1,5 +1,6 @@
 export type * from './types.js';
 export * from './impl/index.js';
+export { setChatArchived, listArchivedChats, deleteArchivedChats } from './impl/chat-archive.js';
 export {
   BACKUP_FORMAT,
   BACKUP_VERSION,

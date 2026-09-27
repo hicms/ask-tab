@@ -1,6 +1,7 @@
 import { useT } from '@extension/i18n';
 import { openSidePanel } from '@extension/shared';
-import { listChats, deleteChat, searchChats, lastActiveSessionStorage } from '@extension/storage';
+import { diagnostics } from '@extension/shared/lib/diagnostics.js';
+import { listChats, searchChats, lastActiveSessionStorage } from '@extension/storage';
 import {
   Card,
   CardContent,
@@ -10,17 +11,11 @@ import {
   Badge,
   Button,
   Input,
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  useChatArchive,
 } from '@extension/ui';
-import { Trash2Icon, MessagesSquareIcon, SearchIcon } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { liveQuery } from 'dexie';
+import { ArchiveIcon, MessagesSquareIcon, SearchIcon } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 
 interface SessionRow {
   id: string;
@@ -77,15 +72,9 @@ const SessionManager = ({ onOpenSession }: { onOpenSession?: (chatId: string) =>
   const t = useT();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const { archive, openArchive, archiveDialog } = useChatArchive();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSessionId, setActiveSessionId] = useState('');
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const loadSessions = useCallback(async (query: string) => {
-    const chats = query.trim() ? await searchChats(query.trim()) : await listChats(500);
-    setSessions(toRows(chats));
-  }, []);
 
   useEffect(() => {
     lastActiveSessionStorage.get().then(setActiveSessionId);
@@ -96,19 +85,20 @@ const SessionManager = ({ onOpenSession }: { onOpenSession?: (chatId: string) =>
   }, []);
 
   useEffect(() => {
-    listChats(500)
-      .then(chats => setSessions(toRows(chats)))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const handleSearchChange = useCallback(
-    (value: string) => {
-      setSearchQuery(value);
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => loadSessions(value), 300);
-    },
-    [loadSessions],
-  );
+    const subscription = liveQuery(() =>
+      searchQuery.trim() ? searchChats(searchQuery.trim()) : listChats(500, 0, undefined, 'active'),
+    ).subscribe({
+      next: chats => {
+        setSessions(toRows(chats));
+        setLoading(false);
+      },
+      error: error => {
+        diagnostics.error('Failed to load sessions', error);
+        setLoading(false);
+      },
+    });
+    return () => subscription.unsubscribe();
+  }, [searchQuery]);
 
   const handleClick = useCallback(async (chatId: string) => {
     await lastActiveSessionStorage.set(chatId);
@@ -126,18 +116,11 @@ const SessionManager = ({ onOpenSession }: { onOpenSession?: (chatId: string) =>
     [onOpenSession],
   );
 
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    await deleteChat(deleteTarget);
-    setSessions(prev => prev.filter(s => s.id !== deleteTarget));
-    setDeleteTarget(null);
-  };
-
   if (loading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex flex-wrap items-center gap-2">
             <MessagesSquareIcon className="size-5" />
             {t('sessionMgr_title')}
           </CardTitle>
@@ -153,9 +136,13 @@ const SessionManager = ({ onOpenSession }: { onOpenSession?: (chatId: string) =>
     <>
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex flex-wrap items-center gap-2">
             <MessagesSquareIcon className="size-5" />
             {t('sessionMgr_title')}
+            <Button variant="ghost" size="sm" className="ml-auto text-xs" onClick={openArchive}>
+              <ArchiveIcon className="size-4" />
+              {t('archive_title')}
+            </Button>
           </CardTitle>
           <CardDescription>
             {sessions.length} session{sessions.length !== 1 ? 's' : ''}
@@ -168,7 +155,7 @@ const SessionManager = ({ onOpenSession }: { onOpenSession?: (chatId: string) =>
             <Input
               placeholder={t('sessionMgr_searchPlaceholder')}
               value={searchQuery}
-              onChange={e => handleSearchChange(e.target.value)}
+              onChange={e => setSearchQuery(e.target.value)}
               className="pl-8"
             />
           </div>
@@ -220,14 +207,16 @@ const SessionManager = ({ onOpenSession }: { onOpenSession?: (chatId: string) =>
                     <p className="text-muted-foreground">{formatDate(s.updatedAt)}</p>
                   </div>
                   <Button
+                    aria-label={t('archive_archiveChat', s.title)}
+                    title={t('archive_action')}
                     variant="ghost"
                     size="icon"
                     className="text-muted-foreground hover:text-destructive size-7 shrink-0"
                     onClick={e => {
                       e.stopPropagation();
-                      setDeleteTarget(s.id);
+                      void archive(s.id);
                     }}>
-                    <Trash2Icon className="size-3.5" />
+                    <ArchiveIcon className="size-3.5" />
                   </Button>
                 </div>
               ))}
@@ -235,19 +224,7 @@ const SessionManager = ({ onOpenSession }: { onOpenSession?: (chatId: string) =>
           )}
         </CardContent>
       </Card>
-
-      <AlertDialog onOpenChange={open => !open && setDeleteTarget(null)} open={!!deleteTarget}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('session_deleteTitle')}</AlertDialogTitle>
-            <AlertDialogDescription>{t('session_deleteDescription')}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t('common_cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>{t('common_delete')}</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {archiveDialog}
     </>
   );
 };
