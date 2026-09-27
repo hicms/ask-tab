@@ -176,6 +176,7 @@ interface ChatModel {
   supportsTools?: boolean; supportsReasoning?: boolean; supportsImages?: boolean;
   toolTimeoutSeconds?: number;
   contextWindow?: number;
+  vendor?: string; tier?: 'flagship' | 'balanced' | 'fast'; priceMultiplier?: number; // picker metadata from the catalog
 }
 
 interface ChannelMeta { channelId: string; chatId: string; senderId: string; senderName?: string; senderUsername?: string; extra?: Record<string, unknown> }

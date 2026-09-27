@@ -26,7 +26,9 @@ const store = vi.hoisted(() => {
 });
 
 vi.mock('@extension/env', () => ({ ASK_SERVICE_URL: 'http://ask.test' }));
-vi.mock('@extension/storage', () => ({
+vi.mock('@extension/storage', async () => ({
+  modelTiers: (await vi.importActual<typeof import('@extension/storage')>('@extension/storage'))
+    .modelTiers,
   askSessionStorage: store.askSessionStorage,
   serverModelsStorage: store.serverModelsStorage,
   publicModelsStorage: store.publicModelsStorage,
@@ -48,6 +50,9 @@ const models = [
     supportsReasoning: false,
     supportsImages: true,
     contextWindow: null,
+    vendor: null,
+    tier: null,
+    priceMultiplier: null,
   },
   {
     id: 'claude-sonnet-5',
@@ -60,6 +65,9 @@ const models = [
     supportsReasoning: true,
     supportsImages: true,
     contextWindow: 200000,
+    vendor: null,
+    tier: null,
+    priceMultiplier: null,
   },
 ];
 
@@ -359,6 +367,38 @@ describe('ASK_SYNC_MODELS', () => {
     store.values.session = { token: 'tok', userId: 'u', email: 'a@b.co', expiresAt: 9999999999999 };
     const { supportsImages: _omitted, ...withoutImages } = models[0];
     fetchMock.mockResolvedValueOnce(json(200, [withoutImages]));
+    await expect(handleAskMessage({ type: 'ASK_SYNC_MODELS' })).rejects.toThrow(
+      'Invalid server model catalog',
+    );
+    expect(store.values.models).toBeUndefined();
+  });
+
+  it('copies picker metadata into the chat catalog', async () => {
+    store.values.session = { token: 'tok', userId: 'u', email: 'a@b.co', expiresAt: 9999999999999 };
+    const rated = { ...models[0], vendor: 'xai', tier: 'flagship', priceMultiplier: 3.5 };
+    fetchMock.mockResolvedValueOnce(json(200, [rated, models[1]]));
+    await handleAskMessage({ type: 'ASK_SYNC_MODELS' });
+    expect(store.values.publicModels).toEqual([rated, models[1]]);
+    const [first, second] = store.values.models as Record<string, unknown>[];
+    expect(first).toMatchObject({ vendor: 'xai', tier: 'flagship', priceMultiplier: 3.5 });
+    for (const key of ['vendor', 'tier', 'priceMultiplier']) expect(second).not.toHaveProperty(key);
+  });
+
+  it.each([
+    ['vendor is missing', { vendor: undefined }],
+    ['tier is missing', { tier: undefined }],
+    ['priceMultiplier is missing', { priceMultiplier: undefined }],
+    ['vendor is empty', { vendor: '' }],
+    ['vendor is not a string', { vendor: 7 }],
+    ['tier is unknown', { tier: 'ultra' }],
+    ['priceMultiplier is zero', { priceMultiplier: 0 }],
+    ['priceMultiplier is negative', { priceMultiplier: -1 }],
+    ['priceMultiplier is a string', { priceMultiplier: '2' }],
+  ])('rejects a catalog whose %s', async (_case, change) => {
+    store.values.session = { token: 'tok', userId: 'u', email: 'a@b.co', expiresAt: 9999999999999 };
+    const broken: Record<string, unknown> = { ...models[0], ...change };
+    for (const [key, value] of Object.entries(change)) if (value === undefined) delete broken[key];
+    fetchMock.mockResolvedValueOnce(json(200, [broken]));
     await expect(handleAskMessage({ type: 'ASK_SYNC_MODELS' })).rejects.toThrow(
       'Invalid server model catalog',
     );

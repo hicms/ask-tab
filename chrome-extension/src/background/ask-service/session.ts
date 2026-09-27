@@ -9,12 +9,13 @@ import {
 } from './client';
 import {
   askSessionStorage,
+  modelTiers,
   publicModelsStorage,
   serverModelsStorage,
   selectedModelStorage,
 } from '@extension/storage';
 import type { ModelProvider } from '@extension/shared';
-import type { DbChatModel, PublicModel } from '@extension/storage';
+import type { DbChatModel, ModelTier, PublicModel } from '@extension/storage';
 
 interface SessionResponse {
   token: string;
@@ -59,7 +60,13 @@ const toPublicModel = (value: unknown): PublicModel => {
         model.contextWindow <= 0)) ||
     (kind === 'embedding'
       ? typeof model.embeddingSpaceId !== 'string' || !model.embeddingSpaceId
-      : model.embeddingSpaceId !== null)
+      : model.embeddingSpaceId !== null) ||
+    (model.vendor !== null && (typeof model.vendor !== 'string' || !model.vendor)) ||
+    (model.tier !== null && !modelTiers.includes(model.tier as ModelTier)) ||
+    (model.priceMultiplier !== null &&
+      (typeof model.priceMultiplier !== 'number' ||
+        !Number.isFinite(model.priceMultiplier) ||
+        model.priceMultiplier <= 0))
   ) {
     throw new Error('Invalid server model catalog');
   }
@@ -74,6 +81,9 @@ const toPublicModel = (value: unknown): PublicModel => {
     supportsReasoning: model.supportsReasoning,
     supportsImages: model.supportsImages,
     contextWindow: model.contextWindow as number | null,
+    vendor: model.vendor as string | null,
+    tier: model.tier as ModelTier | null,
+    priceMultiplier: model.priceMultiplier as number | null,
   };
 };
 
@@ -87,6 +97,9 @@ const toChatModel = (model: PublicModel): DbChatModel => ({
   supportsReasoning: model.supportsReasoning,
   supportsImages: model.supportsImages,
   ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
+  ...(model.vendor ? { vendor: model.vendor } : {}),
+  ...(model.tier ? { tier: model.tier } : {}),
+  ...(model.priceMultiplier ? { priceMultiplier: model.priceMultiplier } : {}),
 });
 
 const syncServerModels = async (): Promise<number> => {

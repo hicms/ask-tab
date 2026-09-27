@@ -432,6 +432,18 @@
   "model_supportsReasoning": {
     "message": "Supporte le raisonnement"
   },
+  "model_tierFlagship": {
+    "message": "Phare"
+  },
+  "model_tierBalanced": {
+    "message": "Équilibré"
+  },
+  "model_tierFast": {
+    "message": "Rapide"
+  },
+  "model_priceMultiplier": {
+    "message": "Prix approximatif par rapport à un prix de référence (1x), estimé d'après les tarifs catalogue"
+  },
   "model_supportsText": {
     "message": "Supporte le texte"
   },

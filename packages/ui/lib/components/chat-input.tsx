@@ -1,12 +1,17 @@
 import { AttachmentsButton } from './attachments-button';
 import { MicButton } from './mic-button';
 import { ModelCapabilityIcons } from './model-capability-icons';
+import { ModelPriceMultiplier } from './model-price-multiplier';
+import { ModelTierLabel, tierLabels } from './model-tier-label';
+import { ModelVendorIcon } from './model-vendor-icon';
 import { PreviewAttachment } from './preview-attachment';
 import {
   Button,
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
   Textarea,
@@ -15,7 +20,7 @@ import { Waveform } from './waveform';
 import { useInputHistory } from '../hooks';
 import { cn } from '../utils';
 import { useT } from '@extension/i18n';
-import { useStorage, getSlashCommands } from '@extension/shared';
+import { groupModelsByTier, knownTier, useStorage, getSlashCommands } from '@extension/shared';
 import { diagnostics } from '@extension/shared/lib/diagnostics.js';
 import { sttConfigStorage } from '@extension/storage';
 import { SendIcon, SquareIcon } from 'lucide-react';
@@ -416,13 +421,29 @@ const ChatInput = ({
                   <SelectValue placeholder={t('chat_modelSelect')} />
                 </SelectTrigger>
                 <SelectContent>
-                  {models.map(model => (
-                    <SelectItem key={model.dbId ?? model.id} value={model.dbId ?? model.id}>
-                      <span className="inline-flex items-center gap-2">
-                        {model.name}
-                        <ModelCapabilityIcons model={model} />
-                      </span>
-                    </SelectItem>
+                  {groupModelsByTier(models).map(group => (
+                    <SelectGroup key={group.tier ?? 'unrated'}>
+                      {group.tier && <SelectLabel>{t(tierLabels[group.tier])}</SelectLabel>}
+                      {group.models.map(model => (
+                        <SelectItem
+                          key={model.dbId ?? model.id}
+                          trailing={
+                            knownTier(model.tier) || model.priceMultiplier ? (
+                              <>
+                                <ModelTierLabel tier={model.tier} />
+                                <ModelPriceMultiplier multiplier={model.priceMultiplier} />
+                              </>
+                            ) : undefined
+                          }
+                          value={model.dbId ?? model.id}>
+                          <span className="inline-flex items-center gap-2">
+                            <ModelVendorIcon vendor={model.vendor} />
+                            {model.name}
+                            <ModelCapabilityIcons model={model} />
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   ))}
                 </SelectContent>
               </Select>

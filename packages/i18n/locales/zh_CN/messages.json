@@ -517,6 +517,18 @@
   "model_supportsReasoning": {
     "message": "支持推理"
   },
+  "model_tierFlagship": {
+    "message": "旗舰"
+  },
+  "model_tierBalanced": {
+    "message": "均衡"
+  },
+  "model_tierFast": {
+    "message": "轻快"
+  },
+  "model_priceMultiplier": {
+    "message": "按标价估算，相对基准价（1x）的大致价格倍率"
+  },
   "model_supportsText": {
     "message": "支持文本"
   },

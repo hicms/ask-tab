@@ -432,6 +432,18 @@
   "model_supportsReasoning": {
     "message": "推論対応"
   },
+  "model_tierFlagship": {
+    "message": "フラッグシップ"
+  },
+  "model_tierBalanced": {
+    "message": "バランス"
+  },
+  "model_tierFast": {
+    "message": "高速"
+  },
+  "model_priceMultiplier": {
+    "message": "定価から推定した、基準価格（1x）に対するおおよその価格倍率"
+  },
   "model_supportsText": {
     "message": "テキスト対応"
   },

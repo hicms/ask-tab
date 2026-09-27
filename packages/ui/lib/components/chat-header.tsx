@@ -1,6 +1,8 @@
 import { AgentSwitcher } from './agent-switcher';
 import { ContextStatusBadge } from './context-status';
 import { PlusIcon } from './icons';
+import { ModelPriceMultiplier } from './model-price-multiplier';
+import { ModelVendorIcon } from './model-vendor-icon';
 import {
   Badge,
   Button,
@@ -133,8 +135,13 @@ const PureChatHeader = ({
         ))}
 
       {model && (
-        <Badge className="hidden shrink-0 sm:flex" variant="secondary">
+        <Badge
+          className="hidden shrink-0 items-center gap-1.5 sm:flex"
+          data-testid="chat-header-model"
+          variant="secondary">
+          <ModelVendorIcon vendor={model.vendor} />
           {model.name}
+          <ModelPriceMultiplier multiplier={model.priceMultiplier} />
         </Badge>
       )}
 

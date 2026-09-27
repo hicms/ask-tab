@@ -9,6 +9,9 @@ import {
   CardHeader,
   CardTitle,
   ModelCapabilityIcons,
+  ModelPriceMultiplier,
+  ModelTierLabel,
+  ModelVendorIcon,
 } from '@extension/ui';
 import { BrainCircuitIcon, Loader2Icon, RefreshCwIcon, WrenchIcon } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -78,9 +81,13 @@ const ModelConfig = () => {
         ) : (
           <div className="divide-y rounded-md border">
             {models.map(model => (
-              <div className="flex items-center gap-3 px-3 py-2.5" key={model.id}>
+              <div
+                className="flex items-center gap-3 px-3 py-2.5"
+                data-testid="server-model"
+                key={model.id}>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
+                    <ModelVendorIcon vendor={model.vendor} />
                     <span className="truncate text-sm font-medium">{model.name}</span>
                     <ModelCapabilityIcons model={model} />
                     {model.supportsTools && (
@@ -92,6 +99,8 @@ const ModelConfig = () => {
                   </div>
                   <p className="text-muted-foreground truncate text-xs">{model.modelId}</p>
                 </div>
+                <ModelTierLabel tier={model.tier} />
+                <ModelPriceMultiplier multiplier={model.priceMultiplier} />
                 {model.contextWindow && (
                   <Badge className="shrink-0" variant="outline">
                     {Math.round(model.contextWindow / 1000)}K

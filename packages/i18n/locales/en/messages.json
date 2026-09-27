@@ -534,6 +534,18 @@
   "model_supportsReasoning": {
     "message": "Supports Reasoning"
   },
+  "model_tierFlagship": {
+    "message": "Flagship"
+  },
+  "model_tierBalanced": {
+    "message": "Balanced"
+  },
+  "model_tierFast": {
+    "message": "Fast"
+  },
+  "model_priceMultiplier": {
+    "message": "Approximate price relative to a reference price (1x), estimated from list prices"
+  },
   "model_supportsText": {
     "message": "Supports Text"
   },

@@ -432,6 +432,18 @@
   "model_supportsReasoning": {
     "message": "Поддержка рассуждений"
   },
+  "model_tierFlagship": {
+    "message": "Флагман"
+  },
+  "model_tierBalanced": {
+    "message": "Сбалансированная"
+  },
+  "model_tierFast": {
+    "message": "Быстрая"
+  },
+  "model_priceMultiplier": {
+    "message": "Примерная цена относительно базовой цены (1x), оценка по прейскурантным ценам"
+  },
   "model_supportsText": {
     "message": "Поддержка текста"
   },

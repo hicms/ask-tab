@@ -433,6 +433,18 @@
   "model_supportsReasoning": {
     "message": "支援推理"
   },
+  "model_tierFlagship": {
+    "message": "旗艦"
+  },
+  "model_tierBalanced": {
+    "message": "均衡"
+  },
+  "model_tierFast": {
+    "message": "輕快"
+  },
+  "model_priceMultiplier": {
+    "message": "依標價估算，相對基準價（1x）的大致價格倍率"
+  },
   "model_supportsText": {
     "message": "支援文字"
   },

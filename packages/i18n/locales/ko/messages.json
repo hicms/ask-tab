@@ -440,6 +440,18 @@
   "model_supportsReasoning": {
     "message": "추론 지원"
   },
+  "model_tierFlagship": {
+    "message": "플래그십"
+  },
+  "model_tierBalanced": {
+    "message": "균형"
+  },
+  "model_tierFast": {
+    "message": "빠름"
+  },
+  "model_priceMultiplier": {
+    "message": "정가로 추정한 기준 가격(1x) 대비 대략적인 가격 배율"
+  },
   "model_supportsText": {
     "message": "텍스트 지원"
   },

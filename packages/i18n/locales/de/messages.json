@@ -432,6 +432,18 @@
   "model_supportsReasoning": {
     "message": "Unterstützt Reasoning"
   },
+  "model_tierFlagship": {
+    "message": "Flaggschiff"
+  },
+  "model_tierBalanced": {
+    "message": "Ausgewogen"
+  },
+  "model_tierFast": {
+    "message": "Schnell"
+  },
+  "model_priceMultiplier": {
+    "message": "Ungefährer Preis im Verhältnis zu einem Referenzpreis (1x), geschätzt aus Listenpreisen"
+  },
   "model_supportsText": {
     "message": "Unterstützt Text"
   },

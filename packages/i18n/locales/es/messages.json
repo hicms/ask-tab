@@ -432,6 +432,18 @@
   "model_supportsReasoning": {
     "message": "Compatible con razonamiento"
   },
+  "model_tierFlagship": {
+    "message": "Insignia"
+  },
+  "model_tierBalanced": {
+    "message": "Equilibrado"
+  },
+  "model_tierFast": {
+    "message": "Rápido"
+  },
+  "model_priceMultiplier": {
+    "message": "Precio aproximado respecto a un precio de referencia (1x), estimado a partir de los precios de lista"
+  },
   "model_supportsText": {
     "message": "Compatible con texto"
   },

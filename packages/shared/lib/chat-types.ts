@@ -1,3 +1,5 @@
+import type { ModelTier } from '@extension/storage';
+
 // ──────────────────────────────────────────────
 // Chat & Streaming Protocol Types
 // ──────────────────────────────────────────────
@@ -114,6 +116,11 @@ interface ChatModel {
   toolTimeoutSeconds?: number;
   /** Context window size in tokens. Overrides the built-in lookup when set. */
   contextWindow?: number;
+  /** Model maker key such as `xai`; the picker maps it to an icon. */
+  vendor?: string;
+  tier?: ModelTier;
+  /** Price relative to the catalog reference price, where 1 is the reference. */
+  priceMultiplier?: number;
 }
 
 /** Tool definition (metadata only — no execute function) */

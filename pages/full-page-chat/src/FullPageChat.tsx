@@ -1,7 +1,7 @@
 import { FullPageSidebar } from './full-page-sidebar';
 import { ConfigPanelContent } from '@extension/config-panels';
 import { LocaleProvider, t } from '@extension/i18n';
-import { withErrorBoundary, withSuspense } from '@extension/shared';
+import { chatModelFromStored, withErrorBoundary, withSuspense } from '@extension/shared';
 import { diagnostics } from '@extension/shared/lib/diagnostics.js';
 import {
   serverModelsStorage,
@@ -218,18 +218,7 @@ const FullPageChat = () => {
   const loadModels = useCallback(() => {
     Promise.all([serverModelsStorage.get(), selectedModelStorage.get()]).then(
       ([stored, savedModelId]) => {
-        const mapped = stored.map(m => ({
-          id: m.modelId || m.id,
-          dbId: m.id,
-          name: m.name,
-          provider: m.provider,
-          description: m.description,
-          supportsTools: m.supportsTools,
-          supportsReasoning: m.supportsReasoning,
-          supportsImages: m.supportsImages,
-          toolTimeoutSeconds: m.toolTimeoutSeconds,
-          contextWindow: m.contextWindow,
-        })) as ChatModel[];
+        const mapped = stored.map(chatModelFromStored);
 
         setModels(mapped);
         if (mapped.length > 0) firstRunRef.current = false;

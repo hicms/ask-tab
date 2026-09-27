@@ -1,6 +1,11 @@
 export { settingsStorage, type SettingsData, type LocaleCode } from './settings-storage.js';
 export { serverModelsStorage } from './server-models-storage.js';
-export { publicModelsStorage, type PublicModel } from './public-models-storage.js';
+export {
+  modelTiers,
+  publicModelsStorage,
+  type ModelTier,
+  type PublicModel,
+} from './public-models-storage.js';
 export { askSessionStorage, type AskSession } from './ask-session-storage.js';
 export {
   toolConfigStorage,

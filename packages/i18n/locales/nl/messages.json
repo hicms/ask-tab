@@ -432,6 +432,18 @@
   "model_supportsReasoning": {
     "message": "Ondersteunt redenering"
   },
+  "model_tierFlagship": {
+    "message": "Topmodel"
+  },
+  "model_tierBalanced": {
+    "message": "Gebalanceerd"
+  },
+  "model_tierFast": {
+    "message": "Snel"
+  },
+  "model_priceMultiplier": {
+    "message": "Geschatte prijs ten opzichte van een referentieprijs (1x), op basis van lijstprijzen"
+  },
   "model_supportsText": {
     "message": "Ondersteunt tekst"
   },

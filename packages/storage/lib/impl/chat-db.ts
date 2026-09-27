@@ -1,4 +1,5 @@
 import { Dexie } from 'dexie';
+import type { ModelTier } from './public-models-storage.js';
 import type { ToolConfig } from './tool-config-storage.js';
 import type { EntityTable } from 'dexie';
 
@@ -100,6 +101,9 @@ interface DbChatModel {
   toolTimeoutSeconds?: number;
   /** Context window size in tokens. Overrides the built-in lookup when set. */
   contextWindow?: number;
+  vendor?: string;
+  tier?: ModelTier;
+  priceMultiplier?: number;
 }
 
 /** Agent identity (avatar, theme, etc.) */
