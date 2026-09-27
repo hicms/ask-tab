@@ -4,20 +4,29 @@ Publishes a version tag and verifies the GitHub Release.
 
 .DESCRIPTION
 Requires a clean, pushed main branch and matching root and Chrome extension versions.
+Increments the patch version by default, commits both package versions, and pushes
+main and the version tag together. Use -Version to choose an explicit version.
 GitHub Actions builds and publishes the production package after the tag is pushed.
 The command waits for the workflow and verifies both release assets.
 
 .PARAMETER Publish
-Create and push the matching version tag to origin.
+Update the version and publish the matching version tag to origin.
+
+.PARAMETER Version
+Explicit major.minor.patch version. Defaults to the current patch version plus one.
 
 .PARAMETER Help
 Show usage without creating a tag.
 
 .EXAMPLE
 .\scripts\release.ps1 -Publish
+
+.EXAMPLE
+.\scripts\release.ps1 -Publish -Version 0.2.0
 #>
 param(
     [switch] $Publish,
+    [string] $Version,
     [switch] $Help
 )
 
@@ -25,11 +34,14 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $usage = @'
-Usage: .\scripts\release.ps1 -Publish
+Usage: .\scripts\release.ps1 -Publish [-Version 0.2.0]
        .\scripts\release.ps1 -Help
 
--Publish tags the current main commit as v<package.json version>, pushes the
-tag to origin, waits for GitHub Actions, and checks the ZIP and SHA-256 assets.
+-Publish increments the package.json patch version (for example 0.1.1 -> 0.1.2).
+-Version selects an explicit major.minor.patch version instead; it cannot go backwards.
+The script updates both package versions, commits them, pushes main and the tag
+together, waits for GitHub Actions, and checks the ZIP and SHA-256 assets.
+Start from a clean main branch that matches origin/main.
 Configure the repository Actions variable ASKTAB_RELEASE_SERVICE_URL first.
 '@
 
@@ -63,16 +75,35 @@ function Invoke-Gh {
     return $output
 }
 
+function ConvertTo-ReleaseVersion {
+    param([string] $Value)
+
+    if ($Value -cnotmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
+        throw "Invalid version '$Value'. Use major.minor.patch, for example 0.2.0."
+    }
+    return [version] $Value
+}
+
 $root = Split-Path -Parent $PSScriptRoot
 try {
     Push-Location $root
     try {
-        $version = (Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json).version
+        $currentVersion = (Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json).version
         $chromeVersion = (Get-Content -LiteralPath 'chrome-extension/package.json' -Raw | ConvertFrom-Json).version
-        if ([string]::IsNullOrWhiteSpace($version) -or $chromeVersion -cne $version) {
+        if ([string]::IsNullOrWhiteSpace($currentVersion) -or $chromeVersion -cne $currentVersion) {
             throw 'Root and Chrome extension package versions must match before releasing.'
         }
-        $tag = "v$version"
+        $currentParsed = ConvertTo-ReleaseVersion $currentVersion
+        $targetVersion = if ($PSBoundParameters.ContainsKey('Version')) {
+            $Version
+        } else {
+            '{0}.{1}.{2}' -f $currentParsed.Major, $currentParsed.Minor, ($currentParsed.Build + 1)
+        }
+        $targetParsed = ConvertTo-ReleaseVersion $targetVersion
+        if ($targetParsed -lt $currentParsed) {
+            throw "Release version $targetVersion cannot be older than $currentVersion."
+        }
+        $tag = "v$targetVersion"
 
         if (Invoke-Git -GitArgs @('status', '--porcelain', '--untracked-files=all')) {
             throw 'The working tree is not clean. Commit your source changes before releasing.'
@@ -112,13 +143,30 @@ try {
             throw 'ASKTAB_RELEASE_SERVICE_URL must be an HTTPS origin without a path or credentials.'
         }
 
+        if ($targetVersion -cne $currentVersion) {
+            $packagePaths = @('package.json', 'chrome-extension/package.json')
+            $versionPattern = [regex] '("version"\s*:\s*")[^"]*(")'
+            foreach ($path in $packagePaths) {
+                $fullPath = Join-Path $root $path
+                $content = [IO.File]::ReadAllText($fullPath)
+                $updated = $versionPattern.Replace($content, "`${1}$targetVersion`${2}", 1)
+                [IO.File]::WriteAllText($fullPath, $updated, [Text.UTF8Encoding]::new($false))
+            }
+            Invoke-Git -GitArgs (@('add', '--') + $packagePaths) | Out-Null
+            Invoke-Git -GitArgs (@('commit', '-m', "Release $tag", '--') + $packagePaths) | Out-Host
+            if (Invoke-Git -GitArgs @('status', '--porcelain', '--untracked-files=all')) {
+                throw 'The working tree changed during the version commit. Review it before publishing.'
+            }
+        }
+
+        $localHead = Invoke-Git -GitArgs @('rev-parse', 'HEAD')
         Invoke-Git -GitArgs @('tag', '-a', $tag, '-m', "Release $tag") | Out-Null
         try {
-            Invoke-Git -GitArgs @('push', 'origin', "refs/tags/$tag") | Out-Host
+            Invoke-Git -GitArgs @('push', '--atomic', 'origin', 'main', "refs/tags/$tag") | Out-Host
         } catch {
-            throw "Created local tag $tag, but could not push it. $($_.Exception.Message)"
+            throw "Release commit and tag $tag are local; the atomic push failed. After resolving the error, retry with: git push --atomic origin main refs/tags/$tag. $($_.Exception.Message)"
         }
-        Write-Host "Pushed $tag to origin. Waiting for the GitHub release workflow..."
+        Write-Host "Pushed main and $tag to origin. Waiting for the GitHub release workflow..."
 
         $runId = $null
         for ($attempt = 0; $attempt -lt 60; $attempt++) {
