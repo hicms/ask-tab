@@ -83,6 +83,8 @@ Release notes use English headings and instructions in two sections: **What's Ch
 node scripts/generate-release-notes.mjs v0.1.2 "$env:TEMP/asktab-v0.1.2-notes.md"
 ```
 
+Optional [Chrome Web Store upload setup](docs/development/webstore-upload.md) adds an automatic draft upload after each GitHub release. It requires a one-time store item and service-account setup, and stays disabled until configured. Uploading does not submit the extension for review or publish it to users.
+
 The monorepo contains `chrome-extension/` for the background worker and manifest, `pages/` for extension views, `packages/` for shared modules, and `tests/` for integration and end-to-end coverage. See [installation](docs/start/installation.md), [development](docs/development/index.md), and the [documentation index](docs/index.md) for details.
 
 ## Data and permissions
