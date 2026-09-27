@@ -19,6 +19,8 @@ jobs:
       ASKTAB_RELEASE_SERVICE_URL: ${{ vars.ASKTAB_RELEASE_SERVICE_URL }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with:
           version: 10.11.0
@@ -37,6 +39,8 @@ jobs:
       - name: Build workspace packages for tests
         run: pnpm exec turbo ready
       - run: pnpm quality
+      - name: Generate release notes from commits
+        run: node scripts/generate-release-notes.mjs "$GITHUB_REF_NAME" "$RUNNER_TEMP/release-notes.md"
       - name: Package Chrome extension
         run: pnpm release:package "$GITHUB_REF_NAME"
       - name: Publish GitHub Release
@@ -46,4 +50,4 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             "dist-zip/asktab-chrome-$GITHUB_REF_NAME.zip" \
             "dist-zip/asktab-chrome-$GITHUB_REF_NAME.sha256" \
-            --verify-tag --generate-notes
+            --verify-tag --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/release-notes.md"
