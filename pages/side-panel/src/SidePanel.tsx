@@ -214,6 +214,7 @@ const SidePanel = () => {
           description: m.description,
           supportsTools: m.supportsTools,
           supportsReasoning: m.supportsReasoning,
+          supportsImages: m.supportsImages,
           toolTimeoutSeconds: m.toolTimeoutSeconds,
           contextWindow: m.contextWindow,
         })) as ChatModel[];

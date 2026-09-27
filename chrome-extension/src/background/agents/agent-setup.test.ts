@@ -152,6 +152,7 @@ const makeDbModel = (overrides: Partial<DbChatModel> = {}): DbChatModel => ({
   description: 'OpenAI GPT-4o',
   supportsTools: true,
   supportsReasoning: false,
+  supportsImages: false,
   toolTimeoutSeconds: 300,
   ...overrides,
 });
@@ -189,6 +190,7 @@ describe('agent-setup', () => {
         description: 'OpenAI GPT-4o',
         supportsTools: true,
         supportsReasoning: false,
+        supportsImages: false,
         toolTimeoutSeconds: 300,
         contextWindow: undefined,
       });
@@ -206,6 +208,7 @@ describe('agent-setup', () => {
         description: undefined,
         supportsTools: undefined,
         supportsReasoning: undefined,
+        supportsImages: undefined,
         toolTimeoutSeconds: undefined,
       });
       const result = dbModelToChatModel(dbModel);
@@ -213,6 +216,7 @@ describe('agent-setup', () => {
       expect(result.description).toBeUndefined();
       expect(result.supportsTools).toBeUndefined();
       expect(result.supportsReasoning).toBeUndefined();
+      expect(result.supportsImages).toBeUndefined();
       expect('baseUrl' in result).toBe(false);
       expect(result.toolTimeoutSeconds).toBeUndefined();
     });

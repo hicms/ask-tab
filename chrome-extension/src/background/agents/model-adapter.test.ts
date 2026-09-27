@@ -37,6 +37,15 @@ describe('chatModelToPiModel', () => {
     expect(resolved.model.compat).toBeUndefined();
   });
 
+  it('declares image input unless the catalog marks the model text-only', () => {
+    expect(chatModelToPiModel(model({ supportsImages: true })).model.input).toEqual([
+      'text',
+      'image',
+    ]);
+    expect(chatModelToPiModel(model({ supportsImages: false })).model.input).toEqual(['text']);
+    expect(chatModelToPiModel(model()).model.input).toEqual(['text', 'image']);
+  });
+
   it('encodes public IDs as a single route segment', () => {
     expect(chatModelToPiModel(model({ id: 'a/b' })).model.baseUrl).toMatch(/\/api\/llm\/a%2Fb$/);
   });

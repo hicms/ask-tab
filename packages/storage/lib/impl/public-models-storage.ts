@@ -9,6 +9,7 @@ interface PublicModel {
   isDefault: boolean;
   supportsTools: boolean;
   supportsReasoning: boolean;
+  supportsImages: boolean;
   contextWindow: number | null;
 }
 

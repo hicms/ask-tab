@@ -52,6 +52,7 @@ const toPublicModel = (value: unknown): PublicModel => {
     typeof model.isDefault !== 'boolean' ||
     typeof model.supportsTools !== 'boolean' ||
     typeof model.supportsReasoning !== 'boolean' ||
+    typeof model.supportsImages !== 'boolean' ||
     (model.contextWindow !== null &&
       (typeof model.contextWindow !== 'number' ||
         !Number.isSafeInteger(model.contextWindow) ||
@@ -71,6 +72,7 @@ const toPublicModel = (value: unknown): PublicModel => {
     isDefault: model.isDefault,
     supportsTools: model.supportsTools,
     supportsReasoning: model.supportsReasoning,
+    supportsImages: model.supportsImages,
     contextWindow: model.contextWindow as number | null,
   };
 };
@@ -83,6 +85,7 @@ const toChatModel = (model: PublicModel): DbChatModel => ({
   provider: chatProviders[model.protocol],
   supportsTools: model.supportsTools,
   supportsReasoning: model.supportsReasoning,
+  supportsImages: model.supportsImages,
   ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
 });
 

@@ -46,6 +46,7 @@ const models = [
     isDefault: false,
     supportsTools: true,
     supportsReasoning: false,
+    supportsImages: true,
     contextWindow: null,
   },
   {
@@ -57,6 +58,7 @@ const models = [
     isDefault: true,
     supportsTools: true,
     supportsReasoning: true,
+    supportsImages: true,
     contextWindow: 200000,
   },
 ];
@@ -110,6 +112,7 @@ describe('ASK_LOGIN', () => {
         provider: 'custom',
         supportsTools: true,
         supportsReasoning: false,
+        supportsImages: true,
       },
       {
         id: 'ask:claude-sonnet-5',
@@ -118,6 +121,7 @@ describe('ASK_LOGIN', () => {
         provider: 'anthropic',
         supportsTools: true,
         supportsReasoning: true,
+        supportsImages: true,
         contextWindow: 200000,
       },
     ]);
@@ -326,6 +330,7 @@ describe('ASK_SYNC_MODELS', () => {
         provider: 'google',
         supportsTools: true,
         supportsReasoning: true,
+        supportsImages: true,
       },
       {
         id: 'ask:gemini-next-pro',
@@ -334,10 +339,30 @@ describe('ASK_SYNC_MODELS', () => {
         provider: 'google',
         supportsTools: true,
         supportsReasoning: true,
+        supportsImages: true,
         contextWindow: 1048576,
       },
     ]);
     expect(store.values.selected).toBe('ask:gemini-3-8-flash');
+  });
+
+  it('keeps a text-only model marked as not accepting images', async () => {
+    store.values.session = { token: 'tok', userId: 'u', email: 'a@b.co', expiresAt: 9999999999999 };
+    const textOnly = { ...models[0], id: 'text-only', supportsImages: false };
+    fetchMock.mockResolvedValueOnce(json(200, [textOnly]));
+    await handleAskMessage({ type: 'ASK_SYNC_MODELS' });
+    expect(store.values.publicModels).toEqual([textOnly]);
+    expect(store.values.models).toEqual([expect.objectContaining({ supportsImages: false })]);
+  });
+
+  it('rejects a catalog that does not publish image input support', async () => {
+    store.values.session = { token: 'tok', userId: 'u', email: 'a@b.co', expiresAt: 9999999999999 };
+    const { supportsImages: _omitted, ...withoutImages } = models[0];
+    fetchMock.mockResolvedValueOnce(json(200, [withoutImages]));
+    await expect(handleAskMessage({ type: 'ASK_SYNC_MODELS' })).rejects.toThrow(
+      'Invalid server model catalog',
+    );
+    expect(store.values.models).toBeUndefined();
   });
 
   it('rejects a chat protocol the extension has no SDK for', async () => {

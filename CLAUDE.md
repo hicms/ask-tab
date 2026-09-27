@@ -173,7 +173,7 @@ interface ChatModel {
   dbId?: string;
   provider: 'custom' | 'anthropic' | 'google'; // openai-completions | anthropic-messages | gemini-generate-content
   description?: string;
-  supportsTools?: boolean; supportsReasoning?: boolean;
+  supportsTools?: boolean; supportsReasoning?: boolean; supportsImages?: boolean;
   toolTimeoutSeconds?: number;
   contextWindow?: number;
 }

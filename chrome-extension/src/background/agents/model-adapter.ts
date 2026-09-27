@@ -28,7 +28,8 @@ const chatModelToPiModel = (config: ChatModel): ResolvedModel => {
     provider: route.provider,
     baseUrl: `${ASK_SERVICE_URL}/api/llm/${encodeURIComponent(config.id)}${route.pathSuffix}`,
     reasoning: config.supportsReasoning ?? false,
-    input: ['text', 'image'],
+    // Models cached before the catalog published supportsImages keep image input until the next sync.
+    input: config.supportsImages === false ? ['text'] : ['text', 'image'],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow,
     maxTokens: Math.floor(contextWindow * 0.25),
