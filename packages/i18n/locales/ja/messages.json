@@ -432,6 +432,12 @@
   "model_supportsReasoning": {
     "message": "推論対応"
   },
+  "model_supportsText": {
+    "message": "テキスト対応"
+  },
+  "model_supportsImages": {
+    "message": "画像対応"
+  },
   "skill_title": {
     "message": "スキル"
   },

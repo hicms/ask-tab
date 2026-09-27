@@ -8,6 +8,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  ModelCapabilityIcons,
 } from '@extension/ui';
 import { BrainCircuitIcon, Loader2Icon, RefreshCwIcon, WrenchIcon } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -81,16 +82,11 @@ const ModelConfig = () => {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-medium">{model.name}</span>
+                    <ModelCapabilityIcons model={model} />
                     {model.supportsTools && (
                       <WrenchIcon
                         className="text-muted-foreground size-3"
                         aria-label={t('model_supportsTools')}
-                      />
-                    )}
-                    {model.supportsReasoning && (
-                      <BrainCircuitIcon
-                        className="text-muted-foreground size-3"
-                        aria-label={t('model_supportsReasoning')}
                       />
                     )}
                   </div>

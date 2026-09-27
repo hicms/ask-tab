@@ -433,6 +433,12 @@
   "model_supportsReasoning": {
     "message": "支援推理"
   },
+  "model_supportsText": {
+    "message": "支援文字"
+  },
+  "model_supportsImages": {
+    "message": "支援圖片"
+  },
   "skill_title": {
     "message": "技能"
   },

@@ -534,6 +534,12 @@
   "model_supportsReasoning": {
     "message": "Supports Reasoning"
   },
+  "model_supportsText": {
+    "message": "Supports Text"
+  },
+  "model_supportsImages": {
+    "message": "Supports Images"
+  },
   "skill_title": {
     "message": "Skills"
   },

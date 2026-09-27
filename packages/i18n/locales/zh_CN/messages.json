@@ -517,6 +517,12 @@
   "model_supportsReasoning": {
     "message": "支持推理"
   },
+  "model_supportsText": {
+    "message": "支持文本"
+  },
+  "model_supportsImages": {
+    "message": "支持图片"
+  },
   "skill_title": {
     "message": "技能"
   },

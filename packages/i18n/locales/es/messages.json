@@ -432,6 +432,12 @@
   "model_supportsReasoning": {
     "message": "Compatible con razonamiento"
   },
+  "model_supportsText": {
+    "message": "Compatible con texto"
+  },
+  "model_supportsImages": {
+    "message": "Compatible con imágenes"
+  },
   "skill_title": {
     "message": "Habilidades"
   },

@@ -12,6 +12,7 @@ export type { MessageActionsProps } from './message-actions';
 export { MessageEditor } from './message-editor';
 export type { MessageEditorProps } from './message-editor';
 export { ChatInput } from './chat-input';
+export { ModelCapabilityIcons } from './model-capability-icons';
 export { ChatHeader } from './chat-header';
 export type { ChatHeaderProps } from './chat-header';
 export { ContextStatusBadge } from './context-status';

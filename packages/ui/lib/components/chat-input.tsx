@@ -1,5 +1,6 @@
 import { AttachmentsButton } from './attachments-button';
 import { MicButton } from './mic-button';
+import { ModelCapabilityIcons } from './model-capability-icons';
 import { PreviewAttachment } from './preview-attachment';
 import {
   Button,
@@ -417,7 +418,10 @@ const ChatInput = ({
                 <SelectContent>
                   {models.map(model => (
                     <SelectItem key={model.dbId ?? model.id} value={model.dbId ?? model.id}>
-                      {model.name}
+                      <span className="inline-flex items-center gap-2">
+                        {model.name}
+                        <ModelCapabilityIcons model={model} />
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>

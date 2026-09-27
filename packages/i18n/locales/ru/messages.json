@@ -432,6 +432,12 @@
   "model_supportsReasoning": {
     "message": "Поддержка рассуждений"
   },
+  "model_supportsText": {
+    "message": "Поддержка текста"
+  },
+  "model_supportsImages": {
+    "message": "Поддержка изображений"
+  },
   "skill_title": {
     "message": "Навыки"
   },

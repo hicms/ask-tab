@@ -440,6 +440,12 @@
   "model_supportsReasoning": {
     "message": "추론 지원"
   },
+  "model_supportsText": {
+    "message": "텍스트 지원"
+  },
+  "model_supportsImages": {
+    "message": "이미지 지원"
+  },
   "skill_title": {
     "message": "스킬"
   },

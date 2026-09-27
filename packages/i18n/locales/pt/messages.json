@@ -192,6 +192,8 @@
   "model_title": { "message": "Configuração de Modelo" },
   "model_supportsTools": { "message": "Suporta Ferramentas" },
   "model_supportsReasoning": { "message": "Suporta Raciocínio" },
+  "model_supportsText": { "message": "Suporta Texto" },
+  "model_supportsImages": { "message": "Suporta Imagens" },
   "skill_title": { "message": "Habilidades" },
   "skill_description": {
     "message": "Habilidades fornecem orientação específica para tarefas que o LLM pode ler sob demanda via ferramenta de leitura."

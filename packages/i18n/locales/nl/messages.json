@@ -432,6 +432,12 @@
   "model_supportsReasoning": {
     "message": "Ondersteunt redenering"
   },
+  "model_supportsText": {
+    "message": "Ondersteunt tekst"
+  },
+  "model_supportsImages": {
+    "message": "Ondersteunt afbeeldingen"
+  },
   "skill_title": {
     "message": "Vaardigheden"
   },
