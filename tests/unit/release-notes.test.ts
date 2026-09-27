@@ -66,6 +66,16 @@ describe('commit-derived release notes', { timeout: 30_000 }, () => {
     const result = generate('v0.1.2');
     expect(result.status, result.stderr).toBe(0);
     const notes = readFileSync(output, 'utf8');
+    expect(notes.startsWith("## What's Changed\n")).toBe(true);
+    expect(notes).toContain('\n## Install / Run\n');
+    expect(notes.indexOf('## Install / Run')).toBeGreaterThan(notes.indexOf('[完整变更对比]'));
+    expect(notes).toContain(
+      'https://github.com/test/app/releases/download/v0.1.2/asktab-chrome-v0.1.2.zip',
+    );
+    expect(notes).toContain(
+      'https://github.com/test/app/releases/download/v0.1.2/asktab-chrome-v0.1.2.sha256',
+    );
+    expect(notes).toContain('https://github.com/test/app/blob/v0.1.2/docs/start/installation.md');
     expect(notes).toContain('v0.1.1 → v0.1.2 · 5 项提交更新');
     expect(notes).toContain(
       `- Add selectable icons ([${feature.slice(0, 7)}](https://github.com/test/app/commit/${feature}))`,
@@ -89,6 +99,10 @@ describe('commit-derived release notes', { timeout: 30_000 }, () => {
     expect(notes).toContain('新增聊天归档');
     expect(notes).toContain('Initial application');
     expect(notes).toContain('https://github.com/fork/ask-tab/commits/v0.1.0');
+    expect(notes).toContain(
+      'https://github.com/fork/ask-tab/releases/download/v0.1.0/asktab-chrome-v0.1.0.zip',
+    );
+    expect(notes).not.toContain('https://github.com/test/app/');
     expect(notes).not.toContain('/compare/');
   });
 

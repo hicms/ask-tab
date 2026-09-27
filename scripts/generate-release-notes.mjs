@@ -78,9 +78,9 @@ const generate = () => {
   const repo = url.href.replace(/\/$/, '');
   const date = git('show', '-s', '--format=%cs', `refs/tags/${tag}^{commit}`).trim();
   const lines = [
-    `## ${tag} 更新日志`,
+    "## What's Changed",
     '',
-    `${date} · ${previous ? `${previous} → ${tag}` : '首次发布'} · ${count} 项提交更新`,
+    `${date} · ${previous ? `${previous} → ${tag}` : `${tag} · 首次发布`} · ${count} 项提交更新`,
     '',
   ];
   for (const [name, commits] of groups) {
@@ -97,6 +97,30 @@ const generate = () => {
     previous
       ? `[完整变更对比](${repo}/compare/${previous}...${tag})`
       : `[完整提交记录](${repo}/commits/${tag})`,
+    '',
+  );
+  const archive = `asktab-chrome-${tag}.zip`;
+  const checksum = `asktab-chrome-${tag}.sha256`;
+  const downloads = `${repo}/releases/download/${tag}`;
+  lines.push(
+    '## Install / Run',
+    '',
+    `[下载 Chrome 扩展（${archive}）](${downloads}/${archive}) · [SHA-256 校验文件](${downloads}/${checksum})`,
+    '',
+    '### 安装与使用',
+    '',
+    '1. 下载上面的扩展 ZIP，解压到固定文件夹。',
+    '2. 在 Chrome 地址栏输入 `chrome://extensions`，打开右上角的「开发者模式」。',
+    '3. 点击「加载已解压的扩展程序」，选择解压后包含 `manifest.json` 的文件夹。',
+    '4. 打开任意网页，点击浏览器工具栏中的 AskTab 图标；登录并选择模型后，即可开始聊天。',
+    '',
+    '发布包已配置服务地址；登录和远程 AI 功能需要能够连接 AskTab 服务。',
+    '',
+    '### 更新已有安装',
+    '',
+    '用新版本替换原加载目录中的扩展文件，保持目录路径不变；然后在 `chrome://extensions` 中找到 AskTab，点击「重新加载」。',
+    '',
+    `[从源码构建与更多安装说明](${repo}/blob/${tag}/docs/start/installation.md)`,
     '',
   );
   writeFileSync(output, lines.join('\n'), 'utf8');
