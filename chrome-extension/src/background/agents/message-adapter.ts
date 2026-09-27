@@ -38,7 +38,11 @@ export const chatMessagesToPiMessages = (messages: ChatMessage[]): Message[] => 
         for (const fp of fileParts) {
           const data = fp.data || fp.url;
           if (fp.mediaType?.startsWith('image/') && data) {
-            content.push({ type: 'image', data, mimeType: fp.mediaType });
+            content.push({
+              type: 'image',
+              data: data.replace(/^data:[^,]+;base64,/, ''),
+              mimeType: fp.mediaType,
+            });
           }
         }
 

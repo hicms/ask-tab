@@ -3,9 +3,11 @@
  * Verifies conversion between extension ChatMessage[] and pi-mono Message[].
  */
 import { chatMessagesToPiMessages, convertToLlm, makeConvertToLlm } from './message-adapter';
+import { convertMessages } from '@mariozechner/pi-ai/dist/providers/openai-completions.js';
 import { describe, it, expect } from 'vitest';
 import type { ChatMessage, ChatModel } from '@extension/shared';
 import type { AgentMessage } from '@mariozechner/pi-agent-core';
+import type { Model, OpenAICompletionsCompat } from '@mariozechner/pi-ai';
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -39,7 +41,7 @@ describe('chatMessagesToPiMessages', () => {
         parts: [
           {
             type: 'file',
-            url: 'data:image/png;base64,abc123',
+            url: 'data:image/png;base64,aGVsbG8=',
             filename: 'photo.png',
             mediaType: 'image/png',
           },
@@ -54,8 +56,49 @@ describe('chatMessagesToPiMessages', () => {
     const content = result[0]!.content as Array<{ type: string; data?: string; mimeType?: string }>;
     expect(content).toHaveLength(1);
     expect(content[0]!.type).toBe('image');
-    expect(content[0]!.data).toBe('data:image/png;base64,abc123');
+    expect(content[0]!.data).toBe('aGVsbG8=');
     expect(content[0]!.mimeType).toBe('image/png');
+  });
+
+  it('strips the data URL prefix when file data is present', () => {
+    const messages = [
+      makeMessage({
+        parts: [
+          {
+            type: 'file',
+            url: 'data:image/png;base64,aGVsbG8=',
+            data: 'data:image/png;base64,aGVsbG8=',
+            mediaType: 'image/png',
+          },
+        ],
+      }),
+    ];
+
+    const result = chatMessagesToPiMessages(messages);
+    const content = result[0]!.content as Array<{ type: string; data?: string }>;
+    expect(content[0]!.data).toBe('aGVsbG8=');
+  });
+
+  it('serializes a pasted image into one valid data URL for OpenAI-compatible models', () => {
+    const dataUrl =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==';
+    const messages = chatMessagesToPiMessages([
+      makeMessage({
+        parts: [{ type: 'file', url: dataUrl, data: dataUrl, mediaType: 'image/png' }],
+      }),
+    ]);
+
+    const wire = convertMessages(
+      { provider: 'openai', input: ['text', 'image'] } as Model<'openai-completions'>,
+      { systemPrompt: '', messages },
+      {} as Required<OpenAICompletionsCompat>,
+    );
+    expect(wire).toEqual([
+      {
+        role: 'user',
+        content: [{ type: 'image_url', image_url: { url: dataUrl } }],
+      },
+    ]);
   });
 
   it('converts a user message with mixed text and images', () => {
