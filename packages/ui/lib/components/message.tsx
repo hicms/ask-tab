@@ -2,7 +2,6 @@ import { DocumentPreview } from './document-preview';
 import { MessageContent } from './elements/message';
 import { Response } from './elements/response';
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from './elements/tool';
-import { SparklesIcon } from './icons';
 import { MessageActions } from './message-actions';
 import { MessageEditor } from './message-editor';
 import { MessageReasoning } from './message-reasoning';
@@ -60,6 +59,14 @@ type PreviewMessageProps = {
   onEditSubmit?: (messageId: string, content: string) => void;
 };
 
+const AssistantAvatar = ({ isThinking = false }: { isThinking?: boolean }) => (
+  <img
+    alt="AskTab"
+    className={cn('-mt-1 size-8 shrink-0', isThinking && 'animate-pulse')}
+    src={chrome.runtime.getURL('asktab-avatar.svg')}
+  />
+);
+
 const PreviewMessage = ({ message, isLoading, setMessages, onEditSubmit }: PreviewMessageProps) => {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
 
@@ -109,11 +116,7 @@ const PreviewMessage = ({ message, isLoading, setMessages, onEditSubmit }: Previ
           'justify-end': message.role === 'user',
           'justify-start': message.role === 'assistant',
         })}>
-        {message.role === 'assistant' && (
-          <div className="bg-background ring-border -mt-1 flex size-8 shrink-0 items-center justify-center rounded-full ring-1">
-            <SparklesIcon size={14} />
-          </div>
-        )}
+        {message.role === 'assistant' && <AssistantAvatar />}
 
         <div
           className={cn('flex min-w-0 flex-col', {
@@ -337,11 +340,7 @@ const ThinkingMessage = () => (
     data-role="assistant"
     data-testid="message-assistant-loading">
     <div className="flex items-start justify-start gap-3">
-      <div className="bg-background ring-border -mt-1 flex size-8 shrink-0 items-center justify-center rounded-full ring-1">
-        <div className="animate-pulse">
-          <SparklesIcon size={14} />
-        </div>
-      </div>
+      <AssistantAvatar isThinking />
 
       <div className="flex w-full flex-col gap-2 md:gap-4">
         <div className="text-muted-foreground flex items-center gap-1 p-0 text-sm">

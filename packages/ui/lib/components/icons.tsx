@@ -63,25 +63,6 @@ const StopIcon = ({ size = 16, ...props }: { size?: number } & React.SVGProps<SV
   </svg>
 );
 
-const SparklesIcon = ({ size = 16 }: { size?: number }) => (
-  <svg
-    height={size}
-    strokeLinejoin="round"
-    style={{ color: 'currentcolor' }}
-    viewBox="0 0 16 16"
-    width={size}>
-    <path
-      d="M12.8 4.4
-           A5.6 5.6 0 1 0 12.8 11.6
-           L11.6 10.4
-           A3.84 3.84 0 1 1 11.6 5.6
-           Z"
-      fill="#e00000"
-      fill-rule="evenodd"
-    />
-  </svg>
-);
-
 const TrashIcon = ({ size = 16 }: { size?: number }) => (
   <svg
     height={size}
@@ -434,7 +415,6 @@ export {
   UserIcon,
   ArrowUpIcon,
   StopIcon,
-  SparklesIcon,
   TrashIcon,
   PencilEditIcon,
   PlusIcon,

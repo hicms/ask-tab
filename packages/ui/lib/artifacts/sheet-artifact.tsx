@@ -9,7 +9,8 @@
 
 import { Artifact } from '../components/create-artifact';
 import { SheetEditor } from '../components/editors/sheet-editor';
-import { CopyIcon, LineChartIcon, RedoIcon, SparklesIcon, UndoIcon } from '../components/icons';
+import { CopyIcon, LineChartIcon, RedoIcon, UndoIcon } from '../components/icons';
+import { WandSparklesIcon } from 'lucide-react';
 import { parse, unparse } from 'papaparse';
 import { toast } from 'sonner';
 
@@ -69,7 +70,7 @@ export const sheetArtifact = new Artifact<'sheet', Metadata>({
   toolbar: [
     {
       description: 'Format and clean data',
-      icon: <SparklesIcon />,
+      icon: <WandSparklesIcon size={16} />,
       onClick: ({ sendMessage }) => {
         sendMessage({
           role: 'user',
