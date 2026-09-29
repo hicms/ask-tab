@@ -3,6 +3,7 @@ export * from './lib/hoc/index.js';
 export * from './lib/utils/index.js';
 export * from './lib/chat-types.js';
 export * from './lib/chat-cancellation.js';
+export * from './lib/chat-queue.js';
 export * from './lib/context-limits.js';
 export * from './lib/model-capabilities.js';
 export * from './lib/model-tiers.js';

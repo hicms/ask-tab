@@ -83,6 +83,8 @@ interface RunAgentOpts {
   convertToLlm?: (msgs: AgentMessage[]) => Message[] | Promise<Message[]>;
   transformContext?: (msgs: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
   onCheckpoint?: (messages: AgentMessage[]) => Promise<void>;
+  /** User messages to inject into the running turn, polled after each tool and each step. */
+  getSteeringMessages?: () => Promise<AgentMessage[]>;
   headlessTools?: boolean;
   /** Pre-built tool list. When provided, skips the internal getAgentTools() call. */
   tools?: Awaited<ReturnType<typeof getAgentTools>>;
@@ -97,6 +99,8 @@ interface RunAgentOpts {
   // Event callbacks (all optional — headless uses none)
   onTextDelta?: (delta: string) => void;
   onReasoningDelta?: (delta: string) => void;
+  /** Steering messages injected into the running turn; the initial prompt is not reported. */
+  onUserMessage?: (message: AgentMessage) => void;
   onToolCallEnd?: (toolCall: { id: string; name: string; args: Record<string, unknown> }) => void;
   onToolResult?: (result: {
     toolCallId: string;
@@ -174,9 +178,11 @@ const executeAttempt = async (opts: {
   convertToLlm?: RunAgentOpts['convertToLlm'];
   transformContext?: RunAgentOpts['transformContext'];
   onCheckpoint?: RunAgentOpts['onCheckpoint'];
+  getSteeringMessages?: RunAgentOpts['getSteeringMessages'];
   signal?: AbortSignal;
   onTextDelta?: RunAgentOpts['onTextDelta'];
   onReasoningDelta?: RunAgentOpts['onReasoningDelta'];
+  onUserMessage?: RunAgentOpts['onUserMessage'];
   onToolCallEnd?: RunAgentOpts['onToolCallEnd'];
   onToolResult?: RunAgentOpts['onToolResult'];
   onTurnEnd?: RunAgentOpts['onTurnEnd'];
@@ -195,9 +201,11 @@ const executeAttempt = async (opts: {
     convertToLlm,
     transformContext,
     onCheckpoint,
+    getSteeringMessages,
     signal,
     onTextDelta,
     onReasoningDelta,
+    onUserMessage,
     onToolCallEnd,
     onToolResult,
     onTurnEnd,
@@ -218,6 +226,7 @@ const executeAttempt = async (opts: {
   if (convertToLlm) agentOpts.convertToLlm = convertToLlm;
   if (transformContext) agentOpts.transformContext = transformContext;
   if (onCheckpoint) agentOpts.onCheckpoint = onCheckpoint;
+  if (getSteeringMessages) agentOpts.getSteeringMessages = getSteeringMessages;
 
   const agent = new Agent(agentOpts);
 
@@ -228,6 +237,7 @@ const executeAttempt = async (opts: {
   let lastStepText = '';
   let stepCount = 0;
   let timedOut = false;
+  let promptEmitted = false;
 
   // Subscribe to events
   agent.subscribe((event: AgentEvent) => {
@@ -247,6 +257,11 @@ const executeAttempt = async (opts: {
       }
 
       case 'message_end': {
+        if (event.message.role === 'user') {
+          // agentLoop emits the prompt as the first user message; later ones are steering.
+          if (promptEmitted) onUserMessage?.(event.message);
+          promptEmitted = true;
+        }
         if (event.message.role === 'assistant') {
           const msg = event.message as AssistantMessage;
           for (const c of msg.content) {
@@ -437,6 +452,7 @@ const runAgent = async (opts: RunAgentOpts): Promise<RunAgentResult> => {
     convertToLlm,
     transformContext,
     onCheckpoint,
+    getSteeringMessages,
     headlessTools = false,
     tools: toolsOverride,
     signal,
@@ -444,6 +460,7 @@ const runAgent = async (opts: RunAgentOpts): Promise<RunAgentResult> => {
     onRetry,
     onTextDelta,
     onReasoningDelta,
+    onUserMessage,
     onToolCallEnd,
     onToolResult,
     onTurnEnd,
@@ -508,9 +525,11 @@ const runAgent = async (opts: RunAgentOpts): Promise<RunAgentResult> => {
         convertToLlm,
         transformContext,
         onCheckpoint,
+        getSteeringMessages,
         signal: operationController.signal,
         onTextDelta,
         onReasoningDelta,
+        onUserMessage,
         onToolCallEnd,
         onToolResult,
         onTurnEnd,

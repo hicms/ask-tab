@@ -234,6 +234,76 @@
   "chat_mic_permission": {
     "message": "Microphone permission needed. Opening a window to allow access…"
   },
+  "chat_send": {
+    "message": "Send"
+  },
+  "chat_stop": {
+    "message": "Stop generating"
+  },
+  "chat_sendOptions": {
+    "message": "More send options"
+  },
+  "chat_addToQueue": {
+    "message": "Add to queue"
+  },
+  "chat_steer": {
+    "message": "Steer conversation"
+  },
+  "chat_steerHint": {
+    "message": "Insert into the current reply after the running tool finishes"
+  },
+  "chat_queueTitle": {
+    "message": "$COUNT$ queued",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "chat_queueClear": {
+    "message": "Clear all"
+  },
+  "chat_queueCleared": {
+    "message": "Queue cleared"
+  },
+  "chat_queueRemove": {
+    "message": "Remove"
+  },
+  "chat_queueSteerItem": {
+    "message": "Steer now"
+  },
+  "chat_queueSteering": {
+    "message": "Will be inserted after the current step"
+  },
+  "chat_queueResume": {
+    "message": "Resume sending"
+  },
+  "chat_queuePausedStopped": {
+    "message": "Queue paused because generation was stopped"
+  },
+  "chat_queuePausedError": {
+    "message": "Queue paused because the last reply failed"
+  },
+  "chat_queuePausedRestarted": {
+    "message": "Queue paused after the extension restarted"
+  },
+  "chat_queueFull": {
+    "message": "Queue is full (up to $MAX$ messages)",
+    "placeholders": {
+      "max": {
+        "content": "$1"
+      }
+    }
+  },
+  "chat_queueNoAttachments": {
+    "message": "Attachments can be sent after the reply finishes"
+  },
+  "chat_toolSkipped": {
+    "message": "Skipped"
+  },
+  "chat_commandBlockedWhileRunning": {
+    "message": "Commands are unavailable while a reply is being generated"
+  },
   "stt_web_login": {
     "message": "Login"
   },

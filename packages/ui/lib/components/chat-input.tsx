@@ -8,6 +8,11 @@ import { insertPastedText } from './paste-text';
 import { PreviewAttachment } from './preview-attachment';
 import {
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
   Select,
   SelectContent,
   SelectGroup,
@@ -24,10 +29,16 @@ import { useT } from '@extension/i18n';
 import { groupModelsByTier, knownTier, useStorage, getSlashCommands } from '@extension/shared';
 import { diagnostics } from '@extension/shared/lib/diagnostics.js';
 import { sttConfigStorage } from '@extension/storage';
-import { SendIcon, SquareIcon } from 'lucide-react';
+import { ChevronDownIcon, Loader2Icon, SendIcon, SquareIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import type { Attachment, ChatModel, SlashCommandDef, StreamingStatus } from '@extension/shared';
+import type {
+  Attachment,
+  ChatModel,
+  QueuedMessageMode,
+  SlashCommandDef,
+  StreamingStatus,
+} from '@extension/shared';
 import type {
   ChangeEvent,
   ClipboardEvent,
@@ -35,12 +46,14 @@ import type {
   FormEvent,
   KeyboardEvent,
   MouseEvent,
+  ReactNode,
   SetStateAction,
 } from 'react';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_FILES = 5;
 const ACCEPTED_FILE_TYPES = 'image/*,.pdf,.txt,.md,.csv';
+const STEER_SHORTCUT = /Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘ Enter' : 'Ctrl Enter';
 
 const focusComposer = (event: MouseEvent<HTMLTextAreaElement>) => {
   if (event.button !== 0) return;
@@ -62,6 +75,13 @@ type ChatInputProps = {
   models: ChatModel[];
   selectedModelId: string;
   onModelChange: (modelId: string) => void;
+  /** Queued turns will start without a running one, so a new message must wait its turn too. */
+  queueActive?: boolean;
+  isCompacting?: boolean;
+  /** Returns false to keep the draft, e.g. when the queue is full. */
+  onEnqueue?: (content: string, mode: QueuedMessageMode) => boolean;
+  /** Rendered at the top of the composer. */
+  tray?: ReactNode;
 };
 
 const ChatInput = ({
@@ -73,6 +93,10 @@ const ChatInput = ({
   models,
   selectedModelId,
   onModelChange,
+  queueActive = false,
+  isCompacting = false,
+  onEnqueue,
+  tray,
 }: ChatInputProps) => {
   const t = useT();
   const sttConfig = useStorage(sttConfigStorage);
@@ -89,12 +113,16 @@ const ChatInput = ({
 
   const slashCommands = useMemo(() => getSlashCommands(), []);
 
+  const isStreaming = status === 'streaming' || status === 'connecting';
+  // While busy, a submitted draft joins the queue instead of starting a turn.
+  const busy = isStreaming || queueActive;
+
   const filteredSlashCommands = useMemo(() => {
-    if (!input.startsWith('/') || input.includes(' ') || input.includes('\n')) return [];
+    if (busy || !input.startsWith('/') || input.includes(' ') || input.includes('\n')) return [];
     const query = input.slice(1).toLowerCase();
     if (slashCommands.some(cmd => cmd.name.toLowerCase() === query)) return [];
     return slashCommands.filter(cmd => cmd.name.toLowerCase().startsWith(query));
-  }, [input, slashCommands]);
+  }, [busy, input, slashCommands]);
 
   const showSlashMenu = filteredSlashCommands.length > 0;
 
@@ -102,14 +130,14 @@ const ChatInput = ({
     setSlashSelectedIndex(0);
   }, [filteredSlashCommands.length]);
 
-  const isStreaming = status === 'streaming' || status === 'connecting';
   const isUploading = uploadQueue.length > 0;
 
-  const hasContent = input.trim().length > 0 || attachments.length > 0;
-  // Mic is offered whenever STT is on and we're not mid-stream.
-  const showMic = micEnabled && !isStreaming;
+  const draft = input.trim();
+  const hasContent = draft.length > 0 || attachments.length > 0;
+  // Mic is offered whenever STT is on and nothing is running or queued.
+  const showMic = micEnabled && !busy && !isCompacting;
   // With the mic available and an empty draft, the mic is the sole control;
-  // as soon as there's content (or no mic, or a stream is running) show Send.
+  // as soon as there's content (or no mic, or a turn is busy) show the action button.
   const showSend = !showMic || hasContent;
 
   const processFile = useCallback(
@@ -259,17 +287,34 @@ const ChatInput = ({
     });
   }, []);
 
+  /** Sends when idle; while busy, queues the text draft or steers the running turn with it. */
+  const submitDraft = (mode: QueuedMessageMode) => {
+    if (isCompacting || isUploading) return;
+    if (!busy) {
+      if (!hasContent) return;
+      if (draft) history.record(draft);
+      onSubmit(draft, attachments.length > 0 ? attachments : undefined);
+      setAttachments([]);
+      return;
+    }
+    if (!draft) return;
+    if (attachments.length > 0) {
+      toast.error(t('chat_queueNoAttachments'));
+      return;
+    }
+    if (!onEnqueue?.(draft, isStreaming ? mode : 'queue')) return;
+    history.record(draft);
+    setInput('');
+  };
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (isStreaming) {
+    if (isCompacting) return;
+    if (busy && !draft) {
       stop();
       return;
     }
-    const trimmed = input.trim();
-    if (!trimmed && attachments.length === 0) return;
-    if (trimmed) history.record(trimmed);
-    onSubmit(trimmed, attachments.length > 0 ? attachments : undefined);
-    setAttachments([]);
+    submitDraft('queue');
   };
 
   const selectSlashCommand = useCallback(
@@ -347,16 +392,104 @@ const ChatInput = ({
         }
       }
     }
+    if (e.key === 'Escape' && busy && !isCompacting && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      stop();
+      return;
+    }
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
-      const trimmed = input.trim();
-      if (!isStreaming && (trimmed || attachments.length > 0) && !isUploading) {
-        if (trimmed) history.record(trimmed);
-        onSubmit(trimmed, attachments.length > 0 ? attachments : undefined);
-        setAttachments([]);
-      }
+      submitDraft(e.ctrlKey || e.metaKey ? 'steer' : 'queue');
     }
   };
+
+  const actionButtonClass = 'shrink-0 gap-1.5 rounded-lg';
+  let actionButton: ReactNode;
+  if (isCompacting) {
+    actionButton = (
+      <Button className={actionButtonClass} disabled size="icon" type="button" variant="default">
+        <Loader2Icon className="size-4 animate-spin" />
+      </Button>
+    );
+  } else if (busy && !draft) {
+    actionButton = (
+      <Button
+        aria-label={t('chat_stop')}
+        className={actionButtonClass}
+        size="icon"
+        title={`${t('chat_stop')} (Esc)`}
+        type="submit"
+        variant="default">
+        <SquareIcon className="size-4" />
+      </Button>
+    );
+  } else if (busy) {
+    actionButton = (
+      <div className="flex shrink-0 items-center">
+        <Button
+          aria-label={t('chat_addToQueue')}
+          className="shrink-0 rounded-l-lg rounded-r-none"
+          disabled={isUploading}
+          size="icon"
+          title={`${t('chat_addToQueue')} (Enter)`}
+          type="submit"
+          variant="default">
+          <SendIcon className="size-4" />
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              aria-label={t('chat_sendOptions')}
+              className="border-primary-foreground/20 h-10 w-6 shrink-0 rounded-l-none rounded-r-lg border-l px-0"
+              title={t('chat_sendOptions')}
+              type="button"
+              variant="default">
+              <ChevronDownIcon className="size-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className="min-w-56"
+            onCloseAutoFocus={e => {
+              e.preventDefault();
+              textareaRef.current?.focus();
+            }}
+            side="top">
+            <DropdownMenuItem onSelect={() => submitDraft('queue')}>
+              {t('chat_addToQueue')}
+              <DropdownMenuShortcut>Enter</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            {isStreaming && (
+              <DropdownMenuItem onSelect={() => submitDraft('steer')}>
+                <div className="flex min-w-0 flex-col">
+                  <span>{t('chat_steer')}</span>
+                  <span className="text-muted-foreground text-xs">{t('chat_steerHint')}</span>
+                </div>
+                <DropdownMenuShortcut>{STEER_SHORTCUT}</DropdownMenuShortcut>
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onSelect={stop}>
+              {t('chat_stop')}
+              <DropdownMenuShortcut>Esc</DropdownMenuShortcut>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    );
+  } else {
+    actionButton = (
+      <Button
+        aria-label={t('chat_send')}
+        className={actionButtonClass}
+        disabled={isUploading || !hasContent}
+        size="icon"
+        title={t('chat_send')}
+        type="submit"
+        variant="default">
+        <SendIcon className="size-4" />
+      </Button>
+    );
+  }
 
   return (
     <div className="relative w-full">
@@ -384,6 +517,7 @@ const ChatInput = ({
       <form
         className="bg-background w-full overflow-hidden rounded-xl border shadow-sm"
         onSubmit={handleSubmit}>
+        {tray}
         {/* Attachment previews */}
         {(attachments.length > 0 || isUploading) && (
           <div
@@ -437,7 +571,7 @@ const ChatInput = ({
         <div className="flex items-center justify-between p-1">
           <div className="flex items-center gap-1">
             <AttachmentsButton
-              disabled={isStreaming}
+              disabled={busy || isCompacting}
               onClick={() => fileInputRef.current?.click()}
             />
             {models.length > 0 && (
@@ -495,18 +629,7 @@ const ChatInput = ({
                 onStreamChange={setRecordingStream}
               />
             )}
-            {showSend && (
-              <Button
-                className="shrink-0 gap-1.5 rounded-lg"
-                disabled={
-                  isUploading || (!isStreaming && !input.trim() && attachments.length === 0)
-                }
-                size="icon"
-                type="submit"
-                variant="default">
-                {isStreaming ? <SquareIcon className="size-4" /> : <SendIcon className="size-4" />}
-              </Button>
-            )}
+            {showSend && actionButton}
           </div>
         </div>
       </form>

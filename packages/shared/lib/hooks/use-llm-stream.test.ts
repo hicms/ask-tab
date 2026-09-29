@@ -134,7 +134,8 @@ describe('useLLMStream — stop and resume', () => {
       expect.objectContaining({ toolCallId: 'pending', state: 'output-error' }),
     ]);
     expect(stateSlots[1].value).toBe('idle');
-    expect(port.disconnect).toHaveBeenCalledOnce();
+    // The view stays subscribed so it sees the paused queue and later queued turns.
+    expect(port.disconnect).not.toHaveBeenCalled();
     expect(port.postMessage).toHaveBeenCalledWith({
       type: 'LLM_STREAM_STOP',
       chatId: 'test-chat',
@@ -157,8 +158,12 @@ describe('useLLMStream — stop and resume', () => {
     expect(capturedRefs[0].current).toBe(newPort);
     expect((stateSlots[0].value as ChatMessage[]).at(-1)?.parts).toEqual([]);
     expect(stateSlots[1].value).toBe('connecting');
+    expect(oldPort.disconnect).toHaveBeenCalledOnce();
     hook.stop();
-    expect(newPort.disconnect).toHaveBeenCalledOnce();
+    expect(newPort.postMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: 'LLM_STREAM_STOP' }),
+    );
+    expect(newPort.disconnect).not.toHaveBeenCalled();
   });
 });
 

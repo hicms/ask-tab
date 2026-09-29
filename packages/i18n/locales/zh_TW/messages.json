@@ -153,6 +153,76 @@
   "chat_mic_permission": {
     "message": "需要麥克風權限。正在開啟視窗以允許存取..."
   },
+  "chat_send": {
+    "message": "傳送"
+  },
+  "chat_stop": {
+    "message": "停止生成"
+  },
+  "chat_sendOptions": {
+    "message": "更多傳送選項"
+  },
+  "chat_addToQueue": {
+    "message": "加入佇列"
+  },
+  "chat_steer": {
+    "message": "引導對話"
+  },
+  "chat_steerHint": {
+    "message": "在目前工具呼叫完成後插入本輪對話"
+  },
+  "chat_queueTitle": {
+    "message": "待傳送 $COUNT$ 則",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "chat_queueClear": {
+    "message": "清空"
+  },
+  "chat_queueCleared": {
+    "message": "已清空待傳送佇列"
+  },
+  "chat_queueRemove": {
+    "message": "移除"
+  },
+  "chat_queueSteerItem": {
+    "message": "立即引導"
+  },
+  "chat_queueSteering": {
+    "message": "等待目前步驟完成後插入"
+  },
+  "chat_queueResume": {
+    "message": "繼續傳送"
+  },
+  "chat_queuePausedStopped": {
+    "message": "已停止生成，佇列已暫停"
+  },
+  "chat_queuePausedError": {
+    "message": "上一則回覆出錯，佇列已暫停"
+  },
+  "chat_queuePausedRestarted": {
+    "message": "擴充功能已重新啟動，佇列已暫停"
+  },
+  "chat_queueFull": {
+    "message": "佇列已滿（最多 $MAX$ 則）",
+    "placeholders": {
+      "max": {
+        "content": "$1"
+      }
+    }
+  },
+  "chat_queueNoAttachments": {
+    "message": "附件需要等回覆結束後再傳送"
+  },
+  "chat_toolSkipped": {
+    "message": "已跳過"
+  },
+  "chat_commandBlockedWhileRunning": {
+    "message": "推理中無法執行指令"
+  },
   "stt_web_login": {
     "message": "登入"
   },

@@ -61,6 +61,11 @@ const Messages = ({
   onStopSubagent,
 }: MessagesProps) => {
   const { containerRef, endRef, isAtBottom, scrollToBottom } = useScrollToBottom();
+  const last = messages.at(-1);
+  // A steering message starts a new, still empty assistant segment mid-stream.
+  const isThinking =
+    status === 'connecting' ||
+    (status === 'streaming' && last?.role === 'assistant' && last.parts.length === 0);
 
   return (
     <div className="relative flex-1">
@@ -119,7 +124,7 @@ const Messages = ({
             <SubagentProgressCard key={sa.runId} info={sa} onStop={onStopSubagent} />
           ))}
 
-          {status === 'connecting' && <ThinkingMessage />}
+          {isThinking && <ThinkingMessage />}
 
           <div className="min-h-[24px] min-w-[24px] shrink-0" ref={endRef} />
         </div>

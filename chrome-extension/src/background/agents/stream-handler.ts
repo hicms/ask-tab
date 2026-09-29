@@ -6,14 +6,17 @@ import {
   loadModelHistory,
   modelSourceKey,
 } from './model-transcript';
+import { createRunSteering, queuedToUserMessage } from './run-steering';
 import { createTransformContext } from '../context/transform';
 import { createLogger } from '../logging/logger-buffer';
 import { runMemoryFlushIfNeeded } from '../memory/memory-flush';
 import { markInterruptedToolCalls } from '@extension/shared';
 import { activeAgentStorage, saveArtifact } from '@extension/storage';
 import type { chatModelToPiModel } from './model-adapter';
+import type { RunSteering } from './run-steering';
 import type {
   ChatMessage,
+  QueuedChatMessage,
   LLMRequestMessage,
   LLMStreamChunk,
   LLMStreamEnd,
@@ -28,6 +31,28 @@ import type { AssistantMessage } from '@mariozechner/pi-ai';
 
 const streamLog = createLogger('stream');
 type StreamTarget = Pick<chrome.runtime.Port, 'postMessage'>;
+
+type RunOutcome = 'completed' | 'stopped' | 'error';
+
+interface SettledRun {
+  chatId: string;
+  outcome: RunOutcome;
+  /** Steering messages taken from the queue but never injected into the context. */
+  unsentSteering: QueuedChatMessage[];
+}
+
+/** Connects runs to the chat queue without making this module depend on it. */
+interface StreamQueueHooks {
+  /** Removes and returns the steering messages to inject at the current checkpoint. */
+  takeSteering: (chatId: string) => QueuedChatMessage[];
+  onSettled: (run: SettledRun) => void;
+}
+
+let queueHooks: StreamQueueHooks | undefined;
+
+const setStreamQueueHooks = (hooks: StreamQueueHooks | undefined) => {
+  queueHooks = hooks;
+};
 
 /** Post a message to the port, returning false if the port is disconnected. */
 const safeSend = (port: StreamTarget, msg: Record<string, unknown>): boolean => {
@@ -101,16 +126,56 @@ const maybeSendTtsAudio = async (
   }
 };
 
-const runLLMStream = async (
-  port: StreamTarget,
-  request: LLMRequestMessage,
-  controller: AbortController,
-  assistantMessage: ChatMessage,
-): Promise<void> => {
-  const { chatId, messages, model: modelConfig, assistantMessageId } = request;
-  const assistantParts = assistantMessage.parts;
+const runLLMStream = async (port: StreamTarget, active: ActiveStream): Promise<void> => {
+  const { controller, steering } = active;
+  const { chatId, messages, model: modelConfig, assistantMessageId } = active.request;
+  // Each injected steering message closes the current assistant segment and opens the next.
+  let assistantMessage = active.assistantMessage;
+  let assistantParts = assistantMessage.parts;
   let turnPartStart = 0;
   let agentErrorMessage: string | undefined;
+  let steeringWrites = Promise.resolve();
+
+  const persistSteeringWrite = (message: ChatMessage) => {
+    if (!assistantMessageId) return;
+    steeringWrites = steeringWrites
+      .then(async () => {
+        const { addMessage } = await import('@extension/storage');
+        await addMessage(message);
+      })
+      .catch(err => streamLog.warn('Steering persist failed', { chatId, error: String(err) }));
+  };
+
+  const injectSteering = (item: QueuedChatMessage) => {
+    const userMessage = queuedToUserMessage(
+      item,
+      chatId,
+      Math.max(Date.now(), assistantMessage.createdAt + 1),
+    );
+    // A retry replays messages that were already shown once.
+    const shown = active.request.messages.filter(m => m.id !== userMessage.id);
+    if (assistantParts.length === 0) {
+      assistantMessage.createdAt = userMessage.createdAt + 1;
+      active.request = { ...active.request, messages: [...shown, userMessage] };
+    } else {
+      persistSteeringWrite(assistantMessage);
+      active.request = { ...active.request, messages: [...shown, assistantMessage, userMessage] };
+      assistantMessage = {
+        id: crypto.randomUUID(),
+        chatId,
+        role: 'assistant',
+        parts: [],
+        createdAt: userMessage.createdAt + 1,
+        model: modelConfig.id,
+      };
+      assistantParts = assistantMessage.parts;
+      turnPartStart = 0;
+      active.assistantMessage = assistantMessage;
+      active.segmentIds.add(assistantMessage.id);
+    }
+    persistSteeringWrite(userMessage);
+    port.postMessage({ ...streamSnapshot(active) });
+  };
 
   streamLog.info('Stream started', { chatId, model: modelConfig.id });
   streamLog.trace('Stream request detail', {
@@ -210,10 +275,16 @@ const runLLMStream = async (
       transformContext: notifyingTransformContext,
       chatId,
       onProviderLimitDetected: setProviderLimit,
+      getSteeringMessages: async () => steering.poll(),
+      onUserMessage: message => {
+        const item = steering.markInjected(message);
+        if (item) injectSteering(item);
+      },
       onRetry: info => {
         // Reset accumulated parts on retry — the stream restarts fresh
         assistantParts.length = 0;
         turnPartStart = 0;
+        steering.rewind();
         safeSend(port, {
           type: 'LLM_STREAM_RETRY',
           chatId,
@@ -417,6 +488,7 @@ const runLLMStream = async (
 
     // Persist the assistant message from the background SW so it survives
     // agent switches / extension reloads that may kill the frontend callback chain.
+    await steeringWrites;
     if (assistantMessageId) {
       const { addMessage, finishModelTurn, touchChat, updateSessionTokens } = await import(
         '@extension/storage'
@@ -445,15 +517,16 @@ const runLLMStream = async (
     // Persist partial assistant message on error so it's not lost on reload
     if (assistantParts.length > 0 && assistantMessageId) {
       try {
+        await steeringWrites;
         const { addMessage, touchChat } = await import('@extension/storage');
         await addMessage({
-          id: assistantMessageId,
+          id: assistantMessage.id,
           chatId,
           role: 'assistant',
           parts: controller.signal.aborted
             ? markInterruptedToolCalls(assistantParts)
             : assistantParts,
-          createdAt: Date.now(),
+          createdAt: assistantMessage.createdAt,
           model: modelConfig.id,
         });
         await touchChat(chatId);
@@ -470,8 +543,13 @@ const runLLMStream = async (
 interface ActiveStream {
   controller: AbortController;
   done: Promise<void>;
+  /** Its messages grow with each injected steering message; the last one is the prompt or steer. */
   request: LLMRequestMessage;
+  /** The segment currently receiving output. */
   assistantMessage: ChatMessage;
+  /** Every assistant segment of this run, so a Stop from a view showing an earlier one still works. */
+  segmentIds: Set<string>;
+  steering: RunSteering;
   status: StreamingStatus;
 }
 
@@ -553,40 +631,61 @@ const watchLLMStreams = (port: chrome.runtime.Port) => {
   notifyRunningChats();
 };
 
-const stopLLMStream = (chatId: string, assistantMessageId?: string) => {
+const isLLMStreamRunning = (chatId: string): boolean => {
+  const active = activeStreams.get(chatId);
+  return !!active && !active.controller.signal.aborted;
+};
+
+/** Returns whether a running turn was stopped. */
+const stopLLMStream = (chatId: string, assistantMessageId?: string): boolean => {
   const active = activeStreams.get(chatId);
   // A late Stop from an old view must not cancel a newer turn.
-  if (!active || (assistantMessageId && active.assistantMessage.id !== assistantMessageId)) return;
+  if (!active || active.controller.signal.aborted) return false;
+  if (assistantMessageId && !active.segmentIds.has(assistantMessageId)) return false;
   active.controller.abort();
   broadcast(chatId, { type: 'LLM_STREAM_STOPPED', chatId });
   notifyRunningChats();
+  return true;
 };
 
+const runOutcome = (active: ActiveStream): RunOutcome => {
+  if (active.controller.signal.aborted) return 'stopped';
+  // Only LLM_STREAM_END marks a turn idle; anything else ended without completing.
+  return active.status === 'idle' ? 'completed' : 'error';
+};
+
+/** Starts a turn. Without a port (a queued message), output reaches subscribed views only. */
 const handleLLMStream = async (
-  port: chrome.runtime.Port,
+  port: chrome.runtime.Port | undefined,
   request: LLMRequestMessage,
 ): Promise<void> => {
   const previous = activeStreams.get(request.chatId);
-  attachStreamPort(port, request.chatId);
+  if (port) attachStreamPort(port, request.chatId);
   // Another view of the same chat joins the existing turn instead of interrupting it.
   if (previous && !previous.controller.signal.aborted) {
-    safeSend(port, { ...streamSnapshot(previous) });
+    if (port) safeSend(port, { ...streamSnapshot(previous) });
     await previous.done;
     return;
   }
   const controller = new AbortController();
   let finish!: () => void;
+  const assistantMessageId = request.assistantMessageId ?? crypto.randomUUID();
   const active: ActiveStream = {
     controller,
     request,
     assistantMessage: {
-      id: request.assistantMessageId ?? crypto.randomUUID(),
+      id: assistantMessageId,
       chatId: request.chatId,
       role: 'assistant',
       parts: [],
       createdAt: Date.now(),
       model: request.model.id,
     },
+    segmentIds: new Set([assistantMessageId]),
+    steering: createRunSteering(
+      request.chatId,
+      () => queueHooks?.takeSteering(request.chatId) ?? [],
+    ),
     status: 'connecting',
     done: new Promise<void>(resolve => {
       finish = resolve;
@@ -608,13 +707,26 @@ const handleLLMStream = async (
   };
   try {
     await previous?.done;
-    if (!controller.signal.aborted)
-      await runLLMStream(target, request, controller, active.assistantMessage);
+    if (!controller.signal.aborted) await runLLMStream(target, active);
   } finally {
     if (activeStreams.get(request.chatId) === active) activeStreams.delete(request.chatId);
     notifyRunningChats();
     finish();
+    queueHooks?.onSettled({
+      chatId: request.chatId,
+      outcome: runOutcome(active),
+      unsentSteering: active.steering.unsent(),
+    });
   }
 };
 
-export { handleLLMStream, subscribeLLMStream, watchLLMStreams, stopLLMStream };
+export {
+  handleLLMStream,
+  subscribeLLMStream,
+  watchLLMStreams,
+  stopLLMStream,
+  isLLMStreamRunning,
+  broadcast as broadcastToChat,
+  setStreamQueueHooks,
+};
+export type { RunOutcome, SettledRun, StreamQueueHooks };

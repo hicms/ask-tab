@@ -39,6 +39,8 @@ export interface AgentOptions {
   thinkingBudgets?: ThinkingBudgets;
   maxRetryDelayMs?: number;
   onCheckpoint?: (messages: AgentMessage[]) => Promise<void>;
+  /** Steering messages owned outside the agent; polled whenever the steer() queue is empty. */
+  getSteeringMessages?: () => Promise<AgentMessage[]>;
 }
 
 export class Agent {
@@ -63,6 +65,7 @@ export class Agent {
   private _thinkingBudgets?: ThinkingBudgets;
   private _maxRetryDelayMs?: number;
   private onCheckpoint?: AgentOptions['onCheckpoint'];
+  private externalSteering?: AgentOptions['getSteeringMessages'];
 
   constructor(opts: AgentOptions = {}) {
     this._state = {
@@ -87,6 +90,7 @@ export class Agent {
     this._thinkingBudgets = opts.thinkingBudgets;
     this._maxRetryDelayMs = opts.maxRetryDelayMs;
     this.onCheckpoint = opts.onCheckpoint;
+    this.externalSteering = opts.getSteeringMessages;
   }
 
   get sessionId(): string | undefined {
@@ -328,7 +332,9 @@ export class Agent {
           skipInitialSteeringPoll = false;
           return [];
         }
-        return this.dequeueSteeringMessages();
+        const queued = this.dequeueSteeringMessages();
+        if (queued.length > 0 || !this.externalSteering) return queued;
+        return this.externalSteering();
       },
       getFollowUpMessages: async () => this.dequeueFollowUpMessages(),
     };

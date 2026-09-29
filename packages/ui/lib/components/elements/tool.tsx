@@ -1,12 +1,14 @@
 import { cn } from '../../utils';
 import { FormattedOrRawView } from '../tool-result-view';
 import { Button, Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui';
+import { useT } from '@extension/i18n';
 import {
   CheckCircleIcon,
   ChevronDownIcon,
   CircleIcon,
   CopyIcon,
   Loader2Icon,
+  MinusCircleIcon,
   WrenchIcon,
   XCircleIcon,
 } from 'lucide-react';
@@ -51,6 +53,8 @@ type ToolHeaderProps = {
   /** Semantic category, used to colour the icon. */
   category?: ToolCategory;
   state: ToolPartState;
+  /** Shown as a neutral status instead of the error it is stored as. */
+  skipped?: boolean;
   /** Copy handler — when provided, a copy button is shown in the header. */
   onCopy?: () => void;
   className?: string;
@@ -77,36 +81,49 @@ const ToolHeader = ({
   icon: Icon = WrenchIcon,
   category = 'other',
   state,
+  skipped = false,
   onCopy,
   ...props
-}: ToolHeaderProps) => (
-  <CollapsibleTrigger
-    className={cn(
-      'hover:bg-muted/50 group flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1',
-      className,
-    )}
-    {...props}>
-    <Icon className={cn('size-3.5 shrink-0', toolCategoryIconClass[category])} />
-    <span className="min-w-0 flex-1 truncate text-left text-xs">{summary ?? name}</span>
-    <span className="text-muted-foreground shrink-0" title={statusLabels[state]}>
-      {statusIcons[state]}
-    </span>
-    {onCopy && (
-      <Button
-        className="size-5 shrink-0 opacity-0 group-hover:opacity-100"
-        onClick={e => {
-          e.stopPropagation();
-          onCopy();
-        }}
-        size="icon"
-        variant="ghost">
-        <CopyIcon className="size-3" />
-      </Button>
-    )}
-    {!onCopy && <span aria-hidden="true" className="size-5 shrink-0" />}
-    <ChevronDownIcon className="text-muted-foreground size-3.5 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
-  </CollapsibleTrigger>
-);
+}: ToolHeaderProps) => {
+  const t = useT();
+  return (
+    <CollapsibleTrigger
+      className={cn(
+        'hover:bg-muted/50 group flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1',
+        skipped && 'text-muted-foreground',
+        className,
+      )}
+      data-skipped={skipped || undefined}
+      {...props}>
+      <Icon className={cn('size-3.5 shrink-0', toolCategoryIconClass[category])} />
+      <span className="min-w-0 flex-1 truncate text-left text-xs">{summary ?? name}</span>
+      {skipped ? (
+        <span className="text-muted-foreground flex shrink-0 items-center gap-1 text-xs">
+          {t('chat_toolSkipped')}
+          <MinusCircleIcon className="size-3.5" />
+        </span>
+      ) : (
+        <span className="text-muted-foreground shrink-0" title={statusLabels[state]}>
+          {statusIcons[state]}
+        </span>
+      )}
+      {onCopy && (
+        <Button
+          className="size-5 shrink-0 opacity-0 group-hover:opacity-100"
+          onClick={e => {
+            e.stopPropagation();
+            onCopy();
+          }}
+          size="icon"
+          variant="ghost">
+          <CopyIcon className="size-3" />
+        </Button>
+      )}
+      {!onCopy && <span aria-hidden="true" className="size-5 shrink-0" />}
+      <ChevronDownIcon className="text-muted-foreground size-3.5 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+    </CollapsibleTrigger>
+  );
+};
 
 type ToolContentProps = ComponentProps<typeof CollapsibleContent>;
 

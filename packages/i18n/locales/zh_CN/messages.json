@@ -225,6 +225,76 @@
   "chat_mic_permission": {
     "message": "需要麦克风权限。正在打开窗口以允许访问..."
   },
+  "chat_send": {
+    "message": "发送"
+  },
+  "chat_stop": {
+    "message": "停止生成"
+  },
+  "chat_sendOptions": {
+    "message": "更多发送选项"
+  },
+  "chat_addToQueue": {
+    "message": "加入队列"
+  },
+  "chat_steer": {
+    "message": "引导对话"
+  },
+  "chat_steerHint": {
+    "message": "在当前工具调用完成后插入本轮对话"
+  },
+  "chat_queueTitle": {
+    "message": "待发送 $COUNT$ 条",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "chat_queueClear": {
+    "message": "清空"
+  },
+  "chat_queueCleared": {
+    "message": "已清空待发送队列"
+  },
+  "chat_queueRemove": {
+    "message": "移除"
+  },
+  "chat_queueSteerItem": {
+    "message": "立即引导"
+  },
+  "chat_queueSteering": {
+    "message": "等待当前步骤完成后插入"
+  },
+  "chat_queueResume": {
+    "message": "继续发送"
+  },
+  "chat_queuePausedStopped": {
+    "message": "已停止生成，队列已暂停"
+  },
+  "chat_queuePausedError": {
+    "message": "上一条回复出错，队列已暂停"
+  },
+  "chat_queuePausedRestarted": {
+    "message": "扩展已重启，队列已暂停"
+  },
+  "chat_queueFull": {
+    "message": "队列已满（最多 $MAX$ 条）",
+    "placeholders": {
+      "max": {
+        "content": "$1"
+      }
+    }
+  },
+  "chat_queueNoAttachments": {
+    "message": "附件需要等回复结束后再发送"
+  },
+  "chat_toolSkipped": {
+    "message": "已跳过"
+  },
+  "chat_commandBlockedWhileRunning": {
+    "message": "推理中无法执行命令"
+  },
   "stt_web_login": {
     "message": "登录"
   },

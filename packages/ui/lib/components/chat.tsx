@@ -2,12 +2,15 @@ import { ArtifactPanel } from './artifact-panel';
 import { ChatHeader } from './chat-header';
 import { ChatInput } from './chat-input';
 import { Messages } from './messages';
+import { QueuedMessages } from './queued-messages';
 import { ArtifactContext, initialArtifactData } from '../hooks/use-artifact';
+import { useT } from '@extension/i18n';
 import {
   getEffectiveContextLimit,
   useLLMStream,
   parseSlashCommand,
   executeSlashCommand,
+  MAX_QUEUED_MESSAGES,
 } from '@extension/shared';
 import { diagnostics } from '@extension/shared/lib/diagnostics.js';
 import { addMessage, deleteMessagesAfter, touchChat } from '@extension/storage';
@@ -18,6 +21,7 @@ import type {
   Attachment,
   ChatMessage,
   ChatModel,
+  QueuedMessageMode,
   SessionUsage,
   SubagentProgressInfo,
 } from '@extension/shared';
@@ -63,6 +67,7 @@ const Chat = ({
   onStopSubagent,
   onRenameChat,
 }: ChatProps) => {
+  const t = useT();
   // Track accumulated token usage for context status badge
   const usageRef = useRef({
     inputTokens: 0,
@@ -184,7 +189,22 @@ const Chat = ({
 
   const [isCompacting, setIsCompacting] = useState(false);
 
-  const { messages, setMessages, sendMessage, status, stop, input, setInput } = useLLMStream({
+  const {
+    messages,
+    setMessages,
+    sendMessage,
+    status,
+    stop,
+    input,
+    setInput,
+    queue,
+    enqueue,
+    removeQueued,
+    clearQueue,
+    restoreQueue,
+    steerQueued,
+    resumeQueue,
+  } = useLLMStream({
     chatId,
     model: selectedModel,
     onStreamComplete: handleStreamCompleteWithUsage,
@@ -193,6 +213,35 @@ const Chat = ({
     initialMessages,
     onTtsAudio: handleTtsAudio,
   });
+
+  const isRunning = status === 'connecting' || status === 'streaming';
+  const queueActive = queue.items.length > 0 && !queue.pauseReason;
+  // Editing truncates history, which would race the running or next queued turn.
+  const canEdit = !isRunning && !queueActive && !isCompacting;
+
+  const handleEnqueue = useCallback(
+    (content: string, mode: QueuedMessageMode) => {
+      if (parseSlashCommand(content)) {
+        toast.error(t('chat_commandBlockedWhileRunning'));
+        return false;
+      }
+      if (!enqueue(content, mode)) {
+        toast.error(t('chat_queueFull', String(MAX_QUEUED_MESSAGES)));
+        return false;
+      }
+      return true;
+    },
+    [enqueue, t],
+  );
+
+  const handleClearQueue = useCallback(() => {
+    const cleared = clearQueue();
+    if (cleared.items.length === 0) return;
+    toast(t('chat_queueCleared'), {
+      action: { label: t('archive_undo'), onClick: () => restoreQueue(cleared) },
+      duration: 5000,
+    });
+  }, [clearQueue, restoreQueue, t]);
 
   // Append subagent result messages directly to messages state
   // (bypasses the broken initialMessages → useState path)
@@ -272,7 +321,7 @@ const Chat = ({
           activeSubagents={activeSubagents}
           chatId={chatId}
           messages={messages}
-          onEditSubmit={handleEditSubmit}
+          onEditSubmit={canEdit ? handleEditSubmit : undefined}
           onSendMessage={(content: string) => sendMessage(content)}
           onStopSubagent={onStopSubagent}
           setMessages={setMessages}
@@ -282,7 +331,9 @@ const Chat = ({
         <div className="bg-background sticky bottom-0 z-[1] mx-auto flex w-full max-w-4xl gap-2 border-t-0 px-2 pb-3 md:px-4 md:pb-4">
           <ChatInput
             input={input}
+            isCompacting={isCompacting}
             models={models}
+            onEnqueue={handleEnqueue}
             onModelChange={onModelChange}
             onSubmit={(content: string, attachments?: Attachment[]) => {
               const parsed = parseSlashCommand(content);
@@ -330,10 +381,21 @@ const Chat = ({
               }
               sendMessage(content, attachments);
             }}
+            queueActive={queueActive}
             selectedModelId={selectedModel.dbId ?? selectedModel.id}
             setInput={setInput}
-            status={isCompacting ? 'connecting' : status}
+            status={status}
             stop={stop}
+            tray={
+              <QueuedMessages
+                canSteer={isRunning}
+                onClear={handleClearQueue}
+                onRemove={removeQueued}
+                onResume={resumeQueue}
+                onSteer={steerQueued}
+                queue={queue}
+              />
+            }
           />
         </div>
       </div>

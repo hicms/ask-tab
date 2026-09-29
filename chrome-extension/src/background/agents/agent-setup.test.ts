@@ -37,17 +37,22 @@ import type { DbChatModel } from '@extension/storage';
 let mockAgentState: { error?: string } = { error: undefined };
 let mockPromptFn: ReturnType<typeof vi.fn> = vi.fn(async () => {});
 let mockInitialTools: unknown[] = [];
+let mockAgentOpts: Record<string, unknown> = {};
+let mockSubscriber: ((event: unknown) => void) | undefined;
 
 // ── Mocks ──────────────────────────────────────────────
 
 vi.mock('./agent', () => {
   class MockAgent {
     state = mockAgentState;
-    subscribe = vi.fn();
+    subscribe = vi.fn((fn: (event: unknown) => void) => {
+      mockSubscriber = fn;
+    });
     prompt = mockPromptFn;
     abort = vi.fn();
     constructor(opts: { initialState: { tools: unknown[] } }) {
       mockInitialTools = opts.initialState.tools;
+      mockAgentOpts = opts;
       // Re-read mutable state so each test can configure it
       this.state = mockAgentState;
       this.prompt = mockPromptFn;
@@ -322,6 +327,29 @@ describe('agent-setup', () => {
         expect(getAgentTools).not.toHaveBeenCalled();
       },
     );
+
+    it('passes the steering source to the agent and reports only injected user messages', async () => {
+      const getSteeringMessages = vi.fn(async () => []);
+      const onUserMessage = vi.fn();
+      const prompt = { role: 'user' as const, content: 'Hello', timestamp: 1 };
+      const steer = { role: 'user' as const, content: 'Actually, stop', timestamp: 2 };
+      mockPromptFn = vi.fn(async () => {
+        mockSubscriber?.({ type: 'message_end', message: prompt });
+        mockSubscriber?.({ type: 'message_end', message: steer });
+      });
+
+      await runAgent({
+        model: makeChatModel(),
+        systemPrompt: 'You are helpful.',
+        prompt,
+        getSteeringMessages,
+        onUserMessage,
+      });
+
+      expect(mockAgentOpts.getSteeringMessages).toBe(getSteeringMessages);
+      expect(onUserMessage).toHaveBeenCalledOnce();
+      expect(onUserMessage).toHaveBeenCalledWith(steer);
+    });
 
     it('passes the model tool capability to the shared prompt builder', async () => {
       await buildHeadlessSystemPrompt(makeChatModel({ supportsTools: false }));

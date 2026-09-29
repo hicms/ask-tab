@@ -14,9 +14,10 @@ AskTab supports keyboard shortcuts in the chat interface for common actions.
 
 | Shortcut | Action |
 |----------|--------|
-| `Enter` | Send message |
+| `Enter` | Send message. While a reply is being generated, add it to the queue instead |
+| `Ctrl/Cmd + Enter` | While a reply is being generated, steer it: the message is inserted after the running tool finishes. Otherwise the same as `Enter` |
 | `Shift + Enter` | New line in message |
-| `Escape` | Cancel current generation / close panels |
+| `Escape` | Close the slash command menu if it is open; otherwise stop the current generation and pause the queue |
 | `Up Arrow` | Edit last message (when input is empty) |
 
 ## Navigation

@@ -1,9 +1,10 @@
 import 'webextension-polyfill';
+import { createChatQueue } from './agents/chat-queue';
 import {
   handleLLMStream,
   subscribeLLMStream,
   watchLLMStreams,
-  stopLLMStream,
+  setStreamQueueHooks,
 } from './agents/stream-handler';
 import { handleAskMessage, refreshSessionOnStartup } from './ask-service/session';
 import {
@@ -38,7 +39,13 @@ import { createKeepAliveManager } from './utils/keep-alive';
 import { initSidePanelBehavior } from '@extension/shared';
 import { diagnostics } from '@extension/shared/lib/diagnostics.js';
 import { askSessionStorage, getScheduledTask } from '@extension/storage';
-import type { ChatMessage, ChatModel, LLMRequestMessage, LogCategory } from '@extension/shared';
+import type {
+  ChatMessage,
+  ChatModel,
+  LLMQueueCommand,
+  LLMRequestMessage,
+  LogCategory,
+} from '@extension/shared';
 
 // ── Port Listener for LLM Streaming ───────────
 
@@ -532,6 +539,16 @@ chrome.windows.onRemoved.addListener(windowId => {
 
 const streamKeepAlive = createKeepAliveManager('keep-alive');
 
+const chatQueue = createChatQueue({ storage: chrome.storage.session, keepAlive: streamKeepAlive });
+setStreamQueueHooks({ takeSteering: chatQueue.takeSteering, onSettled: chatQueue.onSettled });
+
+const isQueueCommand = (
+  msg: Record<string, unknown>,
+): msg is LLMQueueCommand & Record<string, unknown> =>
+  typeof msg.type === 'string' &&
+  msg.type.startsWith('LLM_QUEUE_') &&
+  typeof msg.chatId === 'string';
+
 chrome.runtime.onConnect.addListener(port => {
   if (port.name === 'log-stream') {
     registerStreamPort(port);
@@ -548,13 +565,18 @@ chrome.runtime.onConnect.addListener(port => {
         );
       } else if (msg.type === 'LLM_STREAM_SUBSCRIBE' && typeof msg.chatId === 'string') {
         subscribeLLMStream(port, msg.chatId).catch(diagnostics.error);
+        chatQueue.sendSnapshot(port, msg.chatId).catch(diagnostics.error);
       } else if (msg.type === 'LLM_STREAM_STOP' && typeof msg.chatId === 'string') {
-        stopLLMStream(
-          msg.chatId,
-          typeof msg.assistantMessageId === 'string' ? msg.assistantMessageId : undefined,
-        );
+        chatQueue
+          .stop(
+            msg.chatId,
+            typeof msg.assistantMessageId === 'string' ? msg.assistantMessageId : undefined,
+          )
+          .catch(diagnostics.error);
       } else if (msg.type === 'LLM_STREAM_WATCH') {
         watchLLMStreams(port);
+      } else if (isQueueCommand(msg)) {
+        chatQueue.handleCommand(msg).catch(diagnostics.error);
       }
     });
   }

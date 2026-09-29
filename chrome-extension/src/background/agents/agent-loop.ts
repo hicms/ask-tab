@@ -13,6 +13,7 @@ import {
   recordToolCallOutcome,
 } from './tool-loop-detection';
 import { createLogger } from '../logging/logger-buffer';
+import { SKIPPED_TOOL_RESULT } from '@extension/shared';
 import { diagnostics } from '@extension/shared/lib/diagnostics.js';
 import { EventStream, validateToolArguments } from '@mariozechner/pi-ai';
 import type { ToolLoopState } from './tool-loop-detection';
@@ -604,7 +605,7 @@ const skipToolCall = (
   stream: EventStream<AgentEvent, AgentMessage[]>,
 ): ToolResultMessage => {
   const result: AgentToolResult<unknown> = {
-    content: [{ type: 'text', text: 'Skipped due to queued user message.' }],
+    content: [{ type: 'text', text: SKIPPED_TOOL_RESULT }],
     details: {},
   };
 

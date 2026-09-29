@@ -1,6 +1,13 @@
 import { markInterruptedToolCalls } from '../chat-cancellation.js';
+import { MAX_QUEUED_MESSAGES } from '../chat-queue.js';
 import { nanoid } from 'nanoid';
 import { useState, useRef, useCallback, useEffect } from 'react';
+import type {
+  ChatQueueState,
+  LLMQueueCommand,
+  LLMQueueSnapshot,
+  QueuedMessageMode,
+} from '../chat-queue.js';
 import type {
   Attachment,
   ChatMessage,
@@ -38,9 +45,20 @@ interface UseLLMStreamReturn {
   stop: () => void;
   input: string;
   setInput: React.Dispatch<React.SetStateAction<string>>;
+  /** Messages waiting for the running turn, owned by the background. */
+  queue: ChatQueueState;
+  /** Returns false when the queue is full. */
+  enqueue: (text: string, mode: QueuedMessageMode) => boolean;
+  removeQueued: (itemId: string) => void;
+  /** Returns the cleared state so it can be restored. */
+  clearQueue: () => ChatQueueState;
+  restoreQueue: (state: ChatQueueState) => void;
+  steerQueued: (itemId: string) => void;
+  resumeQueue: () => void;
 }
 
 const EMPTY_MESSAGES: ChatMessage[] = [];
+const EMPTY_QUEUE: ChatQueueState = { items: [] };
 
 const useLLMStream = ({
   chatId,
@@ -64,6 +82,8 @@ const useLLMStream = ({
   const runningRef = useRef(false);
   const synchronizingRef = useRef(false);
   const pendingSendRef = useRef<{ content: string; attachments?: Attachment[] } | null>(null);
+  const [queue, setQueueState] = useState<ChatQueueState>(EMPTY_QUEUE);
+  const queueRef = useRef(EMPTY_QUEUE);
 
   // Update the ref synchronously: stream events can arrive before React renders.
   const setMessages = useCallback<React.Dispatch<React.SetStateAction<ChatMessage[]>>>(next => {
@@ -197,9 +217,7 @@ const useLLMStream = ({
       }
       setStatus('idle');
       runningRef.current = false;
-      const port = portRef.current;
-      portRef.current = null;
-      port?.disconnect();
+      // The port stays subscribed: the background may start the next queued turn.
       if (assistantMessageRef.current) {
         const usage = end.usage
           ? {
@@ -230,9 +248,6 @@ const useLLMStream = ({
         ...parts,
         { type: 'text' as const, text: `\n\nError: ${error.error}` },
       ]);
-      const port = portRef.current;
-      portRef.current = null;
-      port?.disconnect();
       // Save partial assistant message on error so it's not lost on reload
       if (partialMessage && !error.persistedByBackground) {
         await onStreamComplete?.(partialMessage);
@@ -300,6 +315,13 @@ const useLLMStream = ({
         case 'LLM_STREAM_RETRY':
           if (Number(msg.attempt) > 0) updateAssistantPart(() => []);
           break;
+        case 'LLM_QUEUE_SNAPSHOT': {
+          const { items, pauseReason } = msg as unknown as LLMQueueSnapshot;
+          const next: ChatQueueState = pauseReason ? { items, pauseReason } : { items };
+          queueRef.current = next;
+          setQueueState(next);
+          break;
+        }
         case 'LLM_TTS_AUDIO':
           handlers.onTtsAudio?.(
             msg.audioBase64 as string,
@@ -317,6 +339,16 @@ const useLLMStream = ({
       pendingSendRef.current = null;
       if (runningRef.current) setStatus('error');
       runningRef.current = false;
+      // Only a worker restart drops the port, and the restored queue waits for the user.
+      const { items, pauseReason } = queueRef.current;
+      if (items.length > 0) {
+        const next: ChatQueueState = {
+          items: items.map(item => ({ ...item, mode: 'queue' })),
+          pauseReason: pauseReason ?? 'restarted',
+        };
+        queueRef.current = next;
+        setQueueState(next);
+      }
     });
     return port;
   }, [chatId, markStopped, setMessages, updateAssistantPart]);
@@ -405,16 +437,67 @@ const useLLMStream = ({
 
   const stop = useCallback(() => {
     abortedRef.current = true;
-    const port = portRef.current;
-    portRef.current = null;
-    port?.postMessage({
+    // Between two queued turns there is no turn to name; stop whichever starts.
+    portRef.current?.postMessage({
       type: 'LLM_STREAM_STOP',
       chatId,
-      assistantMessageId: assistantMessageRef.current?.id,
+      assistantMessageId: runningRef.current ? assistantMessageRef.current?.id : undefined,
     });
-    port?.disconnect();
     markStopped();
   }, [chatId, markStopped]);
+
+  /** A worker restart drops the port; reconnect on the next command rather than keep it awake. */
+  const sendQueueCommand = useCallback(
+    (command: LLMQueueCommand) => {
+      let port = portRef.current;
+      if (!port) {
+        port = connectPort();
+        port.postMessage({ type: 'LLM_STREAM_SUBSCRIBE', chatId });
+      }
+      port.postMessage(command);
+    },
+    [chatId, connectPort],
+  );
+
+  const enqueue = useCallback(
+    (text: string, mode: QueuedMessageMode) => {
+      if (queueRef.current.items.length >= MAX_QUEUED_MESSAGES) return false;
+      sendQueueCommand({
+        type: 'LLM_QUEUE_ADD',
+        chatId,
+        item: { id: nanoid(), text, mode, model, createdAt: Date.now() },
+      });
+      return true;
+    },
+    [chatId, model, sendQueueCommand],
+  );
+
+  const removeQueued = useCallback(
+    (itemId: string) => sendQueueCommand({ type: 'LLM_QUEUE_REMOVE', chatId, itemId }),
+    [chatId, sendQueueCommand],
+  );
+
+  const clearQueue = useCallback(() => {
+    const cleared = queueRef.current;
+    sendQueueCommand({ type: 'LLM_QUEUE_CLEAR', chatId });
+    return cleared;
+  }, [chatId, sendQueueCommand]);
+
+  const restoreQueue = useCallback(
+    ({ items, pauseReason }: ChatQueueState) =>
+      sendQueueCommand({ type: 'LLM_QUEUE_RESTORE', chatId, items, pauseReason }),
+    [chatId, sendQueueCommand],
+  );
+
+  const steerQueued = useCallback(
+    (itemId: string) => sendQueueCommand({ type: 'LLM_QUEUE_STEER', chatId, itemId }),
+    [chatId, sendQueueCommand],
+  );
+
+  const resumeQueue = useCallback(
+    () => sendQueueCommand({ type: 'LLM_QUEUE_RESUME', chatId }),
+    [chatId, sendQueueCommand],
+  );
 
   useEffect(() => {
     if (synchronizingRef.current || status !== 'idle') return;
@@ -429,6 +512,8 @@ const useLLMStream = ({
     synchronizingRef.current = true;
     runningRef.current = true;
     setStatus('connecting');
+    queueRef.current = EMPTY_QUEUE;
+    setQueueState(EMPTY_QUEUE);
     port.postMessage({ type: 'LLM_STREAM_SUBSCRIBE', chatId });
     return () => {
       synchronizingRef.current = false;
@@ -447,6 +532,13 @@ const useLLMStream = ({
     stop,
     input,
     setInput,
+    queue,
+    enqueue,
+    removeQueued,
+    clearQueue,
+    restoreQueue,
+    steerQueued,
+    resumeQueue,
   };
 };
 

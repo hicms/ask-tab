@@ -11,6 +11,7 @@ import { isDocumentToolCall } from '../artifact-stream';
 import { imageContentToSrc } from '../image-src';
 import { getToolCategory, getToolIcon, summarizeToolCall } from '../tool-call-summary';
 import { cn } from '../utils';
+import { isSkippedToolCall } from '@extension/shared';
 import { useState, useMemo, useCallback } from 'react';
 import { toast } from 'sonner';
 import type {
@@ -165,6 +166,7 @@ const PreviewMessage = ({ message, isLoading, setMessages, onEditSubmit }: Previ
                         args={part.args}
                         key={part.toolCallId}
                         result={part.result}
+                        skipped={isSkippedToolCall(part)}
                         state={state}
                         toolName={part.toolName}
                       />
@@ -282,9 +284,11 @@ type ToolCallPartProps = {
   toolName: string;
   args: Record<string, unknown>;
   result: unknown;
+  /** Never ran because a steering message arrived first; not a failure. */
+  skipped: boolean;
 };
 
-const ToolCallPart = ({ state, toolName, args, result }: ToolCallPartProps) => {
+const ToolCallPart = ({ state, toolName, args, result, skipped }: ToolCallPartProps) => {
   const isComplete = state === 'output-available' || state === 'output-error';
 
   // Always collapsed by default — running state is conveyed by the one-line summary/icon in
@@ -313,6 +317,7 @@ const ToolCallPart = ({ state, toolName, args, result }: ToolCallPartProps) => {
         icon={getToolIcon(toolName)}
         name={toolName}
         onCopy={isComplete ? handleCopy : undefined}
+        skipped={skipped}
         state={state}
         summary={summary}
       />
@@ -323,7 +328,7 @@ const ToolCallPart = ({ state, toolName, args, result }: ToolCallPartProps) => {
           <ToolOutput output={<ToolResultView args={args} result={result} toolName={toolName} />} />
         ) : null}
 
-        {state === 'output-error' && result != null ? (
+        {state === 'output-error' && !skipped && result != null ? (
           <ToolOutput
             errorText={typeof result === 'string' ? result : JSON.stringify(result, null, 2)}
             output={null}
