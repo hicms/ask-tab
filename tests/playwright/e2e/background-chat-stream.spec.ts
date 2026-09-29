@@ -128,6 +128,58 @@ const send = async (page: Page, question: string) => {
 };
 
 for (const pagePath of ['side-panel', 'full-page-chat'] as const) {
+  test(`${pagePath} sends a shortcut card after the composer has been focused`, async ({
+    context,
+    extensionId,
+  }) => {
+    const worker = context.serviceWorkers()[0];
+    await installProvider(worker);
+    const page = await openChat(context, extensionId, pagePath, { cached: catalog });
+    const input = page.locator('textarea');
+    await input.click();
+    const card = page.getByTestId('suggested-actions').getByRole('button').first();
+    await card.click();
+    await expect(page.getByTestId('message-user')).toContainText('帮我总结浏览器当前标签页的内容');
+    await expect(page.getByTestId('message-reasoning')).toContainText('初始推理。');
+    expect(await worker.evaluate(() => (globalThis as StreamWorker).testStreams.length)).toBe(1);
+    await emit(worker, 0, '快捷操作已执行。', true);
+    await expect(page.getByText('快捷操作已执行。', { exact: true })).toBeVisible();
+  });
+
+  test(`${pagePath} does not drop a shortcut clicked while the initial subscription is pending`, async ({
+    context,
+    extensionId,
+  }) => {
+    const worker = context.serviceWorkers()[0];
+    await installProvider(worker);
+    await context.addInitScript(() => {
+      const connect = chrome.runtime.connect.bind(chrome.runtime);
+      chrome.runtime.connect = (...args: Parameters<typeof chrome.runtime.connect>) => {
+        const port = connect(...args);
+        if (port.name !== 'llm-stream') return port;
+        const post = port.postMessage.bind(port);
+        port.postMessage = message => {
+          if (message.type === 'LLM_STREAM_SUBSCRIBE') {
+            Object.assign(window, { releaseSubscription: () => post(message) });
+          } else post(message);
+        };
+        return port;
+      };
+    });
+    const page = await openChat(context, extensionId, pagePath, { cached: catalog });
+    await page.locator('textarea').click();
+    await page.getByTestId('suggested-actions').getByRole('button').first().click();
+    await expect(page.locator('textarea')).toHaveValue('帮我总结浏览器当前标签页的内容');
+    expect(await worker.evaluate(() => (globalThis as StreamWorker).testStreams.length)).toBe(0);
+    await page.evaluate(() =>
+      (window as unknown as { releaseSubscription: () => void }).releaseSubscription(),
+    );
+    await expect(page.getByTestId('message-user')).toContainText('帮我总结浏览器当前标签页的内容');
+    await expect(page.getByTestId('message-reasoning')).toContainText('初始推理。');
+    expect(await worker.evaluate(() => (globalThis as StreamWorker).testStreams.length)).toBe(1);
+    await emit(worker, 0, '快捷操作已执行。', true);
+  });
+
   test(`${pagePath} keeps concurrent turns running and restores them from history`, async ({
     context,
     extensionId,

@@ -12,6 +12,7 @@ let refIndex = 0;
 let effectIndex = 0;
 let callbackIndex = 0;
 let pendingEffects: Array<() => unknown> = [];
+let delayInitialSnapshot = false;
 
 vi.mock('react', () => ({
   useState: (initial: unknown) => {
@@ -84,6 +85,7 @@ describe('useLLMStream persisted snapshots', () => {
   });
 
   beforeEach(() => {
+    delayInitialSnapshot = false;
     states.length = refs.length = effectDependencies.length = callbacks.length = 0;
     vi.stubGlobal('chrome', {
       runtime: {
@@ -91,7 +93,7 @@ describe('useLLMStream persisted snapshots', () => {
           let receive: (message: unknown) => void;
           return {
             postMessage: vi.fn(message => {
-              if (message.type === 'LLM_STREAM_SUBSCRIBE')
+              if (message.type === 'LLM_STREAM_SUBSCRIBE' && !delayInitialSnapshot)
                 receive({
                   type: 'LLM_STREAM_SNAPSHOT',
                   chatId: 'current-chat',
@@ -110,6 +112,76 @@ describe('useLLMStream persisted snapshots', () => {
         }),
       },
     });
+  });
+
+  it('acknowledges a shortcut during synchronization and sends it once when idle', () => {
+    delayInitialSnapshot = true;
+    const initial: ChatMessage[] = [];
+    render(initial).sendMessage('Summarize this page');
+    const pending = render(initial);
+    expect(pending.input).toBe('Summarize this page');
+    expect(pending.messages).toEqual([]);
+    const subscription = vi.mocked(chrome.runtime.connect).mock.results[0].value;
+    subscription.onMessage.addListener.mock.calls[0][0]({
+      type: 'LLM_STREAM_SNAPSHOT',
+      chatId: 'current-chat',
+      messages: [],
+      status: 'idle',
+    });
+    render(initial);
+    const sent = render(initial);
+    expect(
+      sent.messages.filter(message => message.role === 'user').map(message => message.parts),
+    ).toEqual([[{ type: 'text', text: 'Summarize this page' }]]);
+    expect(sent.input).toBe('');
+    expect(chrome.runtime.connect).toHaveBeenCalledTimes(2);
+    const request = vi.mocked(chrome.runtime.connect).mock.results[1].value;
+    expect(request.postMessage).toHaveBeenCalledOnce();
+    expect(request.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'LLM_REQUEST' }),
+    );
+  });
+
+  it('does not send a pending shortcut after the user edits its draft', () => {
+    delayInitialSnapshot = true;
+    const initial: ChatMessage[] = [];
+    const hook = render(initial);
+    hook.sendMessage('Summarize this page');
+    hook.setInput('I changed my mind');
+    const subscription = vi.mocked(chrome.runtime.connect).mock.results[0].value;
+    subscription.onMessage.addListener.mock.calls[0][0]({
+      type: 'LLM_STREAM_SNAPSHOT',
+      chatId: 'current-chat',
+      messages: [],
+      status: 'idle',
+    });
+    render(initial);
+    const updated = render(initial);
+    expect(updated.messages).toEqual([]);
+    expect(updated.input).toBe('I changed my mind');
+    expect(chrome.runtime.connect).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the shortcut as a draft when synchronization restores a running turn', () => {
+    delayInitialSnapshot = true;
+    const initial: ChatMessage[] = [];
+    render(initial).sendMessage('Summarize this page');
+    const subscription = vi.mocked(chrome.runtime.connect).mock.results[0].value;
+    const receive = subscription.onMessage.addListener.mock.calls[0][0];
+    receive({
+      type: 'LLM_STREAM_SNAPSHOT',
+      chatId: 'current-chat',
+      messages: [persistedMessage()],
+      status: 'streaming',
+    });
+    render(initial);
+    receive({ type: 'LLM_STREAM_END', finishReason: 'stop' });
+    render(initial);
+    const finished = render(initial);
+    expect(finished.status).toBe('idle');
+    expect(finished.messages).toEqual([persistedMessage()]);
+    expect(finished.input).toBe('Summarize this page');
+    expect(chrome.runtime.connect).toHaveBeenCalledOnce();
   });
 
   it('refreshes the current idle transcript without changing the draft', () => {

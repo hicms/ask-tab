@@ -62,6 +62,8 @@ const useLLMStream = ({
   const previousInitialMessagesRef = useRef(initialMessages);
   const messagesRef = useRef(initialMessages);
   const runningRef = useRef(false);
+  const synchronizingRef = useRef(false);
+  const pendingSendRef = useRef<{ content: string; attachments?: Attachment[] } | null>(null);
 
   // Update the ref synchronously: stream events can arrive before React renders.
   const setMessages = useCallback<React.Dispatch<React.SetStateAction<ChatMessage[]>>>(next => {
@@ -218,6 +220,8 @@ const useLLMStream = ({
 
   const handleError = useCallback(
     async (error: LLMStreamError) => {
+      synchronizingRef.current = false;
+      pendingSendRef.current = null;
       setStatus('error');
       runningRef.current = false;
       // Capture partial message before appending error text so persisted content is clean
@@ -241,6 +245,8 @@ const useLLMStream = ({
   handlersRef.current = { handleChunk, handleEnd, handleError, onTtsAudio };
 
   const markStopped = useCallback(() => {
+    synchronizingRef.current = false;
+    pendingSendRef.current = null;
     runningRef.current = false;
     const assistantId = assistantMessageRef.current?.id;
     setMessages(previous =>
@@ -265,8 +271,12 @@ const useLLMStream = ({
       switch (msg.type) {
         case 'LLM_STREAM_SNAPSHOT': {
           const snapshot = msg as unknown as LLMStreamSnapshot;
+          synchronizingRef.current = false;
           abortedRef.current = false;
           runningRef.current = snapshot.status === 'connecting' || snapshot.status === 'streaming';
+          // A restored turn owns this session. Keep the shortcut as a draft,
+          // without submitting it automatically when that turn finishes.
+          if (runningRef.current) pendingSendRef.current = null;
           assistantMessageRef.current =
             snapshot.messages.find(m => m.id === snapshot.assistantMessageId) ?? null;
           isFirstMessageRef.current = snapshot.messages.length === 0;
@@ -303,6 +313,8 @@ const useLLMStream = ({
     port.onDisconnect.addListener(() => {
       if (portRef.current !== port) return;
       portRef.current = null;
+      synchronizingRef.current = false;
+      pendingSendRef.current = null;
       if (runningRef.current) setStatus('error');
       runningRef.current = false;
     });
@@ -311,6 +323,13 @@ const useLLMStream = ({
 
   const sendMessage = useCallback(
     (content: string, attachments?: Attachment[]) => {
+      if (synchronizingRef.current) {
+        // Welcome cards are usable before the initial subscription replies.
+        // Acknowledge the click and retain its intent instead of dropping it.
+        pendingSendRef.current = { content, attachments };
+        setInput(content);
+        return;
+      }
       if (runningRef.current) return;
 
       const userParts: ChatMessagePart[] = [];
@@ -398,11 +417,22 @@ const useLLMStream = ({
   }, [chatId, markStopped]);
 
   useEffect(() => {
+    if (synchronizingRef.current || status !== 'idle') return;
+    const pending = pendingSendRef.current;
+    pendingSendRef.current = null;
+    // Editing or clearing the visible draft cancels the pending shortcut.
+    if (pending && input === pending.content) sendMessage(pending.content, pending.attachments);
+  }, [input, status, sendMessage]);
+
+  useEffect(() => {
     const port = connectPort();
+    synchronizingRef.current = true;
     runningRef.current = true;
     setStatus('connecting');
     port.postMessage({ type: 'LLM_STREAM_SUBSCRIBE', chatId });
     return () => {
+      synchronizingRef.current = false;
+      pendingSendRef.current = null;
       const current = portRef.current;
       portRef.current = null;
       current?.disconnect();
