@@ -368,6 +368,54 @@ describe('executeBrowser — debugger actions', () => {
     expect(mockDebuggerAttach).toHaveBeenCalled();
   });
 
+  it('open: attaches the debugger so the background tab keeps rendering', async () => {
+    mockDebuggerAttach.mockImplementation((_target: unknown, _version: string, cb: () => void) =>
+      cb(),
+    );
+    const calls: Array<{ method: string; params: unknown }> = [];
+    mockDebuggerSendCommand.mockImplementation(
+      (_target: unknown, method: string, params: unknown, cb: (result: unknown) => void) => {
+        calls.push({ method, params });
+        cb({});
+      },
+    );
+
+    const result = await mod.executeBrowser({
+      action: 'open',
+      url: 'https://example.com',
+    } as BrowserArgs);
+
+    expect(result).toBe('Opened tab [99]: https://example.com');
+    expect(mockDebuggerAttach).toHaveBeenCalledWith({ tabId: 99 }, '1.3', expect.any(Function));
+    expect(calls).toContainEqual({
+      method: 'Emulation.setFocusEmulationEnabled',
+      params: { enabled: true },
+    });
+    expect(mod.sessions.get(99)?.attached).toBe(true);
+  });
+
+  it('open: still opens the tab and lets later actions retry when attach fails', async () => {
+    mockDebuggerAttach.mockImplementation((_target: unknown, _version: string, cb: () => void) => {
+      chrome.runtime.lastError = { message: 'Cannot access a chrome:// URL' };
+      cb();
+      chrome.runtime.lastError = undefined as unknown as typeof chrome.runtime.lastError;
+    });
+
+    try {
+      const result = await mod.executeBrowser({
+        action: 'open',
+        url: 'https://example.com',
+      } as BrowserArgs);
+
+      expect(result).toBe('Opened tab [99]: https://example.com');
+      expect(mod.attachFailureCache.has(99)).toBe(false);
+    } finally {
+      mockDebuggerAttach.mockImplementation((_target: unknown, _version: string, cb: () => void) =>
+        cb(),
+      );
+    }
+  });
+
   it('navigate: returns error when url is missing', async () => {
     const result = await mod.executeBrowser({
       action: 'navigate',
@@ -1039,6 +1087,32 @@ describe('session management', () => {
     expect(calledMethods).toContain('Network.enable');
     expect(calledMethods).toContain('Page.enable');
     expect(calledMethods).toContain('DOM.enable');
+    expect(calledMethods).toContain('Emulation.setFocusEmulationEnabled');
+  });
+
+  it('ensureAttached: keeps rendering when reusing an existing debugger session', async () => {
+    mockDebuggerAttach.mockImplementation((_target: unknown, _version: string, cb: () => void) => {
+      chrome.runtime.lastError = { message: 'Another debugger is already attached to the tab' };
+      cb();
+      chrome.runtime.lastError = undefined as unknown as typeof chrome.runtime.lastError;
+    });
+    const calledMethods: string[] = [];
+    mockDebuggerSendCommand.mockImplementation(
+      (_target: unknown, method: string, _params: unknown, cb: (result: unknown) => void) => {
+        calledMethods.push(method);
+        cb({});
+      },
+    );
+
+    try {
+      await mod.executeBrowser({ action: 'screenshot', tabId: 11 } as BrowserArgs);
+
+      expect(calledMethods).toContain('Emulation.setFocusEmulationEnabled');
+    } finally {
+      mockDebuggerAttach.mockImplementation((_target: unknown, _version: string, cb: () => void) =>
+        cb(),
+      );
+    }
   });
 
   it('ensureAttached: is idempotent for already-attached tabs', async () => {

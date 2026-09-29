@@ -64,6 +64,22 @@ const cdpAttach = async (target: number | chrome.debugger.Debuggee): Promise<str
 };
 
 /**
+ * Chrome stops rendering tabs that are not the active tab of their window: no
+ * animation frames, IntersectionObserver callbacks or lazy-loaded content. A tab
+ * opened with `active: false` therefore stays blank until the user switches to
+ * it. Focus emulation keeps the attached tab rendering without activating it,
+ * for as long as the debugger stays attached.
+ */
+const keepTabRendering = async (tabId: number): Promise<void> => {
+  try {
+    await cdpSend(tabId, 'Emulation.setFocusEmulationEnabled', { enabled: true });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    diagnostics.warn(`[cdp] Focus emulation failed on tab ${tabId}: ${msg}`);
+  }
+};
+
+/**
  * Like cdpSend, but if the command fails with a "not attached" or "detached"
  * error, re-attaches the debugger once and retries the command.
  */
@@ -87,9 +103,10 @@ const cdpSendWithReattach = async <T = unknown>(
     await cdpSend(tabId, 'Network.enable');
     await cdpSend(tabId, 'Page.enable');
     await cdpSend(tabId, 'DOM.enable');
+    await keepTabRendering(tabId);
     diagnostics.info(`[cdp] Re-attached to tab ${tabId}, retrying ${method}`);
     return cdpSend<T>(tabId, method, params);
   }
 };
 
-export { cdpSend, cdpAttach, cdpSendWithReattach };
+export { cdpSend, cdpAttach, cdpSendWithReattach, keepTabRendering };

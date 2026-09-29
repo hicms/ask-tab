@@ -27,7 +27,7 @@ Object.defineProperty(globalThis, 'chrome', {
 
 // Now import the module under test
 // eslint-disable-next-line import-x/first, import-x/order -- must come after chrome mock setup
-import { cdpSend, cdpAttach } from './cdp';
+import { cdpSend, cdpAttach, cdpSendWithReattach, keepTabRendering } from './cdp';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -111,5 +111,65 @@ describe('cdpAttach', () => {
 
     const result = await cdpAttach(1);
     expect(result).toBe('Cannot access a chrome:// URL');
+  });
+});
+
+// ── keepTabRendering ────────────────────────────
+
+describe('keepTabRendering', () => {
+  it('enables focus emulation so a background tab keeps rendering', async () => {
+    await keepTabRendering(3);
+    expect(mockDebuggerSendCommand).toHaveBeenCalledWith(
+      { tabId: 3 },
+      'Emulation.setFocusEmulationEnabled',
+      { enabled: true },
+      expect.any(Function),
+    );
+  });
+
+  it('does not throw when the browser rejects focus emulation', async () => {
+    mockDebuggerSendCommand.mockImplementation(
+      (_target: unknown, _method: string, _params: unknown, cb: (result: unknown) => void) => {
+        chrome.runtime.lastError = {
+          message: "'Emulation.setFocusEmulationEnabled' wasn't found",
+        } as typeof chrome.runtime.lastError;
+        cb({});
+        chrome.runtime.lastError = undefined as unknown as typeof chrome.runtime.lastError;
+      },
+    );
+
+    await expect(keepTabRendering(3)).resolves.toBeUndefined();
+  });
+});
+
+// ── cdpSendWithReattach ─────────────────────────
+
+describe('cdpSendWithReattach', () => {
+  it('restores focus emulation after re-attaching a detached debugger', async () => {
+    mockDebuggerAttach.mockImplementation((_target: unknown, _version: string, cb: () => void) =>
+      cb(),
+    );
+    let detached = true;
+    const methods: string[] = [];
+    mockDebuggerSendCommand.mockImplementation(
+      (_target: unknown, method: string, _params: unknown, cb: (result: unknown) => void) => {
+        methods.push(method);
+        if (detached && method === 'DOM.getDocument') {
+          detached = false;
+          chrome.runtime.lastError = {
+            message: 'Debugger is not attached to the tab with id: 5.',
+          } as typeof chrome.runtime.lastError;
+          cb({});
+          chrome.runtime.lastError = undefined as unknown as typeof chrome.runtime.lastError;
+          return;
+        }
+        cb({ ok: true });
+      },
+    );
+
+    await expect(cdpSendWithReattach(5, 'DOM.getDocument')).resolves.toEqual({ ok: true });
+    expect(mockDebuggerAttach).toHaveBeenCalledWith({ tabId: 5 }, '1.3', expect.any(Function));
+    expect(methods).toContain('Emulation.setFocusEmulationEnabled');
+    expect(methods.at(-1)).toBe('DOM.getDocument');
   });
 });

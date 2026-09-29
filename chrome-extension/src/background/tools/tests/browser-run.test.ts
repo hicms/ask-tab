@@ -8,7 +8,11 @@ const { cdp, visual, scriptingClear, fallback } = vi.hoisted(() => ({
   scriptingClear: vi.fn(async () => {}),
   fallback: vi.fn(async () => '[1] button fallback'),
 }));
-vi.mock('../cdp', () => ({ cdpSend: cdp, cdpSendWithReattach: cdp }));
+vi.mock('../cdp', () => ({
+  cdpSend: cdp,
+  cdpSendWithReattach: cdp,
+  keepTabRendering: vi.fn(async () => {}),
+}));
 vi.mock('../browser-visuals', () => ({
   clearSnapshotVisuals: vi.fn(),
   showCdpSnapshotVisuals: vi.fn(),

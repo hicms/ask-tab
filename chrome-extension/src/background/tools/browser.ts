@@ -18,7 +18,7 @@ import {
 import { typeByRef } from './browser-type';
 import { clearSnapshotVisuals, showCdpSnapshotVisuals, sendVisualCommand } from './browser-visuals';
 import { waitForPage } from './browser-wait';
-import { cdpSend, cdpSendWithReattach } from './cdp';
+import { cdpSend, cdpSendWithReattach, keepTabRendering } from './cdp';
 import { sanitizeImage } from './image-sanitization';
 import { injectControlIndicator, removeControlIndicator } from './tab-indicator';
 import { createLogger } from '../logging/logger-buffer';
@@ -136,6 +136,7 @@ const tryAttach = async (tabId: number): Promise<string | null> => {
     if (msg.includes('Another debugger is already attached')) {
       browserLog.debug('Another debugger already attached, reusing', { tabId });
       session.attached = true;
+      await keepTabRendering(tabId);
       return null;
     }
     browserLog.warn('Attach failed', { tabId, error: msg });
@@ -162,6 +163,7 @@ const tryAttach = async (tabId: number): Promise<string | null> => {
     return msg;
   }
 
+  await keepTabRendering(tabId);
   return null;
 };
 
@@ -527,6 +529,19 @@ const handleOpen = async (args: BrowserArgs, chatId?: string): Promise<string> =
     args.groupId != null ? await chrome.tabs.create(props) : await openAgentTab(chatId, props);
   // Store the new tab ID so the caller can use it (e.g. for indicator highlight)
   if (tab.id != null) (args as Record<string, unknown>).tabId = tab.id;
+
+  // Attach while the page loads so a background tab keeps rendering.
+  if (tab.id != null) {
+    const attachErr = await ensureAttached(tab.id);
+    if (attachErr) {
+      browserLog.info('handleOpen: attach failed, page may not render in the background', {
+        tabId: tab.id,
+        error: attachErr,
+      });
+      // The tab was mid-navigation; let the next page action retry attaching.
+      attachFailureCache.delete(tab.id);
+    }
+  }
 
   // Optionally add the new tab to an existing group
   if (args.groupId != null && tab.id != null) {
