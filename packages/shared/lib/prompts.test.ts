@@ -20,6 +20,35 @@ const promptHintFor = (groupKey: string): string =>
 // ── buildSystemPrompt() tests ──
 
 describe('buildSystemPrompt', () => {
+  it.each(['full', 'minimal'] as const)('suppresses unavailable tools in %s mode', mode => {
+    const { text } = buildSystemPrompt({
+      mode,
+      supportsTools: false,
+      tools: [{ name: 'web_search', description: 'Search the web' }],
+      toolPromptHints: resolveToolPromptHints({ web_search: true, create_document: true }),
+      skills: [{ name: 'research', description: 'Research a topic', path: 'research/SKILL.md' }],
+      workspaceFiles: [{ name: 'USER.md', content: 'Prefer English.', owner: 'user' }],
+    });
+    expect(text).toContain('No tools are available in this request');
+    expect(text).not.toContain('- web_search:');
+    expect(text).not.toContain(toolStylePrompt);
+    expect(text).not.toContain(promptHintFor('webSearch'));
+    expect(text).not.toContain(promptHintFor('documents'));
+    expect(text).not.toContain('## Skills');
+    if (mode === 'full') expect(text).toContain('Prefer English.');
+  });
+
+  it('does not instruct tool use when the enabled tool list is empty', () => {
+    const { text } = buildSystemPrompt({
+      mode: 'full',
+      tools: [],
+      toolPromptHints: ['Use web_search before answering.'],
+    });
+    expect(text).toContain('No tools are available');
+    expect(text).not.toContain('Use web_search before answering.');
+    expect(text).not.toContain(toolStylePrompt);
+  });
+
   it('mode=full includes all sections', () => {
     const config: SystemPromptConfig = {
       mode: 'full',

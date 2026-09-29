@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@mariozechner/pi-ai@0.53.0':
+    hash: 4f90a455b37a0371308639fcd69dfa9074d5b877c0b277e627dc2a3f098425e2
+    path: patches/@mariozechner__pi-ai@0.53.0.patch
+
 importers:
 
   .:
@@ -28,7 +33,7 @@ importers:
         version: 0.53.0(ws@8.18.3)(zod@4.3.6)
       '@mariozechner/pi-ai':
         specifier: 0.53.0
-        version: 0.53.0(ws@8.18.3)(zod@4.3.6)
+        version: 0.53.0(patch_hash=4f90a455b37a0371308639fcd69dfa9074d5b877c0b277e627dc2a3f098425e2)(ws@8.18.3)(zod@4.3.6)
       '@radix-ui/react-dialog':
         specifier: ^1.1.15
         version: 1.1.15(@types/react-dom@19.1.9(@types/react@19.1.12))(@types/react@19.1.12)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -7376,7 +7381,7 @@ snapshots:
 
   '@mariozechner/pi-agent-core@0.53.0(ws@8.18.3)(zod@4.3.6)':
     dependencies:
-      '@mariozechner/pi-ai': 0.53.0(ws@8.18.3)(zod@4.3.6)
+      '@mariozechner/pi-ai': 0.53.0(patch_hash=4f90a455b37a0371308639fcd69dfa9074d5b877c0b277e627dc2a3f098425e2)(ws@8.18.3)(zod@4.3.6)
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
       - aws-crt
@@ -7386,7 +7391,7 @@ snapshots:
       - ws
       - zod
 
-  '@mariozechner/pi-ai@0.53.0(ws@8.18.3)(zod@4.3.6)':
+  '@mariozechner/pi-ai@0.53.0(patch_hash=4f90a455b37a0371308639fcd69dfa9074d5b877c0b277e627dc2a3f098425e2)(ws@8.18.3)(zod@4.3.6)':
     dependencies:
       '@anthropic-ai/sdk': 0.73.0(zod@4.3.6)
       '@aws-sdk/client-bedrock-runtime': 3.995.0

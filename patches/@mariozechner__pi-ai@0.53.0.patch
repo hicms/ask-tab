@@ -1,0 +1,25 @@
+diff --git a/dist/providers/google.js b/dist/providers/google.js
+index ccd384b2f534ab4db43f93c864dc3d2e18f6ada3..318b6f022d97673e77466bcbc9bdb3e76c96db18 100644
+--- a/dist/providers/google.js
++++ b/dist/providers/google.js
+@@ -143,7 +143,10 @@ export const streamGoogle = (model, context, options) => {
+                 }
+                 if (candidate?.finishReason) {
+                     output.stopReason = mapStopReason(candidate.finishReason);
+-                    if (output.content.some((b) => b.type === "toolCall")) {
++                    if (output.stopReason === "error") {
++                        output.errorMessage = `Gemini generation ended with ${candidate.finishReason}${candidate.finishMessage ? `: ${candidate.finishMessage}` : ""}`;
++                    }
++                    if (output.stopReason !== "error" && output.content.some((b) => b.type === "toolCall")) {
+                         output.stopReason = "toolUse";
+                     }
+                 }
+@@ -187,7 +190,7 @@ export const streamGoogle = (model, context, options) => {
+                 throw new Error("Request was aborted");
+             }
+             if (output.stopReason === "aborted" || output.stopReason === "error") {
+-                throw new Error("An unknown error occurred");
++                throw new Error(output.errorMessage || "An unknown error occurred");
+             }
+             stream.push({ type: "done", reason: output.stopReason, message: output });
+             stream.end();

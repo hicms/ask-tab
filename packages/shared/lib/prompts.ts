@@ -49,6 +49,7 @@ interface SystemPromptConfig {
   mode: 'full' | 'minimal' | 'none';
   identity?: string;
   hasTts?: boolean;
+  supportsTools?: boolean;
   tools?: { name: string; description: string }[];
   toolPromptHints?: string[];
   workspaceFiles?: { name: string; content: string; owner: 'user' | 'agent' }[];
@@ -77,6 +78,8 @@ const buildIdentitySection = (config: SystemPromptConfig): string | null =>
 const buildSafetySection = (): string => safetyPrompt;
 
 const buildToolsSection = (config: SystemPromptConfig): string | null => {
+  if (config.supportsTools === false || config.tools?.length === 0)
+    return '## Tool availability\n\nNo tools are available in this request. Respond directly without calling tools. Instructions in workspace files that require tools do not apply to this request. If the task requires web access or another unavailable tool, explain the limitation; do not claim to have used it.';
   if (!config.tools || config.tools.length === 0) return null;
   const toolLines = config.tools.map(t => `- ${t.name}: ${t.description}`).join('\n');
   return `## Tooling\n\nTool names are case-sensitive. Call tools exactly as listed.\n\n${toolLines}\n\nTOOLS.md does not control tool availability; it is user guidance for how to use external tools.`;
@@ -242,14 +245,15 @@ const buildSystemPrompt = (config: SystemPromptConfig): SystemPromptResult => {
   const budgetedFiles = budgetWorkspaceFiles(config.workspaceFiles ?? []);
   const budgetedConfig = { ...config, workspaceFiles: budgetedFiles };
 
-  parts.push(buildToolStyleSection());
+  const toolsAvailable = config.supportsTools !== false && config.tools?.length !== 0;
+  if (toolsAvailable) parts.push(buildToolStyleSection());
 
   // Tool prompt hints (pre-resolved by caller via resolveToolPromptHints)
-  if (budgetedConfig.toolPromptHints) {
+  if (toolsAvailable && budgetedConfig.toolPromptHints) {
     parts.push(...budgetedConfig.toolPromptHints);
   }
 
-  const skills = buildSkillsSection(budgetedConfig);
+  const skills = toolsAvailable ? buildSkillsSection(budgetedConfig) : null;
   if (skills) parts.push(skills);
 
   const ttsHint = buildTtsHintSection(budgetedConfig);

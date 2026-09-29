@@ -455,8 +455,9 @@ const runAgent = async (opts: RunAgentOpts): Promise<RunAgentResult> => {
   const { model: piModel } = chatModelToPiModel(model);
   const streamFn = createStreamFn(model);
   const tools =
-    toolsOverride ??
-    (model.supportsTools !== false ? await getAgentTools({ headless: headlessTools, chatId }) : []);
+    model.supportsTools === false
+      ? []
+      : (toolsOverride ?? (await getAgentTools({ headless: headlessTools, chatId })));
 
   const timeoutMs = (model.toolTimeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS) * 1000;
 
@@ -640,6 +641,7 @@ const buildHeadlessSystemPrompt = async (model: ChatModel, agentId?: string): Pr
 
   const promptConfig = {
     mode: 'full' as const,
+    supportsTools: model.supportsTools,
     tools: resolveToolListings(toolConfig.enabledTools, agent?.customTools, availableTools),
     toolPromptHints: resolveToolPromptHints(
       toolConfig.enabledTools,

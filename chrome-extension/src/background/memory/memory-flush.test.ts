@@ -81,6 +81,17 @@ describe('resolveMemoryFlushPromptForRun', () => {
 });
 
 describe('runMemoryFlushIfNeeded', () => {
+  it('does not run or mark memory flushed for a model without tools', async () => {
+    await runMemoryFlushIfNeeded({
+      chatId: 'chat-1',
+      modelConfig: { ...testModel, supportsTools: false },
+      systemPrompt: 'You are helpful.',
+      systemPromptTokens: 100,
+    });
+    expect(runAgent).not.toHaveBeenCalled();
+    expect(updateMemoryFlush).not.toHaveBeenCalled();
+  });
+
   it('forwards cancellation to the flush agent and does not mark an aborted flush complete', async () => {
     const controller = new AbortController();
     vi.mocked(runAgent).mockImplementationOnce(async opts => {

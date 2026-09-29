@@ -6,6 +6,7 @@ import { loadModelHistory, modelSourceKey } from './model-transcript';
 import { completeText, createStreamFn } from './stream-bridge';
 import { chatDb } from '../../../../packages/storage/lib/impl/chat-db';
 import { confirmSessionAfterModelError } from '../ask-service/client';
+import { buildSystemPrompt } from '@extension/shared';
 import { createChat, finishModelTurn } from '@extension/storage';
 import { Type } from '@mariozechner/pi-ai';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -173,6 +174,63 @@ beforeEach(async () => {
 });
 
 describe('native Gemini relay', () => {
+  it('sends a consistent text-only prompt when the model has no tool support', async () => {
+    fetchMock.mockResolvedValueOnce(textResponse('Web search is unavailable.'));
+    const model = { ...gemini, supportsTools: false };
+    const { text } = buildSystemPrompt({
+      mode: 'full',
+      supportsTools: model.supportsTools,
+      tools: [{ name: 'web_search', description: 'Search the web' }],
+      toolPromptHints: ['Use web_search before writing the article.'],
+    });
+    const result = await run(model, {
+      systemPrompt: text,
+      messages: [{ role: 'user', content: 'Research and write an article.', timestamp: 1 }],
+      tools: [],
+    });
+    const request = sent(0);
+    expect(request.body.tools).toBeUndefined();
+    expect(JSON.stringify(request.body.systemInstruction)).toContain('No tools are available');
+    expect(JSON.stringify(request.body.systemInstruction)).not.toContain('web_search');
+    expect(result.stopReason).toBe('stop');
+  });
+
+  it.each(['MALFORMED_FUNCTION_CALL', 'UNEXPECTED_TOOL_CALL', 'SAFETY'])(
+    'preserves the upstream finish reason %s after streamed thoughts',
+    async finishReason => {
+      fetchMock.mockResolvedValueOnce(
+        sse(
+          {
+            candidates: [
+              { content: { role: 'model', parts: [{ text: 'Planning search', thought: true }] } },
+            ],
+          },
+          { candidates: [{ content: { role: 'model', parts: [{ text: '' }] } }] },
+          { candidates: [{ content: { role: 'model' }, finishReason }] },
+        ),
+      );
+      const result = await run(gemini, { messages: [userTurn] });
+      expect(result.stopReason).toBe('error');
+      expect(result.errorMessage).toBe(`Gemini generation ended with ${finishReason}`);
+    },
+  );
+
+  it('does not mark a partial tool call as executable when the upstream finishes with an error', async () => {
+    fetchMock.mockResolvedValueOnce(
+      sse({
+        candidates: [
+          {
+            content: { role: 'model', parts: [{ functionCall: { name: 'weather', args: {} } }] },
+            finishReason: 'MALFORMED_FUNCTION_CALL',
+          },
+        ],
+      }),
+    );
+    const result = await run(gemini, { messages: [userTurn], tools: [weatherTool] });
+    expect(result.stopReason).toBe('error');
+    expect(result.errorMessage).toBe('Gemini generation ended with MALFORMED_FUNCTION_CALL');
+  });
+
   it('streams through the Ask relay with the JWT and a native request body', async () => {
     fetchMock.mockResolvedValueOnce(toolCallResponse());
 

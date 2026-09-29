@@ -11,11 +11,14 @@ import {
   runAgent,
   extractResponseFromToolResult,
   runHeadlessLLM,
+  buildHeadlessSystemPrompt,
 } from './agent-setup';
 import { watchSession } from '../ask-service/client';
 import { hasOversizedToolResults } from '../context/tool-result-truncation';
 import { classifyError } from '../errors/error-classification';
+import { getAgentTools } from '../tools';
 import { beginAgentTabGroup, endAgentTabGroup } from '../tools/agent-tab-group';
+import { buildSystemPrompt } from '@extension/shared';
 import {
   serverModelsStorage,
   selectedModelStorage,
@@ -24,6 +27,7 @@ import {
   touchChat,
   updateSessionTokens,
 } from '@extension/storage';
+import { Type } from '@sinclair/typebox';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ChatModel } from '@extension/shared';
 import type { DbChatModel } from '@extension/storage';
@@ -32,6 +36,7 @@ import type { DbChatModel } from '@extension/storage';
 
 let mockAgentState: { error?: string } = { error: undefined };
 let mockPromptFn: ReturnType<typeof vi.fn> = vi.fn(async () => {});
+let mockInitialTools: unknown[] = [];
 
 // ── Mocks ──────────────────────────────────────────────
 
@@ -41,7 +46,8 @@ vi.mock('./agent', () => {
     subscribe = vi.fn();
     prompt = mockPromptFn;
     abort = vi.fn();
-    constructor() {
+    constructor(opts: { initialState: { tools: unknown[] } }) {
+      mockInitialTools = opts.initialState.tools;
       // Re-read mutable state so each test can configure it
       this.state = mockAgentState;
       this.prompt = mockPromptFn;
@@ -294,6 +300,36 @@ describe('agent-setup', () => {
   // ── runAgent ─────────────────────────────────────────
 
   describe('runAgent', () => {
+    it.each([true, false, undefined])(
+      'respects supportsTools=%s even with explicit tools',
+      async supportsTools => {
+        const tools = [
+          {
+            name: 'web_search',
+            label: 'Web search',
+            description: 'Search the web',
+            parameters: Type.Object({ query: Type.String() }),
+            execute: vi.fn(async () => ({ content: [], details: {} })),
+          },
+        ];
+        await runAgent({
+          model: makeChatModel({ supportsTools }),
+          systemPrompt: 'You are helpful.',
+          prompt: 'Hello',
+          tools,
+        });
+        expect(mockInitialTools).toEqual(supportsTools === false ? [] : tools);
+        expect(getAgentTools).not.toHaveBeenCalled();
+      },
+    );
+
+    it('passes the model tool capability to the shared prompt builder', async () => {
+      await buildHeadlessSystemPrompt(makeChatModel({ supportsTools: false }));
+      expect(buildSystemPrompt).toHaveBeenCalledWith(
+        expect.objectContaining({ supportsTools: false }),
+      );
+    });
+
     it('opens and releases the agent tab group around a successful run', async () => {
       await runAgent({
         model: makeChatModel(),

@@ -325,6 +325,7 @@ const handleChannelMessageInner = async (
         const channelExtraContext = `You are responding via ${adapter.label}. Keep responses concise and well-formatted for mobile reading. Avoid very long responses unless the user explicitly asks for detail.`;
         const { text: systemPrompt } = buildSystemPrompt({
           mode: 'full',
+          supportsTools: model.supportsTools,
           tools: resolveToolListings(
             toolConfig.enabledTools,
             mainAgent?.customTools,

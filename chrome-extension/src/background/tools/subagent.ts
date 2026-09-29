@@ -187,7 +187,8 @@ const runSubagentBackground = async (
     const { getAgentTools, getToolConfig } = await import('./index');
 
     // Get all agent tools (headless: true excludes subagent, scheduler, deep_research, agents_list)
-    const allTools = await getAgentTools({ headless: true, chatId });
+    const allTools =
+      model.supportsTools === false ? [] : await getAgentTools({ headless: true, chatId });
 
     log.trace('Subagent tools resolved', {
       runId: run.runId,

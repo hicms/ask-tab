@@ -62,6 +62,9 @@ const runMemoryFlushIfNeeded = async (params: MemoryFlushParams): Promise<void> 
   const { chatId, modelConfig, systemPrompt, systemPromptTokens, signal } = params;
   signal?.throwIfAborted();
 
+  // Persisting memory requires tools; do not mark a text-only turn as a successful flush.
+  if (modelConfig.supportsTools === false) return;
+
   // 1. Load chat record for compaction count
   const chatRecord = await getChat(chatId);
 
