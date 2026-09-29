@@ -34,7 +34,9 @@ const QueuedMessages = ({
   if (items.length === 0) return null;
 
   return (
-    <div className="border-b text-sm" data-testid="queued-messages">
+    <div
+      className="bg-muted/60 text-foreground border-border border-b text-sm"
+      data-testid="queued-messages">
       <div className="flex items-center justify-between gap-2 px-3 pt-2">
         <span aria-live="polite" className="text-muted-foreground text-xs font-medium">
           {t('chat_queueTitle', String(items.length))}
@@ -50,7 +52,7 @@ const QueuedMessages = ({
       </div>
       {pauseReason && (
         <div
-          className="bg-muted/50 mx-3 mt-1 flex items-center justify-between gap-2 rounded-md px-2 py-1"
+          className="bg-background mx-3 mt-1 flex items-center justify-between gap-2 rounded-md px-2 py-1"
           data-testid="queued-messages-paused">
           <span className="text-muted-foreground text-xs">{t(pauseLabels[pauseReason])}</span>
           <Button
@@ -66,7 +68,7 @@ const QueuedMessages = ({
       <ul className="max-h-40 overflow-y-auto px-1.5 py-1">
         {items.map(item => (
           <li
-            className="hover:bg-muted/50 group flex items-start gap-2 rounded-md px-1.5 py-1"
+            className="hover:bg-background/70 group flex items-start gap-2 rounded-md px-1.5 py-1"
             data-testid="queued-message"
             key={item.id}>
             <div className="min-w-0 flex-1">

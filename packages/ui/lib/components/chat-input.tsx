@@ -515,7 +515,7 @@ const ChatInput = ({
         </div>
       )}
       <form
-        className="bg-background w-full overflow-hidden rounded-xl border shadow-sm"
+        className="bg-background focus-within:border-ring w-full overflow-hidden rounded-xl border shadow-sm transition-colors"
         onSubmit={handleSubmit}>
         {tray}
         {/* Attachment previews */}
