@@ -39,9 +39,11 @@ interface UseLLMStreamReturn {
   setInput: React.Dispatch<React.SetStateAction<string>>;
 }
 
+const EMPTY_MESSAGES: ChatMessage[] = [];
+
 const useLLMStream = ({
   chatId,
-  initialMessages = [],
+  initialMessages = EMPTY_MESSAGES,
   model,
   onStreamComplete,
   onChatCreated,
@@ -56,6 +58,25 @@ const useLLMStream = ({
   const abortedRef = useRef(false);
   const assistantMessageRef = useRef<ChatMessage | null>(null);
   const isFirstMessageRef = useRef(initialMessages.length === 0);
+  const previousInitialMessagesRef = useRef(initialMessages);
+
+  // A persisted channel update refreshes messages without remounting the composer.
+  // Consume each snapshot once, including snapshots skipped during a local stream,
+  // so finishing that stream cannot replay an older database snapshot over its result.
+  useEffect(() => {
+    if (previousInitialMessagesRef.current === initialMessages) return;
+    previousInitialMessagesRef.current = initialMessages;
+    if (
+      status === 'connecting' ||
+      status === 'streaming' ||
+      portRef.current ||
+      initialMessages.some(message => message.chatId !== chatId)
+    ) {
+      return;
+    }
+    setMessages(initialMessages);
+    isFirstMessageRef.current = initialMessages.length === 0;
+  }, [chatId, initialMessages, status]);
 
   const updateAssistantPart = useCallback(
     (updater: (parts: ChatMessagePart[]) => ChatMessagePart[]) => {

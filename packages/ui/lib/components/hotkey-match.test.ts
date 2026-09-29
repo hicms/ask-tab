@@ -1,6 +1,6 @@
 /**
  * Tests for hotkey-match.ts — the pure push-to-talk predicates shared by
- * MicButton. No DOM: events are plain `{ code, repeat }` objects.
+ * MicButton. No DOM: events model key codes, modifiers, and event guards.
  *
  * Model: hold-to-talk. `shouldHotkeyStart` arms on keydown; `shouldHotkeyStop`
  * releases on keyup while recording.
@@ -9,6 +9,7 @@ import { shouldHotkeyStart, shouldHotkeyStop, isModifierCode } from './hotkey-ma
 import { describe, it, expect } from 'vitest';
 
 const idle = { disabled: false, processing: false, recording: false };
+const editing = { ...idle, editableTarget: true };
 
 describe('shouldHotkeyStart', () => {
   it('fires when the code matches and it is a fresh press', () => {
@@ -68,16 +69,82 @@ describe('shouldHotkeyStart', () => {
     ).toBe(false);
   });
 
-  it('still fires for a lone-modifier hotkey even when an editable field has focus', () => {
-    // Right Alt (the default) types nothing on its own, so dictation must arm
-    // straight from the focused chat input.
-    expect(
-      shouldHotkeyStart(
-        'AltRight',
-        { code: 'AltRight', repeat: false },
-        { disabled: false, processing: false, recording: false, editableTarget: true },
-      ),
-    ).toBe(true);
+  it.each(['AltRight', 'AltLeft'])(
+    'allows the configured %s held alone in the chat input',
+    code => {
+      expect(shouldHotkeyStart(code, { code, repeat: false, altKey: true }, editing)).toBe(true);
+    },
+  );
+
+  it.each([
+    ['ControlLeft', { ctrlKey: true }],
+    ['ControlRight', { ctrlKey: true }],
+    ['MetaLeft', { metaKey: true }],
+    ['MetaRight', { metaKey: true }],
+  ] as const)(
+    'does not arm a configured %s while pasting into an editable field',
+    (code, flags) => {
+      // The modifier keydown precedes V. Reject that first event as well as V,
+      // otherwise starting the microphone can open a permission window mid-paste.
+      expect(shouldHotkeyStart(code, { code, repeat: false, ...flags }, editing)).toBe(false);
+      expect(shouldHotkeyStart(code, { code: 'KeyV', repeat: false, ...flags }, editing)).toBe(
+        false,
+      );
+    },
+  );
+
+  it.each(['ShiftLeft', 'ShiftRight'])(
+    'does not arm a configured %s while selecting or typing in an editable field',
+    code => {
+      expect(shouldHotkeyStart(code, { code, repeat: false, shiftKey: true }, editing)).toBe(false);
+    },
+  );
+
+  it.each([{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }])(
+    'does not arm Alt dictation while another modifier is held: %j',
+    flags => {
+      const event = { code: 'AltRight', repeat: false, altKey: true, ...flags };
+      expect(shouldHotkeyStart('AltRight', event, idle)).toBe(false);
+      expect(shouldHotkeyStart('AltRight', event, editing)).toBe(false);
+    },
+  );
+
+  it('leaves AltGraph available for international keyboard text entry', () => {
+    // Some platforms expose AltGraph without ctrlKey; the modifier state is
+    // authoritative even though the physical code matches default Right Alt.
+    const event = {
+      code: 'AltRight',
+      repeat: false,
+      altKey: true,
+      getModifierState: (key: string) => key === 'AltGraph',
+    };
+    expect(shouldHotkeyStart('AltRight', event, editing)).toBe(false);
+  });
+
+  it.each([{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }])(
+    'does not intercept a modified printable-key shortcut even outside editable fields: %j',
+    flags => {
+      expect(shouldHotkeyStart('KeyV', { code: 'KeyV', repeat: false, ...flags }, idle)).toBe(
+        false,
+      );
+    },
+  );
+
+  it.each([{ defaultPrevented: true }, { isComposing: true }])(
+    'does not start from an event already handled or belonging to composition: %j',
+    flags => {
+      const event = { code: 'AltRight', repeat: false, altKey: true, ...flags };
+      expect(shouldHotkeyStart('AltRight', event, idle)).toBe(false);
+      expect(shouldHotkeyStart('AltRight', event, editing)).toBe(false);
+    },
+  );
+
+  it.each([
+    ['ControlLeft', { ctrlKey: true }],
+    ['MetaRight', { metaKey: true }],
+    ['ShiftLeft', { shiftKey: true }],
+  ] as const)('preserves standalone configured %s outside editable fields', (code, flags) => {
+    expect(shouldHotkeyStart(code, { code, repeat: false, ...flags }, idle)).toBe(true);
   });
 
   it('treats an omitted disabled guard as not disabled', () => {
@@ -117,6 +184,16 @@ describe('shouldHotkeyStop', () => {
   it('ignores where focus is — a release always stops an armed recording', () => {
     // No editableTarget guard on stop: once armed, releasing must always stop.
     expect(shouldHotkeyStop('KeyK', { code: 'KeyK' }, { recording: true })).toBe(true);
+  });
+
+  it('still stops after a modifier or event guard changes while the hotkey is held', () => {
+    const release = {
+      code: 'AltRight',
+      ctrlKey: true,
+      defaultPrevented: true,
+      isComposing: true,
+    };
+    expect(shouldHotkeyStop('AltRight', release, { recording: true })).toBe(true);
   });
 });
 

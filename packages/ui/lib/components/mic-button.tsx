@@ -34,9 +34,9 @@ type MicButtonProps = {
    * record, release to stop + transcribe (no toggle). Empty/undefined disables
    * the shortcut. The listeners are bound to `window` only while this button is
    * mounted, so they are naturally inert whenever the mic button itself is
-   * hidden. A fresh keydown while focus is in an editable field is ignored so a
-   * letter-key hotkey never arms the mic mid-typing; the matching keyup always
-   * stops an armed recording regardless of where focus has moved.
+   * hidden. In an editable field only a configured Alt key held without other
+   * modifiers can start recording, preserving paste and selection shortcuts.
+   * The matching keyup always stops an armed recording regardless of focus.
    */
   hotkey?: string;
   disabled?: boolean;
@@ -59,8 +59,8 @@ const blobToBase64 = (blob: Blob): Promise<string> =>
 
 /**
  * True when a keyboard event originated from a field where the user is typing
- * (input, textarea, or contenteditable). Used to suppress a printable-key
- * hotkey while typing; a lone-modifier hotkey is allowed through upstream.
+ * (input, textarea, or contenteditable). Only a configured lone Alt key is
+ * allowed to start dictation while typing.
  */
 const isEditableTarget = (target: EventTarget | null): boolean => {
   const el = target as HTMLElement | null;
@@ -196,8 +196,8 @@ const MicButton = ({
         startRecording: start,
       } = hotkeyStateRef.current;
       // A fresh press of the hotkey arms the mic. Auto-repeat from holding the
-      // key must not re-fire; a printable-key hotkey pressed inside a text field
-      // is ignored so the user can still type it (a lone modifier is allowed).
+      // key must not re-fire. The matcher reserves editing shortcut modifiers
+      // and printable keys for typing, while allowing the configured Alt key.
       if (
         shouldHotkeyStart(code, event, {
           disabled: isDisabled,

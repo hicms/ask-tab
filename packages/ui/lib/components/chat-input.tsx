@@ -4,6 +4,7 @@ import { ModelCapabilityIcons } from './model-capability-icons';
 import { ModelPriceMultiplier } from './model-price-multiplier';
 import { ModelTierLabel, tierLabels } from './model-tier-label';
 import { ModelVendorIcon } from './model-vendor-icon';
+import { insertPastedText } from './paste-text';
 import { PreviewAttachment } from './preview-attachment';
 import {
   Button,
@@ -72,6 +73,7 @@ const ChatInput = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const history = useInputHistory();
+  const { resetCursor } = history;
 
   const slashCommands = useMemo(() => getSlashCommands(), []);
 
@@ -157,9 +159,22 @@ const ChatInput = ({
       const items = Array.from(e.clipboardData?.items ?? []);
       const fileItems = items.filter(item => item.kind === 'file' && item.getAsFile() !== null);
 
-      if (fileItems.length === 0) return;
+      if (fileItems.length === 0) {
+        const text = e.clipboardData.getData('text/plain');
+        if (!text) return;
+
+        // Handle text in this textarea synchronously instead of leaving the
+        // side panel's paste/focus routing to the browser's default action.
+        e.preventDefault();
+        e.stopPropagation();
+        const value = insertPastedText(e.currentTarget, text);
+        resetCursor();
+        setInput(value);
+        return;
+      }
 
       e.preventDefault();
+      e.stopPropagation();
 
       if (attachments.length + fileItems.length > MAX_FILES) {
         toast.error(t('chat_maxFilesError', String(MAX_FILES)));
@@ -184,7 +199,7 @@ const ChatInput = ({
       setAttachments(prev => [...prev, ...results]);
       setUploadQueue(prev => prev.filter(name => !fileNames.includes(name)));
     },
-    [attachments.length, processFile, t],
+    [attachments.length, processFile, resetCursor, setInput, t],
   );
 
   const removeAttachment = useCallback((index: number) => {

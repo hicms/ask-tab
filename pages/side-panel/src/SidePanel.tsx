@@ -72,8 +72,10 @@ const SidePanel = () => {
 
   // Track current chat ID for session journaling on departure
   const currentChatIdRef = useRef(chatId);
+  const messagesReloadSeqRef = useRef(0);
   useEffect(() => {
     currentChatIdRef.current = chatId;
+    messagesReloadSeqRef.current++;
   }, [chatId]);
 
   const triggerJournal = useCallback(
@@ -363,7 +365,11 @@ const SidePanel = () => {
 
   // Reload messages for a given chat (shared by channel and subagent handlers)
   const reloadMessages = useCallback((targetChatId: string) => {
+    const seq = ++messagesReloadSeqRef.current;
     getMessagesByChatId(targetChatId).then(dbMsgs => {
+      if (currentChatIdRef.current !== targetChatId || messagesReloadSeqRef.current !== seq) {
+        return;
+      }
       const mapped = dbMsgs.map(m => ({
         id: m.id,
         chatId: m.chatId,
@@ -484,31 +490,24 @@ const SidePanel = () => {
       if (type === 'CHANNEL_STREAM_START') {
         const title = message.title as string | undefined;
 
-        // R3: Only auto-switch if user is already on this chat or has no active chat
-        setChatId(prev => {
-          if (prev === msgChatId) {
-            // Already on this chat — just reload messages
-            loadAndSwitchToChat(msgChatId, title);
-          } else {
-            // Different chat — show a non-intrusive toast with a "View" action
-            toast.info(t('toast_newTelegramMessage'), {
-              action: {
-                label: t('toast_view'),
-                onClick: () => loadAndSwitchToChat(msgChatId, title),
-              },
-              duration: 10000,
-            });
-          }
-          return prev;
-        });
+        if (currentChatIdRef.current === msgChatId) {
+          // Keep the mounted composer and its draft, selection, and focus.
+          setChatTitle(title);
+          reloadMessages(msgChatId);
+        } else {
+          toast.info(t('toast_newTelegramMessage'), {
+            action: {
+              label: t('toast_view'),
+              onClick: () => loadAndSwitchToChat(msgChatId, title),
+            },
+            duration: 10000,
+          });
+        }
       }
 
       if (type === 'CHANNEL_STREAM_END') {
         // Reload messages if we're on this chat (assistant response now saved in DB)
-        setChatId(prev => {
-          if (prev === msgChatId) reloadMessages(msgChatId);
-          return prev;
-        });
+        if (currentChatIdRef.current === msgChatId) reloadMessages(msgChatId);
       }
     };
 

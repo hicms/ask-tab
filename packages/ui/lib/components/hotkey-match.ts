@@ -11,12 +11,11 @@
  * - `shouldHotkeyStop` fires on the matching `keyup` while `recording`. Once
  *   armed, releasing the key must always stop, no matter where focus has moved.
  *
- * Editable-target guard: a printable hotkey (letter/digit/Space/…) must not arm
- * the mic while the user is typing in an input/textarea/contenteditable, or the
- * user could never type that character. A lone modifier (Alt/Ctrl/Shift/Meta)
- * inserts no text when held on its own, so it is allowed even when a text field
- * has focus — this is what lets the default Right Alt dictate straight from the
- * focused chat input.
+ * Editable-target guard: only a configured Alt key may start recording while
+ * typing. Ctrl/Meta/Shift must stay available for paste, selection, and other
+ * editing shortcuts. The default Right Alt can still dictate from chat input;
+ * Left Alt remains supported when explicitly configured. Extra modifiers,
+ * AltGraph, composition, and events already handled elsewhere never arm it.
  *
  * An empty or undefined `hotkey` disables the shortcut entirely.
  */
@@ -35,13 +34,39 @@ const MODIFIER_CODES = new Set([
 export const isModifierCode = (code: string | undefined): boolean =>
   !!code && MODIFIER_CODES.has(code);
 
+type HotkeyStartEvent = Pick<KeyboardEvent, 'code' | 'repeat'> &
+  Partial<
+    Pick<
+      KeyboardEvent,
+      | 'altKey'
+      | 'ctrlKey'
+      | 'metaKey'
+      | 'shiftKey'
+      | 'defaultPrevented'
+      | 'isComposing'
+      | 'getModifierState'
+    >
+  >;
+
 export const shouldHotkeyStart = (
   hotkey: string | undefined,
-  event: { code: string; repeat: boolean },
+  event: HotkeyStartEvent,
   guards: { disabled?: boolean; processing: boolean; recording: boolean; editableTarget?: boolean },
 ): boolean => {
   if (!hotkey || event.repeat || event.code !== hotkey) return false;
-  if (guards.editableTarget && !isModifierCode(hotkey)) return false;
+  if (event.defaultPrevented || event.isComposing || event.getModifierState?.('AltGraph'))
+    return false;
+  const isAlt = hotkey === 'AltLeft' || hotkey === 'AltRight';
+  if (guards.editableTarget && !isAlt) return false;
+  // The key being pressed reports its own modifier as active. Only reject
+  // modifiers belonging to other keys, so a lone configured modifier works.
+  if (
+    (event.altKey && !isAlt) ||
+    (event.ctrlKey && hotkey !== 'ControlLeft' && hotkey !== 'ControlRight') ||
+    (event.metaKey && hotkey !== 'MetaLeft' && hotkey !== 'MetaRight') ||
+    (event.shiftKey && hotkey !== 'ShiftLeft' && hotkey !== 'ShiftRight')
+  )
+    return false;
   if (guards.disabled || guards.processing || guards.recording) return false;
   return true;
 };
