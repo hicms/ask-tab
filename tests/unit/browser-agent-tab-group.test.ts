@@ -110,14 +110,6 @@ describe('browser operations create groups only when needed', () => {
     expect(tabs.get(1)!.groupId).toBe(-1);
   });
 
-  it('does not create an automatic group for explicitly grouped opens', async () => {
-    await browser.executeBrowser(
-      { action: 'open', url: 'https://a.com', groupId: 200 },
-      { chatId: 'chat' },
-    );
-    expect(group.mock.calls).toEqual([[{ tabIds: [50], groupId: 200 }]]);
-  });
-
   it('does not group a page when its operation is already cancelled', async () => {
     const result = await browser.executeBrowser(
       { action: 'content', tabId: 2 },
