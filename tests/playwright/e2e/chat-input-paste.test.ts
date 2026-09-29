@@ -6,7 +6,7 @@ const catalog = [
   { id: 'ask:paste-test', modelId: 'paste-test', name: 'Paste Test', provider: 'custom' },
 ];
 
-const pasteText = async (page: Page, text: string, html?: string) => {
+const writeClipboard = async (page: Page, text: string, html?: string) => {
   const session = await page.context().newCDPSession(page);
   const url = new URL(page.url());
   await session.send('Browser.grantPermissions', {
@@ -29,10 +29,59 @@ const pasteText = async (page: Page, text: string, html?: string) => {
     },
     { text, html },
   );
+};
+
+const pasteText = async (page: Page, text: string, html?: string) => {
+  await writeClipboard(page, text, html);
   await page.keyboard.press('ControlOrMeta+v');
 };
 
 for (const pagePath of ['side-panel', 'full-page-chat'] as const) {
+  test(`${pagePath} accepts paste immediately after clicking the input`, async ({
+    context,
+    extensionId,
+  }) => {
+    const page = await openChat(context, extensionId, pagePath, { cached: catalog });
+    const input = page.locator('textarea');
+    await expect(input).toBeVisible();
+    // Prepare the clipboard first: no permission work, focus repair or wait is
+    // allowed between clicking and pressing the paste shortcut.
+    await writeClipboard(page, '点击后立即粘贴');
+    const session = await context.newCDPSession(page);
+    // Playwright normally emulates focus, which would mask window-level loss.
+    await session.send('Emulation.setFocusEmulationEnabled', { enabled: false });
+    await session.send('Emulation.setCPUThrottlingRate', { rate: 6 });
+    await input.click();
+    await page.keyboard.press('ControlOrMeta+v');
+    await expect(input).toHaveValue('点击后立即粘贴');
+    await expect(input).toBeFocused();
+    expect(await page.evaluate(() => document.hasFocus())).toBe(true);
+
+    // A deliberate focus change still wins; no delayed refocus steals it back.
+    await page.getByRole('combobox').filter({ hasText: 'Paste Test' }).click();
+    await expect(page.getByRole('listbox')).toBeVisible();
+    await expect(input).not.toBeFocused();
+    await session.detach();
+  });
+
+  test(`${pagePath} keeps native mouse selection when claiming input focus`, async ({
+    context,
+    extensionId,
+  }) => {
+    const page = await openChat(context, extensionId, pagePath, { cached: catalog });
+    const input = page.locator('textarea');
+    await input.fill('replace');
+    await writeClipboard(page, 'replacement');
+    await input.dblclick({ position: { x: 24, y: 20 } });
+    expect(await input.evaluate(element => [element.selectionStart, element.selectionEnd])).toEqual(
+      [0, 7],
+    );
+    await page.keyboard.press('ControlOrMeta+v');
+    await expect(input).toHaveValue('replacement');
+    await page.keyboard.press('ControlOrMeta+z');
+    await expect(input).toHaveValue('replace');
+  });
+
   test(`${pagePath} owns text paste, preserves the selection and native undo`, async ({
     context,
     extensionId,

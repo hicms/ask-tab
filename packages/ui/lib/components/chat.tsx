@@ -10,7 +10,7 @@ import {
   executeSlashCommand,
 } from '@extension/shared';
 import { diagnostics } from '@extension/shared/lib/diagnostics.js';
-import { addMessage, deleteMessagesAfter } from '@extension/storage';
+import { addMessage, deleteMessagesAfter, touchChat } from '@extension/storage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { UIArtifact } from '../artifact-types';
@@ -178,6 +178,8 @@ const Chat = ({
       parts: userMessage.parts,
       createdAt: userMessage.createdAt,
     });
+    // Bring resumed older chats into the recent history while they are running.
+    await touchChat(userMessage.chatId);
   }, []);
 
   const [isCompacting, setIsCompacting] = useState(false);

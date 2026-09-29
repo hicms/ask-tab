@@ -1,5 +1,10 @@
 import 'webextension-polyfill';
-import { handleLLMStream } from './agents/stream-handler';
+import {
+  handleLLMStream,
+  subscribeLLMStream,
+  watchLLMStreams,
+  stopLLMStream,
+} from './agents/stream-handler';
 import { handleAskMessage, refreshSessionOnStartup } from './ask-service/session';
 import {
   ALARM_NAME,
@@ -534,15 +539,22 @@ chrome.runtime.onConnect.addListener(port => {
   }
 
   if (port.name === 'llm-stream') {
-    streamKeepAlive.acquire();
-
-    port.onDisconnect.addListener(() => {
-      streamKeepAlive.release();
-    });
-
     port.onMessage.addListener((msg: Record<string, unknown>) => {
       if (msg.type === 'LLM_REQUEST') {
-        handleLLMStream(port, msg as unknown as LLMRequestMessage);
+        // Keep the worker alive for the task, even when no chat view is open.
+        streamKeepAlive.acquire();
+        handleLLMStream(port, msg as unknown as LLMRequestMessage).finally(() =>
+          streamKeepAlive.release(),
+        );
+      } else if (msg.type === 'LLM_STREAM_SUBSCRIBE' && typeof msg.chatId === 'string') {
+        subscribeLLMStream(port, msg.chatId).catch(diagnostics.error);
+      } else if (msg.type === 'LLM_STREAM_STOP' && typeof msg.chatId === 'string') {
+        stopLLMStream(
+          msg.chatId,
+          typeof msg.assistantMessageId === 'string' ? msg.assistantMessageId : undefined,
+        );
+      } else if (msg.type === 'LLM_STREAM_WATCH') {
+        watchLLMStreams(port);
       }
     });
   }

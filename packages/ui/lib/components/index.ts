@@ -29,6 +29,7 @@ export {
 } from './sidepanel-sidebar';
 export type { ChatSidebarProps } from './sidepanel-sidebar';
 export { SessionList } from './session-list';
+export { RunningChatIndicator } from './running-chat-indicator';
 export type { SessionListProps } from './session-list';
 export { Greeting } from './greeting';
 export { SuggestedActions } from './suggested-actions';

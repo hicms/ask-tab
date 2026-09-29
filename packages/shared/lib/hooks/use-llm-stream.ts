@@ -11,6 +11,7 @@ import type {
   LLMStreamChunk,
   LLMStreamEnd,
   LLMStreamError,
+  LLMStreamSnapshot,
   ToolPartState,
 } from '../chat-types.js';
 
@@ -50,7 +51,7 @@ const useLLMStream = ({
   onUserMessageCreated,
   onTtsAudio,
 }: UseLLMStreamOptions): UseLLMStreamReturn => {
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const [messages, setMessageState] = useState<ChatMessage[]>(initialMessages);
   const [status, setStatus] = useState<StreamingStatus>('idle');
   const [input, setInput] = useState('');
 
@@ -59,6 +60,15 @@ const useLLMStream = ({
   const assistantMessageRef = useRef<ChatMessage | null>(null);
   const isFirstMessageRef = useRef(initialMessages.length === 0);
   const previousInitialMessagesRef = useRef(initialMessages);
+  const messagesRef = useRef(initialMessages);
+  const runningRef = useRef(false);
+
+  // Update the ref synchronously: stream events can arrive before React renders.
+  const setMessages = useCallback<React.Dispatch<React.SetStateAction<ChatMessage[]>>>(next => {
+    const updated = typeof next === 'function' ? next(messagesRef.current) : next;
+    messagesRef.current = updated;
+    setMessageState(updated);
+  }, []);
 
   // A persisted channel update refreshes messages without remounting the composer.
   // Consume each snapshot once, including snapshots skipped during a local stream,
@@ -69,14 +79,14 @@ const useLLMStream = ({
     if (
       status === 'connecting' ||
       status === 'streaming' ||
-      portRef.current ||
+      runningRef.current ||
       initialMessages.some(message => message.chatId !== chatId)
     ) {
       return;
     }
     setMessages(initialMessages);
     isFirstMessageRef.current = initialMessages.length === 0;
-  }, [chatId, initialMessages, status]);
+  }, [chatId, initialMessages, status, setMessages]);
 
   const updateAssistantPart = useCallback(
     (updater: (parts: ChatMessagePart[]) => ChatMessagePart[]) => {
@@ -88,7 +98,7 @@ const useLLMStream = ({
         return [...prev.slice(0, -1), updated];
       });
     },
-    [],
+    [setMessages],
   );
 
   const handleChunk = useCallback(
@@ -184,6 +194,7 @@ const useLLMStream = ({
         ]);
       }
       setStatus('idle');
+      runningRef.current = false;
       const port = portRef.current;
       portRef.current = null;
       port?.disconnect();
@@ -208,6 +219,7 @@ const useLLMStream = ({
   const handleError = useCallback(
     async (error: LLMStreamError) => {
       setStatus('error');
+      runningRef.current = false;
       // Capture partial message before appending error text so persisted content is clean
       const partialMessage = assistantMessageRef.current;
       updateAssistantPart(parts => [
@@ -218,16 +230,88 @@ const useLLMStream = ({
       portRef.current = null;
       port?.disconnect();
       // Save partial assistant message on error so it's not lost on reload
-      if (partialMessage) {
+      if (partialMessage && !error.persistedByBackground) {
         await onStreamComplete?.(partialMessage);
       }
     },
     [updateAssistantPart, onStreamComplete],
   );
 
+  const handlersRef = useRef({ handleChunk, handleEnd, handleError, onTtsAudio });
+  handlersRef.current = { handleChunk, handleEnd, handleError, onTtsAudio };
+
+  const markStopped = useCallback(() => {
+    runningRef.current = false;
+    const assistantId = assistantMessageRef.current?.id;
+    setMessages(previous =>
+      previous.map(message =>
+        message.id === assistantId
+          ? { ...message, parts: markInterruptedToolCalls(message.parts) }
+          : message,
+      ),
+    );
+    setStatus('idle');
+  }, [setMessages]);
+
+  const connectPort = useCallback(() => {
+    const previous = portRef.current;
+    portRef.current = null;
+    previous?.disconnect();
+    const port = chrome.runtime.connect({ name: 'llm-stream' });
+    portRef.current = port;
+    port.onMessage.addListener((msg: Record<string, unknown>) => {
+      if (portRef.current !== port || (msg.chatId && msg.chatId !== chatId)) return;
+      const handlers = handlersRef.current;
+      switch (msg.type) {
+        case 'LLM_STREAM_SNAPSHOT': {
+          const snapshot = msg as unknown as LLMStreamSnapshot;
+          abortedRef.current = false;
+          runningRef.current = snapshot.status === 'connecting' || snapshot.status === 'streaming';
+          assistantMessageRef.current =
+            snapshot.messages.find(m => m.id === snapshot.assistantMessageId) ?? null;
+          isFirstMessageRef.current = snapshot.messages.length === 0;
+          setMessages(snapshot.messages);
+          setStatus(snapshot.status);
+          break;
+        }
+        case 'LLM_STREAM_CHUNK':
+          handlers.handleChunk(msg as unknown as LLMStreamChunk);
+          break;
+        case 'LLM_STREAM_END':
+          void handlers.handleEnd(msg as unknown as LLMStreamEnd);
+          break;
+        case 'LLM_STREAM_ERROR':
+          void handlers.handleError(msg as unknown as LLMStreamError);
+          break;
+        case 'LLM_STREAM_STOPPED':
+          abortedRef.current = true;
+          markStopped();
+          break;
+        case 'LLM_STREAM_RETRY':
+          if (Number(msg.attempt) > 0) updateAssistantPart(() => []);
+          break;
+        case 'LLM_TTS_AUDIO':
+          handlers.onTtsAudio?.(
+            msg.audioBase64 as string,
+            msg.contentType as string,
+            msg.chunkIndex as number | undefined,
+            msg.isLastChunk as boolean | undefined,
+          );
+          break;
+      }
+    });
+    port.onDisconnect.addListener(() => {
+      if (portRef.current !== port) return;
+      portRef.current = null;
+      if (runningRef.current) setStatus('error');
+      runningRef.current = false;
+    });
+    return port;
+  }, [chatId, markStopped, setMessages, updateAssistantPart]);
+
   const sendMessage = useCallback(
     (content: string, attachments?: Attachment[]) => {
-      if (status === 'streaming' || status === 'connecting') return;
+      if (runningRef.current) return;
 
       const userParts: ChatMessagePart[] = [];
 
@@ -269,110 +353,61 @@ const useLLMStream = ({
       assistantMessageRef.current = assistantMessage;
       abortedRef.current = false;
 
-      setMessages(prev => {
-        const newMessages = [...prev, userMessage, assistantMessage];
+      const newMessages = [...messagesRef.current, userMessage, assistantMessage];
+      setMessages(newMessages);
 
-        if (isFirstMessageRef.current) {
-          isFirstMessageRef.current = false;
-          onChatCreated?.(chatId, content);
-        }
+      if (isFirstMessageRef.current) {
+        isFirstMessageRef.current = false;
+        onChatCreated?.(chatId, content);
+      }
 
-        // Persist user message to IndexedDB immediately (after chat is created for first msg)
-        onUserMessageCreated?.(userMessage);
+      // Persist user message to IndexedDB immediately (after chat is created for first msg)
+      onUserMessageCreated?.(userMessage);
 
-        // Open port and send request
-        setStatus('connecting');
-        const port = chrome.runtime.connect({ name: 'llm-stream' });
-        portRef.current = port;
+      // Open port and send request
+      setStatus('connecting');
+      runningRef.current = true;
+      const port = connectPort();
 
-        port.onMessage.addListener((msg: Record<string, unknown>) => {
-          if (portRef.current !== port) return;
-          switch (msg.type) {
-            case 'LLM_STREAM_CHUNK':
-              handleChunk(msg as unknown as LLMStreamChunk);
-              break;
-            case 'LLM_STREAM_END':
-              handleEnd(msg as unknown as LLMStreamEnd);
-              break;
-            case 'LLM_STEP_FINISH':
-              // Step finish is informational — no UI action needed yet
-              break;
-            case 'LLM_STREAM_ERROR':
-              handleError(msg as unknown as LLMStreamError);
-              break;
-            case 'LLM_TTS_AUDIO':
-              onTtsAudio?.(
-                msg.audioBase64 as string,
-                msg.contentType as string,
-                msg.chunkIndex as number | undefined,
-                msg.isLastChunk as boolean | undefined,
-              );
-              break;
-          }
-        });
-
-        port.onDisconnect.addListener(() => {
-          if (portRef.current !== port) return;
-          if (!abortedRef.current && status !== 'idle') {
-            setStatus('error');
-          }
-          portRef.current = null;
-        });
-
-        // Send the request with all messages except the empty assistant placeholder
-        const messagesToSend = newMessages.filter(m => m !== assistantMessage);
-        port.postMessage({
-          type: 'LLM_REQUEST',
-          chatId,
-          messages: messagesToSend,
-          model,
-          assistantMessageId: assistantMessage.id,
-        });
-
-        return newMessages;
+      // Send the request with all messages except the empty assistant placeholder
+      const messagesToSend = newMessages.filter(m => m !== assistantMessage);
+      port.postMessage({
+        type: 'LLM_REQUEST',
+        chatId,
+        messages: messagesToSend,
+        model,
+        assistantMessageId: assistantMessage.id,
       });
 
       setInput('');
     },
-    [
-      chatId,
-      model,
-      status,
-      handleChunk,
-      handleEnd,
-      handleError,
-      onChatCreated,
-      onUserMessageCreated,
-      onTtsAudio,
-    ],
+    [chatId, model, connectPort, setMessages, onChatCreated, onUserMessageCreated],
   );
 
   const stop = useCallback(() => {
     abortedRef.current = true;
     const port = portRef.current;
     portRef.current = null;
+    port?.postMessage({
+      type: 'LLM_STREAM_STOP',
+      chatId,
+      assistantMessageId: assistantMessageRef.current?.id,
+    });
     port?.disconnect();
-    const assistantId = assistantMessageRef.current?.id;
-    setMessages(previous =>
-      previous.map(message => {
-        if (message.id !== assistantId) return message;
-        return { ...message, parts: markInterruptedToolCalls(message.parts) };
-      }),
-    );
-    setStatus('idle');
-  }, []);
+    markStopped();
+  }, [chatId, markStopped]);
 
-  // Safety net: disconnect port on unmount even if handleEnd/handleError haven't fired.
-  // The background SW's onDisconnect handler will then correctly clean up activeStreams.
-  useEffect(
-    () => () => {
-      if (portRef.current) {
-        portRef.current.disconnect();
-        portRef.current = null;
-      }
-    },
-    [],
-  );
+  useEffect(() => {
+    const port = connectPort();
+    runningRef.current = true;
+    setStatus('connecting');
+    port.postMessage({ type: 'LLM_STREAM_SUBSCRIBE', chatId });
+    return () => {
+      const current = portRef.current;
+      portRef.current = null;
+      current?.disconnect();
+    };
+  }, [chatId, connectPort]);
 
   return {
     messages,

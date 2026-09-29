@@ -6,8 +6,19 @@
 // Import after mocks
 import { runAgent } from './agent-setup';
 import { modelSourceKey } from './model-transcript';
-import { handleLLMStream } from './stream-handler';
-import { finishModelTurn, getModelTranscript, saveArtifact } from '@extension/storage';
+import {
+  handleLLMStream,
+  subscribeLLMStream,
+  watchLLMStreams,
+  stopLLMStream,
+} from './stream-handler';
+import {
+  finishModelTurn,
+  getModelTranscript,
+  getMessagesByChatId,
+  updateSessionTokens,
+  saveArtifact,
+} from '@extension/storage';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { RunAgentOpts } from './agent-setup';
 import type { ChatModel, ChatMessage, LLMRequestMessage } from '@extension/shared';
@@ -67,6 +78,8 @@ vi.mock('@extension/storage', () => ({
   getModelTranscript: vi.fn(async () => undefined),
   saveModelTranscript: vi.fn(async () => {}),
   finishModelTurn: vi.fn(async () => {}),
+  updateSessionTokens: vi.fn(async () => {}),
+  getMessagesByChatId: vi.fn(async () => []),
 }));
 
 // ── Test fixtures ────────────────────────────────────────
@@ -101,10 +114,194 @@ const makeRequest = (overrides: Partial<LLMRequestMessage> = {}): LLMRequestMess
   ...overrides,
 });
 
+const disconnect = (port: ReturnType<typeof createMockPort>) => {
+  for (const [listener] of port.onDisconnect.addListener.mock.calls) listener();
+};
+
+const pausedAgent = () => {
+  let complete!: () => void;
+  const gate = new Promise<void>(resolve => {
+    complete = resolve;
+  });
+  vi.mocked(runAgent).mockImplementationOnce(async opts => {
+    opts.onReasoningDelta?.('Thinking before switching.');
+    await gate;
+    opts.onAgentEnd?.({
+      agent: { state: {} } as never,
+      messages: [],
+      stepCount: 1,
+      timedOut: false,
+    });
+    return {
+      responseText: '',
+      parts: [],
+      usage: { inputTokens: 0, outputTokens: 0 },
+      agent: { state: { messages: [] } } as never,
+      stepCount: 1,
+      timedOut: false,
+      retryAttempts: 0,
+    };
+  });
+  return complete;
+};
+
 // ── Tests ────────────────────────────────────────────────
 
 describe('handleLLMStream', () => {
   const mockRunAgent = vi.mocked(runAgent);
+
+  it('keeps reasoning after detach, restores the snapshot and streams new output to the returning view', async () => {
+    const complete = pausedAgent();
+    const original = createMockPort();
+    const done = handleLLMStream(
+      original as never,
+      makeRequest({ assistantMessageId: 'assistant' }),
+    );
+    await vi.waitFor(() => expect(mockRunAgent).toHaveBeenCalledOnce());
+    const opts = mockRunAgent.mock.calls[0][0];
+    disconnect(original);
+    expect(opts.signal?.aborted).toBe(false);
+    const callsBefore = original.postMessage.mock.calls.length;
+    opts.onReasoningDelta?.(' Still working in the background.');
+    opts.onToolCallEnd?.({ id: 'tool', name: 'read', args: { path: 'notes' } });
+    const returning = createMockPort();
+    await subscribeLLMStream(returning as never, 'chat-1');
+    expect(returning.postMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        type: 'LLM_STREAM_SNAPSHOT',
+        status: 'streaming',
+        assistantMessageId: 'assistant',
+        messages: [
+          expect.objectContaining({ role: 'user' }),
+          expect.objectContaining({
+            parts: [
+              {
+                type: 'reasoning',
+                text: 'Thinking before switching. Still working in the background.',
+              },
+              expect.objectContaining({
+                type: 'tool-call',
+                toolCallId: 'tool',
+                state: 'input-available',
+              }),
+            ],
+          }),
+        ],
+      }),
+    );
+    opts.onTextDelta?.('Live after returning.');
+    expect(returning.postMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        type: 'LLM_STREAM_CHUNK',
+        delta: 'Live after returning.',
+      }),
+    );
+    expect(original.postMessage).toHaveBeenCalledTimes(callsBefore);
+    complete();
+    await done;
+    expect(finishModelTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'assistant' }),
+      expect.any(String),
+      [],
+    );
+    expect(updateSessionTokens).toHaveBeenCalledOnce();
+    disconnect(returning);
+  });
+
+  it('reports concurrent chats and stops only the explicitly selected turn', async () => {
+    const finishA = pausedAgent();
+    const finishB = pausedAgent();
+    const watcher = createMockPort();
+    watchLLMStreams(watcher as never);
+    const portA = createMockPort();
+    const portB = createMockPort();
+    const taskA = handleLLMStream(
+      portA as never,
+      makeRequest({ chatId: 'a', assistantMessageId: 'turn-a' }),
+    );
+    const taskB = handleLLMStream(
+      portB as never,
+      makeRequest({ chatId: 'b', assistantMessageId: 'turn-b' }),
+    );
+    await vi.waitFor(() => expect(mockRunAgent).toHaveBeenCalledTimes(2));
+    expect(watcher.postMessage).toHaveBeenLastCalledWith({
+      type: 'LLM_RUNNING_CHATS',
+      chatIds: ['a', 'b'],
+    });
+    stopLLMStream('a', 'stale-turn');
+    expect(mockRunAgent.mock.calls[0][0].signal?.aborted).toBe(false);
+    stopLLMStream('a', 'turn-a');
+    expect(mockRunAgent.mock.calls[0][0].signal?.aborted).toBe(true);
+    expect(mockRunAgent.mock.calls[1][0].signal?.aborted).toBe(false);
+    expect(watcher.postMessage).toHaveBeenLastCalledWith({
+      type: 'LLM_RUNNING_CHATS',
+      chatIds: ['b'],
+    });
+    finishA();
+    finishB();
+    await Promise.all([taskA, taskB]);
+    expect(watcher.postMessage).toHaveBeenLastCalledWith({
+      type: 'LLM_RUNNING_CHATS',
+      chatIds: [],
+    });
+    disconnect(watcher);
+    disconnect(portA);
+    disconnect(portB);
+  });
+
+  it('joins an already running chat without restarting or aborting it', async () => {
+    const complete = pausedAgent();
+    const original = createMockPort();
+    const done = handleLLMStream(original as never, makeRequest());
+    await vi.waitFor(() => expect(mockRunAgent).toHaveBeenCalledOnce());
+    const other = createMockPort();
+    const joined = handleLLMStream(other as never, makeRequest());
+    expect(mockRunAgent.mock.calls[0][0].signal?.aborted).toBe(false);
+    expect(other.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'LLM_STREAM_SNAPSHOT', status: 'streaming' }),
+    );
+    complete();
+    await Promise.all([done, joined]);
+    expect(mockRunAgent).toHaveBeenCalledOnce();
+    disconnect(original);
+    disconnect(other);
+  });
+
+  it('loads a durable completed result when the task ended before resubscription', async () => {
+    const message = makeMessage({
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Completed while away' }],
+    });
+    vi.mocked(getMessagesByChatId).mockResolvedValueOnce([message]);
+    const port = createMockPort();
+    await subscribeLLMStream(port as never, 'chat-1');
+    expect(port.postMessage).toHaveBeenLastCalledWith({
+      type: 'LLM_STREAM_SNAPSHOT',
+      chatId: 'chat-1',
+      messages: [message],
+      status: 'idle',
+    });
+    disconnect(port);
+  });
+
+  it('does not overwrite live output with a delayed idle database snapshot', async () => {
+    let resolveRead!: (messages: []) => void;
+    vi.mocked(getMessagesByChatId).mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          resolveRead = resolve;
+        }),
+    );
+    const port = createMockPort();
+    const subscribed = subscribeLLMStream(port as never, 'chat-1');
+    await vi.waitFor(() => expect(resolveRead).toBeDefined());
+    await handleLLMStream(port as never, makeRequest());
+    const calls = port.postMessage.mock.calls.length;
+    resolveRead([]);
+    await subscribed;
+    expect(port.postMessage).toHaveBeenCalledTimes(calls);
+    disconnect(port);
+  });
 
   it('waits for a stopped turn to settle before starting its replacement', async () => {
     let finish!: () => void;
@@ -132,6 +329,7 @@ describe('handleLLMStream', () => {
     );
     await vi.waitFor(() => expect(mockRunAgent).toHaveBeenCalledOnce());
     const firstSignal = mockRunAgent.mock.calls[0][0].signal!;
+    stopLLMStream('chat-1', 'stopped-assistant');
     const second = handleLLMStream(createMockPort() as never, makeRequest());
     expect(firstSignal.aborted).toBe(true);
     expect(mockRunAgent).toHaveBeenCalledOnce();

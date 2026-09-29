@@ -1,5 +1,5 @@
 import { useT } from '@extension/i18n';
-import { openSidePanel } from '@extension/shared';
+import { openSidePanel, useRunningChats } from '@extension/shared';
 import { diagnostics } from '@extension/shared/lib/diagnostics.js';
 import { listChats, searchChats, lastActiveSessionStorage } from '@extension/storage';
 import {
@@ -12,6 +12,7 @@ import {
   Button,
   Input,
   useChatArchive,
+  RunningChatIndicator,
 } from '@extension/ui';
 import { liveQuery } from 'dexie';
 import { ArchiveIcon, MessagesSquareIcon, SearchIcon } from 'lucide-react';
@@ -71,6 +72,7 @@ const toRows = (
 const SessionManager = ({ onOpenSession }: { onOpenSession?: (chatId: string) => void }) => {
   const t = useT();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const runningChatIds = useRunningChats();
   const [loading, setLoading] = useState(true);
   const { archive, openArchive, archiveDialog } = useChatArchive();
   const [searchQuery, setSearchQuery] = useState('');
@@ -187,7 +189,10 @@ const SessionManager = ({ onOpenSession }: { onOpenSession?: (chatId: string) =>
                   role="button"
                   tabIndex={0}>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{s.title}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-medium">{s.title}</p>
+                      {runningChatIds.has(s.id) && <RunningChatIndicator />}
+                    </div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                       {s.source && (
                         <Badge variant="outline" className="px-1.5 py-0 text-[10px]">

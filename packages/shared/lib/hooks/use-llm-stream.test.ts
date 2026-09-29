@@ -85,9 +85,9 @@ const mockModel = {
 };
 
 // useCallback capture order inside useLLMStream:
-// 0: updateAssistantPart  1: handleChunk  2: handleEnd  3: handleError  4: sendMessage  5: stop
-const HANDLE_END_IDX = 2;
-const HANDLE_ERROR_IDX = 3;
+// 0: setMessages  1: updateAssistantPart  2: handleChunk  3: handleEnd  4: handleError
+const HANDLE_END_IDX = 3;
+const HANDLE_ERROR_IDX = 4;
 
 // useRef capture order: 0: portRef  1: abortedRef  2: assistantMessageRef  3: isFirstMessageRef
 const ASSISTANT_MSG_REF_IDX = 2;
@@ -135,6 +135,11 @@ describe('useLLMStream — stop and resume', () => {
     ]);
     expect(stateSlots[1].value).toBe('idle');
     expect(port.disconnect).toHaveBeenCalledOnce();
+    expect(port.postMessage).toHaveBeenCalledWith({
+      type: 'LLM_STREAM_STOP',
+      chatId: 'test-chat',
+      assistantMessageId: assistant.id,
+    });
   });
 
   it('ignores late chunks and disconnect callbacks from a stopped connection', () => {

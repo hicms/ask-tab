@@ -5,9 +5,12 @@ import type { ChatMessage } from '../chat-types.js';
 const states: unknown[] = [];
 const refs: Array<{ current: unknown }> = [];
 const effectDependencies: unknown[][] = [];
+const callbacks: Array<{ callback: unknown; dependencies: unknown[] }> = [];
+const cleanups: Array<() => void> = [];
 let stateIndex = 0;
 let refIndex = 0;
 let effectIndex = 0;
+let callbackIndex = 0;
 let pendingEffects: Array<() => unknown> = [];
 
 vi.mock('react', () => ({
@@ -26,7 +29,17 @@ vi.mock('react', () => ({
     refs[index] ??= { current: initial };
     return refs[index];
   },
-  useCallback: (callback: unknown) => callback,
+  useCallback: (callback: unknown, dependencies: unknown[]) => {
+    const index = callbackIndex++;
+    const previous = callbacks[index];
+    if (
+      !previous ||
+      dependencies.some((value, slot) => !Object.is(value, previous.dependencies[slot]))
+    ) {
+      callbacks[index] = { callback, dependencies };
+    }
+    return callbacks[index].callback;
+  },
   useEffect: (effect: () => unknown, dependencies: unknown[]) => {
     const index = effectIndex++;
     const previous = effectDependencies[index];
@@ -45,11 +58,14 @@ const model = {
 };
 
 const render = (initialMessages?: ChatMessage[]) => {
-  stateIndex = refIndex = effectIndex = 0;
+  stateIndex = refIndex = effectIndex = callbackIndex = 0;
   pendingEffects = [];
   // eslint-disable-next-line react-hooks/rules-of-hooks -- The test runner preserves hook state between renders.
   const result = useLLMStream({ chatId: 'current-chat', model, initialMessages });
-  for (const effect of pendingEffects) effect();
+  for (const effect of pendingEffects) {
+    const cleanup = effect();
+    if (typeof cleanup === 'function') cleanups.push(cleanup as () => void);
+  }
   return result;
 };
 
@@ -62,18 +78,36 @@ const persistedMessage = (chatId = 'current-chat'): ChatMessage => ({
 });
 
 describe('useLLMStream persisted snapshots', () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    for (const cleanup of cleanups.splice(0)) cleanup();
+    vi.unstubAllGlobals();
+  });
 
   beforeEach(() => {
-    states.length = refs.length = effectDependencies.length = 0;
+    states.length = refs.length = effectDependencies.length = callbacks.length = 0;
     vi.stubGlobal('chrome', {
       runtime: {
-        connect: vi.fn(() => ({
-          postMessage: vi.fn(),
-          disconnect: vi.fn(),
-          onMessage: { addListener: vi.fn() },
-          onDisconnect: { addListener: vi.fn() },
-        })),
+        connect: vi.fn(() => {
+          let receive: (message: unknown) => void;
+          return {
+            postMessage: vi.fn(message => {
+              if (message.type === 'LLM_STREAM_SUBSCRIBE')
+                receive({
+                  type: 'LLM_STREAM_SNAPSHOT',
+                  chatId: 'current-chat',
+                  messages: states[0],
+                  status: 'idle',
+                });
+            }),
+            disconnect: vi.fn(),
+            onMessage: {
+              addListener: vi.fn(listener => {
+                receive = listener;
+              }),
+            },
+            onDisconnect: { addListener: vi.fn() },
+          };
+        }),
       },
     });
   });
@@ -91,7 +125,7 @@ describe('useLLMStream persisted snapshots', () => {
   it('discards a snapshot during a local stream instead of replaying it when the stream ends', () => {
     const initial: ChatMessage[] = [];
     render(initial).sendMessage('Local question');
-    const port = vi.mocked(chrome.runtime.connect).mock.results[0].value;
+    const port = vi.mocked(chrome.runtime.connect).mock.results.at(-1)!.value;
     const receive = port.onMessage.addListener.mock.calls[0][0];
     const staleSnapshot = [persistedMessage()];
     render(staleSnapshot);
@@ -120,7 +154,7 @@ describe('useLLMStream persisted snapshots', () => {
     const initial: ChatMessage[] = [];
     const hook = render(initial);
     hook.sendMessage('Local question');
-    const port = vi.mocked(chrome.runtime.connect).mock.results[0].value;
+    const port = vi.mocked(chrome.runtime.connect).mock.results.at(-1)!.value;
     const receive = port.onMessage.addListener.mock.calls[0][0];
     receive({ type: 'LLM_STREAM_ERROR', error: 'Connection failed' });
     hook.setInput('Draft after the failure');
@@ -138,5 +172,53 @@ describe('useLLMStream persisted snapshots', () => {
     render();
     const updated = render();
     expect(updated.messages[0].parts).toEqual([{ type: 'text', text: 'Local question' }]);
+  });
+
+  it('detaches without Stop and restores an in-flight turn when the view mounts again', () => {
+    const initial: ChatMessage[] = [];
+    render(initial).sendMessage('Keep working');
+    const original = vi.mocked(chrome.runtime.connect).mock.results.at(-1)!.value;
+    const receiveOriginal = original.onMessage.addListener.mock.calls[0][0];
+    receiveOriginal({ type: 'LLM_STREAM_CHUNK', reasoning: 'Before leaving.' });
+    for (const cleanup of cleanups.splice(0)) cleanup();
+    expect(original.disconnect).toHaveBeenCalledOnce();
+    expect(
+      original.postMessage.mock.calls.map(([message]: [{ type: string }]) => message.type),
+    ).toEqual(['LLM_REQUEST']);
+
+    const backgroundMessages = structuredClone(states[0]) as ChatMessage[];
+    backgroundMessages.at(-1)!.parts = [
+      { type: 'reasoning', text: 'Before leaving. Continued in background.' },
+    ];
+    states.length = refs.length = effectDependencies.length = callbacks.length = 0;
+    render(initial);
+    const returning = vi.mocked(chrome.runtime.connect).mock.results.at(-1)!.value;
+    const receive = returning.onMessage.addListener.mock.calls[0][0];
+    receive({
+      type: 'LLM_STREAM_SNAPSHOT',
+      chatId: 'current-chat',
+      status: 'streaming',
+      messages: backgroundMessages,
+      assistantMessageId: backgroundMessages.at(-1)!.id,
+    });
+    let hook = render(initial);
+    expect(hook.status).toBe('streaming');
+    expect(hook.messages).toEqual(backgroundMessages);
+    hook.sendMessage('Must not start another turn');
+    expect(returning.postMessage).toHaveBeenCalledTimes(1);
+    receiveOriginal({ type: 'LLM_STREAM_CHUNK', delta: 'Stale event from the old view' });
+    receive({ type: 'LLM_STREAM_CHUNK', delta: 'Live after returning.' });
+    hook = render(initial);
+    expect(hook.messages.at(-1)!.parts).toEqual([
+      { type: 'reasoning', text: 'Before leaving. Continued in background.' },
+      { type: 'text', text: 'Live after returning.' },
+    ]);
+    hook.stop();
+    expect(returning.postMessage).toHaveBeenLastCalledWith({
+      type: 'LLM_STREAM_STOP',
+      chatId: 'current-chat',
+      assistantMessageId: backgroundMessages.at(-1)!.id,
+    });
+    expect(render(initial).status).toBe('idle');
   });
 });

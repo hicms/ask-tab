@@ -5,9 +5,9 @@
  */
 
 import { buildHeadlessSystemPrompt } from './agent-setup';
-import { handleLLMStream } from './stream-handler';
+import { handleLLMStream, stopLLMStream } from './stream-handler';
 import { runMemoryFlushIfNeeded } from '../memory/memory-flush';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LLMRequestMessage } from '@extension/shared';
 import type { AgentEvent, AgentMessage } from '@mariozechner/pi-agent-core';
 import type { AssistantMessage } from '@mariozechner/pi-ai';
@@ -213,6 +213,11 @@ const makeAssistantMsg = (
 
 // ── Tests ────────────────────────────────────────────────
 
+afterEach(() => {
+  for (const [listener] of vi.mocked(mockPort.onDisconnect.addListener).mock.calls)
+    listener(mockPort);
+});
+
 describe('handleLLMStream — error propagation (Fix 2)', () => {
   beforeEach(() => {
     mockPostMessage.mockClear();
@@ -359,7 +364,7 @@ describe('handleLLMStream — cancellation', () => {
     return listener;
   };
 
-  it('aborts the running agent when the chat port disconnects', async () => {
+  it('keeps the agent alive after disconnect and aborts only on explicit Stop', async () => {
     let finish!: () => void;
     const stopped = new Promise<void>(resolve => {
       finish = resolve;
@@ -374,59 +379,65 @@ describe('handleLLMStream — cancellation', () => {
 
     const running = handleLLMStream(mockPort, makeRequest());
     await vi.waitFor(() => expect(started).toBe(true));
-    const listener = disconnect();
+    disconnect();
+    expect(mockAbort).not.toHaveBeenCalled();
+    stopLLMStream('chat-123');
     // Resolve even on regression so the test does not leave the agent timeout running.
     finish();
     await running;
 
     expect(mockAbort).toHaveBeenCalledOnce();
-    expect(mockPostMessage).not.toHaveBeenCalled();
-    expect(mockPort.onDisconnect.removeListener).toHaveBeenCalledWith(listener);
+    expect(mockPostMessage.mock.calls.some(([message]) => message.type === 'LLM_STREAM_END')).toBe(
+      false,
+    );
   });
 
-  it.each(['system prompt', 'memory flush'])(
-    'does not start the agent after disconnecting during %s preparation',
-    async stage => {
-      let finish!: () => void;
-      const pending = new Promise<void>(resolve => {
-        finish = resolve;
+  it.each([
+    ['system prompt', 'disconnect'],
+    ['memory flush', 'disconnect'],
+    ['system prompt', 'stop'],
+    ['memory flush', 'stop'],
+  ])('handles %s preparation followed by %s', async (stage, action) => {
+    let finish!: () => void;
+    const pending = new Promise<void>(resolve => {
+      finish = resolve;
+    });
+    let started = false;
+    if (stage === 'system prompt') {
+      vi.mocked(buildHeadlessSystemPrompt).mockImplementationOnce(async () => {
+        started = true;
+        await pending;
+        return 'Test system prompt';
       });
-      let started = false;
-      if (stage === 'system prompt') {
-        vi.mocked(buildHeadlessSystemPrompt).mockImplementationOnce(async () => {
-          started = true;
-          await pending;
-          return 'Test system prompt';
-        });
-      } else {
-        vi.mocked(runMemoryFlushIfNeeded).mockImplementationOnce(async () => {
-          started = true;
-          await pending;
-        });
-      }
-      const prompt = vi.fn(async () => {});
-      mockPromptFn = prompt;
-      const running = handleLLMStream(mockPort, makeRequest());
-      await vi.waitFor(() => expect(started).toBe(true));
-      const listener = disconnect();
-      finish();
-      await running;
+    } else {
+      vi.mocked(runMemoryFlushIfNeeded).mockImplementationOnce(async () => {
+        started = true;
+        await pending;
+      });
+    }
+    const prompt = vi.fn(async () => {});
+    mockPromptFn = prompt;
+    const running = handleLLMStream(mockPort, makeRequest());
+    await vi.waitFor(() => expect(started).toBe(true));
+    disconnect();
+    if (action === 'stop') stopLLMStream('chat-123');
+    finish();
+    await running;
 
-      expect(prompt).not.toHaveBeenCalled();
-      expect(mockPostMessage).not.toHaveBeenCalled();
-      expect(mockPort.onDisconnect.removeListener).toHaveBeenCalledWith(listener);
+    expect(prompt).toHaveBeenCalledTimes(action === 'stop' ? 0 : 1);
+  });
+
+  it.each(['success', 'error'])(
+    'disconnecting a finished %s turn does not abort it',
+    async outcome => {
+      mockPromptFn = async () => {
+        if (outcome === 'error') throw new Error('Model failed');
+        mockSubscribeCallback?.({ type: 'agent_end', messages: [makeAssistantMsg()] });
+      };
+      await handleLLMStream(mockPort, makeRequest());
+
+      disconnect();
+      expect(mockAbort).not.toHaveBeenCalled();
     },
   );
-
-  it.each(['success', 'error'])('removes its disconnect listener after %s', async outcome => {
-    mockPromptFn = async () => {
-      if (outcome === 'error') throw new Error('Model failed');
-      mockSubscribeCallback?.({ type: 'agent_end', messages: [makeAssistantMsg()] });
-    };
-    await handleLLMStream(mockPort, makeRequest());
-
-    const listener = vi.mocked(mockPort.onDisconnect.addListener).mock.calls[0][0];
-    expect(mockPort.onDisconnect.removeListener).toHaveBeenCalledWith(listener);
-    expect(mockAbort).not.toHaveBeenCalled();
-  });
 });

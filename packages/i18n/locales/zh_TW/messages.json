@@ -214,6 +214,9 @@
       }
     }
   },
+  "session_running": {
+    "message": "推理中"
+  },
   "session_newSession": {
     "message": "新工作階段"
   },

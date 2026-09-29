@@ -34,12 +34,24 @@ import type {
   Dispatch,
   FormEvent,
   KeyboardEvent,
+  MouseEvent,
   SetStateAction,
 } from 'react';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_FILES = 5;
 const ACCEPTED_FILE_TYPES = 'image/*,.pdf,.txt,.md,.csv';
+
+const focusComposer = (event: MouseEvent<HTMLTextAreaElement>) => {
+  if (event.button !== 0) return;
+
+  const textarea = event.currentTarget;
+  // The textarea can be activeElement while browser chrome still owns keyboard
+  // focus. Claim the panel window during the click, before Ctrl+V is routed;
+  // waiting for onPaste is too late. Leave native caret placement/dragging alone.
+  textarea.ownerDocument.defaultView?.focus();
+  textarea.focus({ preventScroll: true });
+};
 
 type ChatInputProps = {
   input: string;
@@ -412,8 +424,10 @@ const ChatInput = ({
             history.resetCursor();
             setInput(e.target.value);
           }}
+          onClick={focusComposer}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
+          onPointerDown={focusComposer}
           placeholder={t('chat_placeholder')}
           ref={textareaRef}
           rows={1}

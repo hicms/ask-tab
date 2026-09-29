@@ -1,4 +1,5 @@
 import { MessageIcon, PencilEditIcon } from './icons';
+import { RunningChatIndicator } from './running-chat-indicator';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,6 +21,7 @@ import { groupChatsByDate } from '../group-chats-by-date';
 import { useChatArchive } from '../hooks/use-chat-archive';
 import { cn } from '../utils';
 import { useT } from '@extension/i18n';
+import { useRunningChats } from '@extension/shared';
 import { diagnostics } from '@extension/shared/lib/diagnostics.js';
 import {
   listChats,
@@ -52,6 +54,7 @@ const SessionSection = ({
   onSelectChat,
   onDeleteChat,
   onRenameChat,
+  runningChatIds,
 }: {
   title: string;
   chats: Chat[];
@@ -59,6 +62,7 @@ const SessionSection = ({
   onSelectChat: (chat: Chat) => void;
   onDeleteChat: (chatId: string) => void;
   onRenameChat: (chatId: string, newTitle: string) => void;
+  runningChatIds: ReadonlySet<string>;
 }) => {
   const t = useT();
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -131,6 +135,7 @@ const SessionSection = ({
                   type="button">
                   {truncateTitle(displayTitle)}
                 </button>
+                {runningChatIds.has(chat.id) && <RunningChatIndicator />}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
@@ -175,6 +180,7 @@ const SessionList = ({
 }: SessionListProps) => {
   const t = useT();
   const [chats, setChats] = useState<Chat[]>([]);
+  const runningChatIds = useRunningChats(isVisible);
   const [searchQuery, setSearchQuery] = useState('');
   const { archive, openArchive, archiveDialog } = useChatArchive();
   const [showClearAll, setShowClearAll] = useState(false);
@@ -234,6 +240,7 @@ const SessionList = ({
           )}
           <SessionSection
             chats={grouped.today}
+            runningChatIds={runningChatIds}
             currentChatId={currentChatId}
             onDeleteChat={archive}
             onRenameChat={handleRename}
@@ -242,6 +249,7 @@ const SessionList = ({
           />
           <SessionSection
             chats={grouped.yesterday}
+            runningChatIds={runningChatIds}
             currentChatId={currentChatId}
             onDeleteChat={archive}
             onRenameChat={handleRename}
@@ -250,6 +258,7 @@ const SessionList = ({
           />
           <SessionSection
             chats={grouped.lastWeek}
+            runningChatIds={runningChatIds}
             currentChatId={currentChatId}
             onDeleteChat={archive}
             onRenameChat={handleRename}
@@ -258,6 +267,7 @@ const SessionList = ({
           />
           <SessionSection
             chats={grouped.lastMonth}
+            runningChatIds={runningChatIds}
             currentChatId={currentChatId}
             onDeleteChat={archive}
             onRenameChat={handleRename}
@@ -266,6 +276,7 @@ const SessionList = ({
           />
           <SessionSection
             chats={grouped.older}
+            runningChatIds={runningChatIds}
             currentChatId={currentChatId}
             onDeleteChat={archive}
             onRenameChat={handleRename}

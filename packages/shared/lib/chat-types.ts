@@ -204,6 +204,16 @@ interface LLMStreamError {
   type: 'LLM_STREAM_ERROR';
   chatId: string;
   error: string;
+  persistedByBackground?: boolean;
+}
+
+/** Current background-owned turn, sent when a chat view subscribes again. */
+interface LLMStreamSnapshot {
+  type: 'LLM_STREAM_SNAPSHOT';
+  chatId: string;
+  messages: ChatMessage[];
+  status: StreamingStatus;
+  assistantMessageId?: string;
 }
 
 /** Retry notification — background -> UI when retrying after context overflow */
@@ -260,6 +270,7 @@ type PortMessage =
   | LLMStepFinish
   | LLMStreamError
   | LLMStreamRetry
+  | LLMStreamSnapshot
   | LLMTtsAudio;
 
 // ──────────────────────────────────────────────
@@ -338,6 +349,7 @@ export type {
   LLMStepFinish,
   LLMStreamError,
   LLMStreamRetry,
+  LLMStreamSnapshot,
   LLMTtsAudio,
   StreamingStatus,
   PortMessage,

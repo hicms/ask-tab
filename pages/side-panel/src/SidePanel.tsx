@@ -334,7 +334,8 @@ const SidePanel = () => {
         });
         await touchChat(assistantMessage.chatId);
       }
-      if (usage) await updateSessionTokens(assistantMessage.chatId, usage);
+      if (usage && !usage.persistedByBackground)
+        await updateSessionTokens(assistantMessage.chatId, usage);
     },
     [],
   );
@@ -351,8 +352,10 @@ const SidePanel = () => {
         model: selectedModelId,
         agentId: activeAgentId,
       });
-      setChatTitle(title);
-      lastActiveSessionStorage.set(newChatId);
+      if (currentChatIdRef.current === newChatId) {
+        setChatTitle(title);
+        lastActiveSessionStorage.set(newChatId);
+      }
       // User message is persisted by Chat's onUserMessageCreated handler
     },
     [selectedModelId, activeAgentId],

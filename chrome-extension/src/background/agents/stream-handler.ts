@@ -13,21 +13,24 @@ import { markInterruptedToolCalls } from '@extension/shared';
 import { activeAgentStorage, saveArtifact } from '@extension/storage';
 import type { chatModelToPiModel } from './model-adapter';
 import type {
-  ChatMessagePart,
+  ChatMessage,
   LLMRequestMessage,
   LLMStreamChunk,
   LLMStreamEnd,
   LLMStepFinish,
   LLMStreamRetry,
   LLMTtsAudio,
+  LLMStreamSnapshot,
+  StreamingStatus,
 } from '@extension/shared';
 import type { DbArtifact } from '@extension/storage';
 import type { AssistantMessage } from '@mariozechner/pi-ai';
 
 const streamLog = createLogger('stream');
+type StreamTarget = Pick<chrome.runtime.Port, 'postMessage'>;
 
 /** Post a message to the port, returning false if the port is disconnected. */
-const safeSend = (port: chrome.runtime.Port, msg: Record<string, unknown>): boolean => {
+const safeSend = (port: StreamTarget, msg: Record<string, unknown>): boolean => {
   try {
     port.postMessage(msg);
     return true;
@@ -39,21 +42,21 @@ const safeSend = (port: chrome.runtime.Port, msg: Record<string, unknown>): bool
   }
 };
 
-const sendChunk = (port: chrome.runtime.Port, chunk: Omit<LLMStreamChunk, 'type'>): boolean =>
+const sendChunk = (port: StreamTarget, chunk: Omit<LLMStreamChunk, 'type'>): boolean =>
   safeSend(port, { type: 'LLM_STREAM_CHUNK', ...chunk });
 
-const sendEnd = (port: chrome.runtime.Port, end: Omit<LLMStreamEnd, 'type'>): boolean =>
+const sendEnd = (port: StreamTarget, end: Omit<LLMStreamEnd, 'type'>): boolean =>
   safeSend(port, { type: 'LLM_STREAM_END', ...end });
 
-const sendStepFinish = (port: chrome.runtime.Port, step: Omit<LLMStepFinish, 'type'>): boolean =>
+const sendStepFinish = (port: StreamTarget, step: Omit<LLMStepFinish, 'type'>): boolean =>
   safeSend(port, { type: 'LLM_STEP_FINISH', ...step });
 
-const sendError = (port: chrome.runtime.Port, chatId: string, error: string): boolean =>
-  safeSend(port, { type: 'LLM_STREAM_ERROR', chatId, error });
+const sendError = (port: StreamTarget, chatId: string, error: string): boolean =>
+  safeSend(port, { type: 'LLM_STREAM_ERROR', chatId, error, persistedByBackground: true });
 
 /** Non-blocking TTS synthesis for browser chat UI auto-play. */
 const maybeSendTtsAudio = async (
-  port: chrome.runtime.Port,
+  port: StreamTarget,
   chatId: string,
   responseText: string,
   modelConfig: Parameters<typeof chatModelToPiModel>[0],
@@ -99,13 +102,15 @@ const maybeSendTtsAudio = async (
 };
 
 const runLLMStream = async (
-  port: chrome.runtime.Port,
+  port: StreamTarget,
   request: LLMRequestMessage,
   controller: AbortController,
+  assistantMessage: ChatMessage,
 ): Promise<void> => {
   const { chatId, messages, model: modelConfig, assistantMessageId } = request;
-  const assistantParts: ChatMessagePart[] = [];
+  const assistantParts = assistantMessage.parts;
   let turnPartStart = 0;
+  let agentErrorMessage: string | undefined;
 
   streamLog.info('Stream started', { chatId, model: modelConfig.id });
   streamLog.trace('Stream request detail', {
@@ -348,7 +353,7 @@ const runLLMStream = async (
         // Timeout is a graceful end, not an error — fall through to normal completion
         if (agentError && !info.timedOut) {
           streamLog.warn('Agent error', { chatId, error: agentError, steps: info.stepCount });
-          sendError(port, chatId, agentError);
+          agentErrorMessage = agentError;
           return;
         }
 
@@ -413,17 +418,11 @@ const runLLMStream = async (
     // Persist the assistant message from the background SW so it survives
     // agent switches / extension reloads that may kill the frontend callback chain.
     if (assistantMessageId) {
-      const { addMessage, finishModelTurn, touchChat } = await import('@extension/storage');
-      const assistantMessage = {
-        id: assistantMessageId,
-        chatId,
-        role: 'assistant' as const,
-        parts: controller.signal.aborted
-          ? markInterruptedToolCalls(assistantParts)
-          : assistantParts,
-        createdAt: Date.now(),
-        model: modelConfig.id,
-      };
+      const { addMessage, finishModelTurn, touchChat, updateSessionTokens } = await import(
+        '@extension/storage'
+      );
+      if (controller.signal.aborted)
+        assistantMessage.parts = markInterruptedToolCalls(assistantParts);
       if (controller.signal.aborted) {
         await finishModelTurn(
           assistantMessage,
@@ -433,13 +432,14 @@ const runLLMStream = async (
       } else if (runResult.error) await addMessage(assistantMessage);
       else await finishModelTurn(assistantMessage, sourceKey, runResult.agent.state.messages);
       await touchChat(chatId);
+      if (endPayload?.usage) await updateSessionTokens(chatId, endPayload.usage);
     }
+    if (agentErrorMessage) sendError(port, chatId, agentErrorMessage);
     if (endPayload) sendEnd(port, endPayload);
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     if (!controller.signal.aborted) {
       streamLog.error('Stream error', { chatId, error: errorMsg });
-      sendError(port, chatId, errorMsg);
     }
 
     // Persist partial assistant message on error so it's not lost on reload
@@ -461,38 +461,160 @@ const runLLMStream = async (
         // Best-effort — already in error path
       }
     }
+    if (!controller.signal.aborted) sendError(port, chatId, errorMsg);
   }
 };
 
 // A replacement request waits for the stopped turn's cleanup and durable writes.
 // Otherwise an old checkpoint can overwrite the new turn after Stop → Send.
-const activeStreams = new Map<string, { controller: AbortController; done: Promise<void> }>();
+interface ActiveStream {
+  controller: AbortController;
+  done: Promise<void>;
+  request: LLMRequestMessage;
+  assistantMessage: ChatMessage;
+  status: StreamingStatus;
+}
+
+const activeStreams = new Map<string, ActiveStream>();
+const subscribers = new Map<chrome.runtime.Port, string>();
+const pendingSnapshots = new WeakMap<chrome.runtime.Port, object>();
+const watchers = new Set<chrome.runtime.Port>();
+
+const attachStreamPort = (port: chrome.runtime.Port, chatId: string) => {
+  if (!subscribers.has(port)) {
+    port.onDisconnect.addListener(() => subscribers.delete(port));
+  }
+  subscribers.set(port, chatId);
+};
+
+const broadcast = (chatId: string, message: Record<string, unknown>) => {
+  for (const [port, subscribedChatId] of subscribers) {
+    if (subscribedChatId !== chatId) continue;
+    pendingSnapshots.delete(port);
+    if (!safeSend(port, message)) subscribers.delete(port);
+  }
+};
+
+const notifyRunningChats = () => {
+  const chatIds = [...activeStreams]
+    .filter(
+      ([, stream]) =>
+        !stream.controller.signal.aborted &&
+        (stream.status === 'connecting' || stream.status === 'streaming'),
+    )
+    .map(([chatId]) => chatId);
+  for (const port of watchers) {
+    if (!safeSend(port, { type: 'LLM_RUNNING_CHATS', chatIds })) watchers.delete(port);
+  }
+};
+
+const streamSnapshot = (stream: ActiveStream): LLMStreamSnapshot => ({
+  type: 'LLM_STREAM_SNAPSHOT',
+  chatId: stream.request.chatId,
+  messages: [
+    ...stream.request.messages,
+    stream.controller.signal.aborted
+      ? {
+          ...stream.assistantMessage,
+          parts: markInterruptedToolCalls(stream.assistantMessage.parts),
+        }
+      : stream.assistantMessage,
+  ],
+  status: stream.controller.signal.aborted ? 'idle' : stream.status,
+  assistantMessageId: stream.assistantMessage.id,
+});
+
+/** Detaching a view only removes a subscriber; it never cancels the turn. */
+const subscribeLLMStream = async (port: chrome.runtime.Port, chatId: string): Promise<void> => {
+  attachStreamPort(port, chatId);
+  const active = activeStreams.get(chatId);
+  if (active) {
+    safeSend(port, { ...streamSnapshot(active) });
+    return;
+  }
+  // The turn may have completed between the page's database read and subscription.
+  const token = {};
+  pendingSnapshots.set(port, token);
+  const { getMessagesByChatId } = await import('@extension/storage');
+  const messages = await getMessagesByChatId(chatId);
+  if (
+    subscribers.get(port) !== chatId ||
+    pendingSnapshots.get(port) !== token ||
+    activeStreams.has(chatId)
+  )
+    return;
+  pendingSnapshots.delete(port);
+  safeSend(port, { type: 'LLM_STREAM_SNAPSHOT', chatId, messages, status: 'idle' });
+};
+
+const watchLLMStreams = (port: chrome.runtime.Port) => {
+  watchers.add(port);
+  port.onDisconnect.addListener(() => watchers.delete(port));
+  notifyRunningChats();
+};
+
+const stopLLMStream = (chatId: string, assistantMessageId?: string) => {
+  const active = activeStreams.get(chatId);
+  // A late Stop from an old view must not cancel a newer turn.
+  if (!active || (assistantMessageId && active.assistantMessage.id !== assistantMessageId)) return;
+  active.controller.abort();
+  broadcast(chatId, { type: 'LLM_STREAM_STOPPED', chatId });
+  notifyRunningChats();
+};
 
 const handleLLMStream = async (
   port: chrome.runtime.Port,
   request: LLMRequestMessage,
 ): Promise<void> => {
-  const controller = new AbortController();
-  const onDisconnect = () => controller.abort();
-  port.onDisconnect.addListener(onDisconnect);
   const previous = activeStreams.get(request.chatId);
+  attachStreamPort(port, request.chatId);
+  // Another view of the same chat joins the existing turn instead of interrupting it.
+  if (previous && !previous.controller.signal.aborted) {
+    safeSend(port, { ...streamSnapshot(previous) });
+    await previous.done;
+    return;
+  }
+  const controller = new AbortController();
   let finish!: () => void;
-  const active = {
+  const active: ActiveStream = {
     controller,
+    request,
+    assistantMessage: {
+      id: request.assistantMessageId ?? crypto.randomUUID(),
+      chatId: request.chatId,
+      role: 'assistant',
+      parts: [],
+      createdAt: Date.now(),
+      model: request.model.id,
+    },
+    status: 'connecting',
     done: new Promise<void>(resolve => {
       finish = resolve;
     }),
   };
   activeStreams.set(request.chatId, active);
-  previous?.controller.abort();
+  broadcast(request.chatId, { ...streamSnapshot(active) });
+  notifyRunningChats();
+  const target: StreamTarget = {
+    postMessage(message: Record<string, unknown>) {
+      if (controller.signal.aborted) return;
+      if (message.type === 'LLM_STREAM_CHUNK') active.status = 'streaming';
+      if (message.type === 'LLM_STREAM_END' || message.type === 'LLM_STREAM_ERROR') {
+        active.status = message.type === 'LLM_STREAM_END' ? 'idle' : 'error';
+        notifyRunningChats();
+      }
+      broadcast(request.chatId, message);
+    },
+  };
   try {
     await previous?.done;
-    if (!controller.signal.aborted) await runLLMStream(port, request, controller);
+    if (!controller.signal.aborted)
+      await runLLMStream(target, request, controller, active.assistantMessage);
   } finally {
-    port.onDisconnect.removeListener(onDisconnect);
     if (activeStreams.get(request.chatId) === active) activeStreams.delete(request.chatId);
+    notifyRunningChats();
     finish();
   }
 };
 
-export { handleLLMStream };
+export { handleLLMStream, subscribeLLMStream, watchLLMStreams, stopLLMStream };

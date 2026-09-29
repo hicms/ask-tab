@@ -8,8 +8,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pathToExtension = path.resolve(__dirname, '../../../dist');
 
 export const test = base.extend<{ context: BrowserContext; extensionId: string }>({
-  context: async ({ headless, channel }, use) => {
+  context: async ({ headless, channel, launchOptions }, use) => {
     const context = await chromium.launchPersistentContext('', {
+      ...launchOptions,
       headless,
       channel,
       args: [

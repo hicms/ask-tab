@@ -303,6 +303,9 @@
       }
     }
   },
+  "session_running": {
+    "message": "Thinking"
+  },
   "session_newSession": {
     "message": "New Session"
   },
