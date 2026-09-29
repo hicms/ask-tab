@@ -128,57 +128,20 @@ const FullPageChat = () => {
     return unsub;
   }, []);
 
-  // Restore last active session on mount
+  // Start a fresh session on every open. History stays available from the sidebar.
   useEffect(() => {
-    const restoreSession = async () => {
-      try {
-        const storedId = await lastActiveSessionStorage.get();
-        if (storedId) {
-          const chat = await getChat(storedId);
-          if (chat && chat.archivedAt === undefined) {
-            const msgs = await getMessagesByChatId(chat.id);
-            const mapped = msgs.map(m => ({
-              id: m.id,
-              chatId: m.chatId,
-              role: m.role,
-              parts: m.parts as ChatMessagePart[],
-              createdAt: m.createdAt,
-              model: m.model,
-            })) as ChatMessage[];
-            setChatId(chat.id);
-            setChatTitle(chat.title);
-            setInitialMessages(mapped);
-            setSessionLoading(false);
-            return;
-          }
-        }
-        // Fallback: most recent chat
-        const recent = await getMostRecentChat();
-        if (recent) {
-          const msgs = await getMessagesByChatId(recent.id);
-          const mapped = msgs.map(m => ({
-            id: m.id,
-            chatId: m.chatId,
-            role: m.role,
-            parts: m.parts as ChatMessagePart[],
-            createdAt: m.createdAt,
-            model: m.model,
-          })) as ChatMessage[];
-          setChatId(recent.id);
-          setChatTitle(recent.title);
-          setInitialMessages(mapped);
-          await lastActiveSessionStorage.set(recent.id);
-        } else {
-          // First time user — fresh session
-          setChatId(nanoid());
-        }
-      } catch {
-        setChatId(nanoid());
-      } finally {
-        setSessionLoading(false);
-      }
+    const startFreshSession = async () => {
+      const newId = nanoid();
+      setChatId(newId);
+      setChatTitle(undefined);
+      setInitialMessages([]);
+      await lastActiveSessionStorage.set(newId);
+      setSessionLoading(false);
     };
-    restoreSession();
+    startFreshSession().catch(() => {
+      setChatId(nanoid());
+      setSessionLoading(false);
+    });
   }, []);
 
   // Prune old sessions on mount (non-blocking, delayed)
