@@ -3,6 +3,7 @@ import { openChat } from '../helpers/chat-catalog';
 import { abortedStreams, catalog, emit, installProvider, streamCount } from '../helpers/mock-llm';
 import path from 'path';
 import type { Page } from '@playwright/test';
+
 const send = async (page: Page, question: string) => {
   await expect(page.locator('textarea'))
     .toBeVisible()
