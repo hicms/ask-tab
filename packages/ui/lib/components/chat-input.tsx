@@ -1,4 +1,5 @@
 import { AttachmentsButton } from './attachments-button';
+import { ChatOptionsIcon, ChatSendIcon } from './chat-action-icons';
 import { MicButton } from './mic-button';
 import { ModelCapabilityIcons } from './model-capability-icons';
 import { ModelPriceMultiplier } from './model-price-multiplier';
@@ -29,7 +30,7 @@ import { useT } from '@extension/i18n';
 import { groupModelsByTier, knownTier, useStorage, getSlashCommands } from '@extension/shared';
 import { diagnostics } from '@extension/shared/lib/diagnostics.js';
 import { sttConfigStorage } from '@extension/storage';
-import { ChevronDownIcon, Loader2Icon, SendIcon, SquareIcon } from 'lucide-react';
+import { Loader2Icon, SquareIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type {
@@ -403,7 +404,7 @@ const ChatInput = ({
     }
   };
 
-  const actionButtonClass = 'shrink-0 gap-1.5 rounded-lg';
+  const actionButtonClass = 'chat-send-button shrink-0 gap-1.5 rounded-lg';
   let actionButton: ReactNode;
   if (isCompacting) {
     actionButton = (
@@ -428,23 +429,23 @@ const ChatInput = ({
       <div className="flex shrink-0 items-center">
         <Button
           aria-label={t('chat_addToQueue')}
-          className="shrink-0 rounded-l-lg rounded-r-none"
+          className="chat-send-button shrink-0 rounded-l-lg rounded-r-none"
           disabled={isUploading}
           size="icon"
           title={`${t('chat_addToQueue')} (Enter)`}
           type="submit"
           variant="default">
-          <SendIcon className="size-4" />
+          <ChatSendIcon className="size-4" />
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               aria-label={t('chat_sendOptions')}
-              className="border-primary-foreground/20 h-10 w-6 shrink-0 rounded-l-none rounded-r-lg border-l px-0"
+              className="chat-send-button h-10 w-6 shrink-0 rounded-l-none rounded-r-lg border-l border-white/20 px-0"
               title={t('chat_sendOptions')}
               type="button"
               variant="default">
-              <ChevronDownIcon className="size-3.5" />
+              <ChatOptionsIcon className="size-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -486,7 +487,7 @@ const ChatInput = ({
         title={t('chat_send')}
         type="submit"
         variant="default">
-        <SendIcon className="size-4" />
+        <ChatSendIcon className="size-4" />
       </Button>
     );
   }

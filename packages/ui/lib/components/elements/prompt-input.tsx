@@ -1,4 +1,5 @@
 import { cn } from '../../utils';
+import { ChatSendIcon } from '../chat-action-icons';
 import {
   Button,
   Select,
@@ -8,7 +9,7 @@ import {
   SelectValue,
   Textarea,
 } from '../ui';
-import { Loader2Icon, SendIcon, SquareIcon, XIcon } from 'lucide-react';
+import { Loader2Icon, SquareIcon, XIcon } from 'lucide-react';
 import { Children } from 'react';
 import type { ComponentProps, HTMLAttributes, KeyboardEventHandler } from 'react';
 
@@ -117,13 +118,13 @@ export const PromptInputSubmit = ({
   children,
   ...props
 }: PromptInputSubmitProps) => {
-  let Icon = <SendIcon className="size-4" />;
+  let Icon = <ChatSendIcon className="size-4" />;
   if (status === 'submitted') Icon = <Loader2Icon className="size-4 animate-spin" />;
   else if (status === 'streaming') Icon = <SquareIcon className="size-4" />;
   else if (status === 'error') Icon = <XIcon className="size-4" />;
   return (
     <Button
-      className={cn('gap-1.5 rounded-lg', className)}
+      className={cn('gap-1.5 rounded-lg', variant === 'default' && 'chat-send-button', className)}
       size={size}
       type="submit"
       variant={variant}

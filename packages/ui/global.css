@@ -36,6 +36,10 @@
   --sidebar-border: hsl(220 13% 91%);
   --sidebar-ring: hsl(217.2 91.2% 59.8%);
   --radius: 0.5rem;
+  --chat-brand: #006cff;
+  --chat-send-hover: #005cdb;
+  --chat-action: var(--chat-brand);
+  --chat-action-soft: #e8f2ff;
 }
 
 .dark {
@@ -71,6 +75,33 @@
   --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
   --sidebar-border: hsl(240 3.7% 15.9%);
   --sidebar-ring: hsl(217.2 91.2% 59.8%);
+  --chat-action: #79b5ff;
+  --chat-action-soft: #172b46;
+}
+
+.chat-action-icon,
+.chat-action-button {
+  color: var(--chat-action);
+}
+
+.chat-action-button:hover {
+  background-color: var(--chat-action-soft);
+  color: var(--chat-action);
+}
+
+.chat-send-button {
+  background-color: var(--chat-brand);
+  color: #fff;
+}
+
+.chat-send-button:hover {
+  background-color: var(--chat-send-hover);
+  color: #fff;
+}
+
+.chat-send-button:focus-visible,
+.chat-action-button:focus-visible {
+  --tw-ring-color: var(--chat-action);
 }
 
 @layer base {

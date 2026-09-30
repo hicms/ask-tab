@@ -1,5 +1,5 @@
+import { ChatAttachmentIcon } from './chat-action-icons';
 import { Button } from './ui';
-import { PaperclipIcon } from 'lucide-react';
 
 type AttachmentsButtonProps = {
   onClick: () => void;
@@ -8,14 +8,14 @@ type AttachmentsButtonProps = {
 
 const AttachmentsButton = ({ onClick, disabled }: AttachmentsButtonProps) => (
   <Button
-    className="size-8"
+    className="chat-action-button size-8"
     data-testid="attachments-button"
     disabled={disabled}
     onClick={onClick}
     size="icon"
     type="button"
     variant="ghost">
-    <PaperclipIcon className="size-4 -rotate-45" />
+    <ChatAttachmentIcon className="size-4" />
   </Button>
 );
 

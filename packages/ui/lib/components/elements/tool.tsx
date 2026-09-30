@@ -1,4 +1,5 @@
 import { cn } from '../../utils';
+import { ChatCopyIcon } from '../chat-action-icons';
 import { FormattedOrRawView } from '../tool-result-view';
 import { Button, Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui';
 import { useT } from '@extension/i18n';
@@ -6,7 +7,6 @@ import {
   CheckCircleIcon,
   ChevronDownIcon,
   CircleIcon,
-  CopyIcon,
   Loader2Icon,
   MinusCircleIcon,
   WrenchIcon,
@@ -109,14 +109,14 @@ const ToolHeader = ({
       )}
       {onCopy && (
         <Button
-          className="size-5 shrink-0 opacity-0 group-hover:opacity-100"
+          className="chat-action-button size-5 shrink-0 opacity-0 group-hover:opacity-100"
           onClick={e => {
             e.stopPropagation();
             onCopy();
           }}
           size="icon"
           variant="ghost">
-          <CopyIcon className="size-3" />
+          <ChatCopyIcon className="size-3" />
         </Button>
       )}
       {!onCopy && <span aria-hidden="true" className="size-5 shrink-0" />}

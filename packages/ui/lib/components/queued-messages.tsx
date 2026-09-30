@@ -1,7 +1,8 @@
+import { ChatQueueIcon } from './chat-action-icons';
 import { Button } from './ui';
 import { cn } from '../utils';
 import { useT } from '@extension/i18n';
-import { CornerDownRightIcon, XIcon } from 'lucide-react';
+import { XIcon } from 'lucide-react';
 import type { ChatQueuePauseReason, ChatQueueState } from '@extension/shared';
 
 const pauseLabels = {
@@ -76,8 +77,8 @@ const QueuedMessages = ({
                 {item.text}
               </p>
               {item.mode === 'steer' && (
-                <p className="text-primary flex items-center gap-1 text-xs">
-                  <CornerDownRightIcon className="size-3 animate-pulse" />
+                <p className="chat-action-icon flex items-center gap-1 text-xs">
+                  <ChatQueueIcon className="size-3 animate-pulse" />
                   {t('chat_queueSteering')}
                 </p>
               )}
@@ -90,13 +91,13 @@ const QueuedMessages = ({
               {canSteer && item.mode === 'queue' && (
                 <Button
                   aria-label={t('chat_queueSteerItem')}
-                  className="size-6"
+                  className="chat-action-button size-6"
                   onClick={() => onSteer(item.id)}
                   size="icon-sm"
                   title={t('chat_queueSteerItem')}
                   type="button"
                   variant="ghost">
-                  <CornerDownRightIcon className="size-3.5" />
+                  <ChatQueueIcon className="size-3.5" />
                 </Button>
               )}
               <Button
