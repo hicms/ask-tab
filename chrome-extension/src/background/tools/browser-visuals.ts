@@ -27,9 +27,14 @@ const renderBrowserVisuals = async (
     __askTabCursorPosition?: { x: number; y: number };
   };
   const state = scope.__askTabVisualState;
+  const removeHosts = () => {
+    // An extension reload can leave DOM markers whose isolated-world state is gone.
+    for (const host of document.querySelectorAll('[data-asktab-visuals="true"]')) host.remove();
+  };
 
   if (command === 'clear' || command === 'reset') {
     state?.dispose();
+    removeHosts();
     delete scope.__askTabVisualState;
     scope.__askTabVisualRefs?.clear();
     if (command === 'reset') {
@@ -40,6 +45,7 @@ const renderBrowserVisuals = async (
   }
   if (command === 'prepare') {
     state?.dispose();
+    removeHosts();
     delete scope.__askTabVisualState;
     scope.__askTabVisualRefs = new Map();
     return true;
@@ -51,6 +57,8 @@ const renderBrowserVisuals = async (
 
   const ensureState = (): VisualState => {
     if (scope.__askTabVisualState?.host.isConnected) return scope.__askTabVisualState;
+    scope.__askTabVisualState?.dispose();
+    removeHosts();
 
     const host = document.createElement('div');
     host.setAttribute('data-asktab-visuals', 'true');
@@ -93,23 +101,54 @@ const renderBrowserVisuals = async (
       '#DC143C',
       '#4682B4',
     ];
+    const isVisible = (element: Element): boolean => {
+      if (getComputedStyle(element).visibility !== 'visible') return false;
+      for (let ancestor: Element | null = element; ancestor; ) {
+        if (
+          ancestor.matches('[hidden], [inert], [aria-hidden="true"]') ||
+          Number(getComputedStyle(ancestor).opacity) === 0
+        )
+          return false;
+        const root = ancestor.getRootNode();
+        ancestor = ancestor.parentElement ?? (root instanceof ShadowRoot ? root.host : null);
+      }
+      return true;
+    };
+    const isUncovered = (element: Element, rect: DOMRect): boolean => {
+      const left = Math.max(0, rect.left);
+      const top = Math.max(0, rect.top);
+      const right = Math.min(innerWidth, rect.right);
+      const bottom = Math.min(innerHeight, rect.bottom);
+      if (right <= left || bottom <= top) return false;
+      const x = (left + right) / 2;
+      const y = (top + bottom) / 2;
+      let root = element.getRootNode();
+      const pointRoot = root instanceof ShadowRoot ? root : element.ownerDocument;
+      let hit = pointRoot.elementFromPoint(x, y);
+      if (!hit || (hit !== element && !element.contains(hit))) return false;
+      // A shadow-root hit alone cannot prove that a panel outside that root is absent.
+      while (root instanceof ShadowRoot) {
+        const host = root.host;
+        root = host.getRootNode();
+        const outerRoot = root instanceof ShadowRoot ? root : element.ownerDocument;
+        hit = outerRoot.elementFromPoint(x, y);
+        if (!hit || (hit !== host && !host.contains(hit))) return false;
+      }
+      return true;
+    };
     let scheduled = false;
+    let disposed = false;
     const render = () => {
+      if (disposed) return;
       boxes.replaceChildren();
       const visibleTargets = scope.__askTabVisualRefs?.size
         ? scope.__askTabVisualRefs
         : scope.__askTabRefs;
       for (const [index, element] of visibleTargets ?? []) {
-        if (!element.isConnected) continue;
+        if (!element.isConnected || !isVisible(element)) continue;
         const color = colors[index % colors.length];
         const rects = [...element.getClientRects()].filter(
-          rect =>
-            rect.width > 0 &&
-            rect.height > 0 &&
-            rect.bottom > 0 &&
-            rect.right > 0 &&
-            rect.top < innerHeight &&
-            rect.left < innerWidth,
+          rect => rect.width > 0 && rect.height > 0 && isUncovered(element, rect),
         );
         for (const rect of rects) {
           const box = document.createElement('div');
@@ -132,6 +171,11 @@ const renderBrowserVisuals = async (
       }
     };
     const schedule = () => {
+      if (!host.isConnected) {
+        dispose();
+        if (scope.__askTabVisualState?.host === host) delete scope.__askTabVisualState;
+        return;
+      }
       if (scheduled) return;
       scheduled = true;
       requestAnimationFrame(() => {
@@ -157,6 +201,7 @@ const renderBrowserVisuals = async (
       characterData: true,
     });
     const dispose = () => {
+      disposed = true;
       observer.disconnect();
       for (const type of layoutEvents) window.removeEventListener(type, schedule, true);
       window.removeEventListener('resize', schedule);
@@ -183,6 +228,12 @@ const renderBrowserVisuals = async (
     const rect = target.getBoundingClientRect();
     const position = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
     scope.__askTabCursorPosition = position;
+    current.cursor.classList.toggle(
+      'pointing',
+      target.closest(
+        'a[href], button, summary, input[type="button"], input[type="submit"], input[type="reset"], input[type="checkbox"], input[type="radio"], [role="button"], [role="link"]',
+      ) !== null || getComputedStyle(target).cursor === 'pointer',
+    );
     current.cursor.style.visibility = 'visible';
     current.cursor.style.transform = `translate3d(${position.x}px, ${position.y}px, 0)`;
     await new Promise(resolve => setTimeout(resolve, 330));

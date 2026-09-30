@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="asktab-arrow-outline" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#228df3"/>
+      <stop offset="1" stop-color="#a44cf4"/>
+    </linearGradient>
+  </defs>
+  <path d="M1.5 1.5V20L7.1 15.4L11 22L14.5 20L10.6 13.4L18.5 12.5Z" fill="#f6f7ff" stroke="url(#asktab-arrow-outline)" stroke-width="1.8" stroke-linejoin="round"/>
+</svg>
