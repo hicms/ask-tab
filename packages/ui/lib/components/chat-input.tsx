@@ -81,7 +81,7 @@ type ChatInputProps = {
   isCompacting?: boolean;
   /** Returns false to keep the draft, e.g. when the queue is full. */
   onEnqueue?: (content: string, mode: QueuedMessageMode) => boolean;
-  /** Rendered at the top of the composer. */
+  /** Rendered above the composer. */
   tray?: ReactNode;
 };
 
@@ -429,23 +429,23 @@ const ChatInput = ({
       <div className="flex shrink-0 items-center">
         <Button
           aria-label={t('chat_addToQueue')}
-          className="chat-send-button shrink-0 rounded-l-lg rounded-r-none"
+          className="chat-send-button shrink-0 rounded-l-lg rounded-r-none [&_svg]:size-6"
           disabled={isUploading}
           size="icon"
           title={`${t('chat_addToQueue')} (Enter)`}
           type="submit"
           variant="default">
-          <ChatSendIcon className="size-4" />
+          <ChatSendIcon className="size-6" />
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               aria-label={t('chat_sendOptions')}
-              className="chat-send-button h-10 w-6 shrink-0 rounded-l-none rounded-r-lg border-l border-white/20 px-0"
+              className="chat-send-button h-10 w-8 shrink-0 rounded-l-none rounded-r-lg border-l border-white/20 px-0 [&_svg]:size-5"
               title={t('chat_sendOptions')}
               type="button"
               variant="default">
-              <ChatOptionsIcon className="size-3.5" />
+              <ChatOptionsIcon className="size-5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -481,13 +481,13 @@ const ChatInput = ({
     actionButton = (
       <Button
         aria-label={t('chat_send')}
-        className={actionButtonClass}
+        className={cn(actionButtonClass, '[&_svg]:size-6')}
         disabled={isUploading || !hasContent}
         size="icon"
         title={t('chat_send')}
         type="submit"
         variant="default">
-        <ChatSendIcon className="size-4" />
+        <ChatSendIcon className="size-6" />
       </Button>
     );
   }
@@ -515,10 +515,10 @@ const ChatInput = ({
           ))}
         </div>
       )}
+      {tray}
       <form
-        className="bg-background focus-within:border-ring w-full overflow-hidden rounded-xl border shadow-sm transition-colors"
+        className="chat-composer bg-background w-full overflow-hidden rounded-xl border shadow-sm transition-colors"
         onSubmit={handleSubmit}>
-        {tray}
         {/* Attachment previews */}
         {(attachments.length > 0 || isUploading) && (
           <div

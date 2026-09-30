@@ -109,17 +109,17 @@ const ToolHeader = ({
       )}
       {onCopy && (
         <Button
-          className="chat-action-button size-5 shrink-0 opacity-0 group-hover:opacity-100"
+          className="chat-action-button size-7 shrink-0 rounded-lg opacity-0 group-hover:opacity-100 [&_svg]:size-[18px]"
           onClick={e => {
             e.stopPropagation();
             onCopy();
           }}
           size="icon"
           variant="ghost">
-          <ChatCopyIcon className="size-3" />
+          <ChatCopyIcon className="size-[18px]" />
         </Button>
       )}
-      {!onCopy && <span aria-hidden="true" className="size-5 shrink-0" />}
+      {!onCopy && <span aria-hidden="true" className="size-7 shrink-0" />}
       <ChevronDownIcon className="text-muted-foreground size-3.5 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
     </CollapsibleTrigger>
   );

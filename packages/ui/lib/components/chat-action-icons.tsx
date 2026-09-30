@@ -23,12 +23,12 @@ const ChatActionIcon = ({ size = 24, children, ...props }: ChatActionIconProps) 
 
 const ChatSendIcon = (props: ChatActionIconProps) => (
   <ChatActionIcon strokeWidth={2.6} {...props}>
-    <path d="m5.75 10.5 6.25-6.25 6.25 6.25M12 4.75v15" />
+    <path d="m4.75 10.5 7.25-7.25 7.25 7.25M12 3.75V20.5" />
   </ChatActionIcon>
 );
 
 const ChatAttachmentIcon = ({ className, ...props }: ChatActionIconProps) => (
-  <ChatActionIcon className={cn('chat-action-icon', className)} {...props}>
+  <ChatActionIcon className={cn('chat-action-icon', className)} strokeWidth={2.2} {...props}>
     <g transform="rotate(18 12 12)">
       <rect
         fill="currentColor"
@@ -57,22 +57,35 @@ const ChatCopyIcon = ({ className, ...props }: ChatActionIconProps) => (
       x={3.5}
       y={3.5}
     />
-    <path d="M8 7.5h7.5l5 4.5v6.5a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2v-11ZM15.5 7.5V12h5M11.5 15.5H17" />
+    <path d="M8 7.5h7.5l5 4.5v6.5a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2v-11ZM15.5 7.5V12h5M11.5 15H17M11.5 18H17" />
   </ChatActionIcon>
 );
 
 const ChatQueueIcon = ({ className, ...props }: ChatActionIconProps) => (
-  <ChatActionIcon className={cn('chat-action-icon', className)} {...props}>
-    <path d="M9.5 14.5v4.25" opacity={0.22} strokeWidth={3} />
-    <path d="M4.75 18.75V13a4.5 4.5 0 0 1 4.5-4.5h10m-4.75-4.75 4.75 4.75-4.75 4.75" />
+  <ChatActionIcon className={cn('chat-action-icon', className)} strokeWidth={2.6} {...props}>
+    <path d="M9.5 14.5V20" opacity={0.18} strokeWidth={3.5} />
+    <path d="M3.5 20v-7a5 5 0 0 1 5-5h12m-5-5 5 5-5 5" />
   </ChatActionIcon>
 );
 
 const ChatOptionsIcon = (props: ChatActionIconProps) => (
   <ChatActionIcon strokeWidth={2.4} {...props}>
-    <path d="m6.5 9.5 5.5 5 5.5-5" />
+    <path d="m5.5 9 6.5 6 6.5-6" />
   </ChatActionIcon>
 );
 
-export { ChatSendIcon, ChatAttachmentIcon, ChatCopyIcon, ChatQueueIcon, ChatOptionsIcon };
+const ChatQueuedMessageIcon = (props: ChatActionIconProps) => (
+  <ChatActionIcon {...props}>
+    <path d="M6.5 3.5H15L19.5 8v9a2 2 0 0 1-2 2H9l-4.5 3V5.5a2 2 0 0 1 2-2ZM15 3.5V8h4.5M8 11.5h8M8 15h5" />
+  </ChatActionIcon>
+);
+
+export {
+  ChatSendIcon,
+  ChatAttachmentIcon,
+  ChatCopyIcon,
+  ChatQueueIcon,
+  ChatOptionsIcon,
+  ChatQueuedMessageIcon,
+};
 export type { ChatActionIconProps };

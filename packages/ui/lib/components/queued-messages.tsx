@@ -1,6 +1,5 @@
-import { ChatQueueIcon } from './chat-action-icons';
+import { ChatQueuedMessageIcon, ChatQueueIcon } from './chat-action-icons';
 import { Button } from './ui';
-import { cn } from '../utils';
 import { useT } from '@extension/i18n';
 import { XIcon } from 'lucide-react';
 import type { ChatQueuePauseReason, ChatQueueState } from '@extension/shared';
@@ -35,10 +34,8 @@ const QueuedMessages = ({
   if (items.length === 0) return null;
 
   return (
-    <div
-      className="bg-muted/60 text-foreground border-border border-b text-sm"
-      data-testid="queued-messages">
-      <div className="flex items-center justify-between gap-2 px-3 pt-2">
+    <div className="text-foreground mb-3 space-y-2 text-sm" data-testid="queued-messages">
+      <div className="flex items-center justify-between gap-2 px-1">
         <span aria-live="polite" className="text-muted-foreground text-xs font-medium">
           {t('chat_queueTitle', String(items.length))}
         </span>
@@ -53,7 +50,7 @@ const QueuedMessages = ({
       </div>
       {pauseReason && (
         <div
-          className="bg-background mx-3 mt-1 flex items-center justify-between gap-2 rounded-md px-2 py-1"
+          className="bg-muted flex items-center justify-between gap-2 rounded-xl px-3 py-2"
           data-testid="queued-messages-paused">
           <span className="text-muted-foreground text-xs">{t(pauseLabels[pauseReason])}</span>
           <Button
@@ -66,49 +63,55 @@ const QueuedMessages = ({
           </Button>
         </div>
       )}
-      <ul className="max-h-40 overflow-y-auto px-1.5 py-1">
+      <ul className="max-h-56 space-y-2 overflow-y-auto">
         {items.map(item => (
           <li
-            className="hover:bg-background/70 group flex items-start gap-2 rounded-md px-1.5 py-1"
+            className="bg-muted flex min-h-[68px] items-center gap-3 rounded-xl p-3"
             data-testid="queued-message"
             key={item.id}>
-            <div className="min-w-0 flex-1">
-              <p className="line-clamp-2 whitespace-pre-wrap break-words" title={item.text}>
+            <ChatQueuedMessageIcon className="text-muted-foreground size-6 shrink-0" />
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <p
+                className="line-clamp-2 whitespace-pre-wrap break-words font-medium"
+                data-testid="queued-message-text"
+                title={item.text}>
                 {item.text}
+              </p>
+              <p
+                className="text-muted-foreground truncate text-xs"
+                data-testid="queued-message-model"
+                title={item.model.name}>
+                {item.model.name}
               </p>
               {item.mode === 'steer' && (
                 <p className="chat-action-icon flex items-center gap-1 text-xs">
-                  <ChatQueueIcon className="size-3 animate-pulse" />
+                  <ChatQueueIcon className="size-4 shrink-0 animate-pulse" />
                   {t('chat_queueSteering')}
                 </p>
               )}
             </div>
-            <div
-              className={cn(
-                'flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity',
-                'focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100',
-              )}>
+            <div className="flex shrink-0 items-center gap-2">
               {canSteer && item.mode === 'queue' && (
                 <Button
                   aria-label={t('chat_queueSteerItem')}
-                  className="chat-action-button size-6"
+                  className="chat-action-button chat-action-button-soft size-8 rounded-lg [&_svg]:size-5"
                   onClick={() => onSteer(item.id)}
                   size="icon-sm"
                   title={t('chat_queueSteerItem')}
                   type="button"
                   variant="ghost">
-                  <ChatQueueIcon className="size-3.5" />
+                  <ChatQueueIcon className="size-5" />
                 </Button>
               )}
               <Button
                 aria-label={t('chat_queueRemove')}
-                className="size-6"
+                className="text-muted-foreground hover:text-foreground size-8 rounded-lg bg-zinc-200/50 dark:bg-zinc-700/40 [&_svg]:size-[18px]"
                 onClick={() => onRemove(item.id)}
                 size="icon-sm"
                 title={t('chat_queueRemove')}
                 type="button"
                 variant="ghost">
-                <XIcon className="size-3.5" />
+                <XIcon className="size-[18px]" />
               </Button>
             </div>
           </li>

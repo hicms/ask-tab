@@ -20,12 +20,12 @@ const MessageActions = ({ role, content, onEdit }: MessageActionsProps) => {
   return (
     <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/message:opacity-100">
       <Button
-        className="chat-action-button size-7"
+        className="chat-action-button chat-action-button-soft size-8 rounded-lg [&_svg]:size-5"
         data-testid="message-copy-button"
         onClick={handleCopy}
         size="icon"
         variant="ghost">
-        <ChatCopyIcon className="size-3.5" />
+        <ChatCopyIcon className="size-5" />
       </Button>
       {role === 'user' && onEdit && (
         <Button

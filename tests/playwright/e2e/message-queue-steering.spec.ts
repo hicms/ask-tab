@@ -27,6 +27,7 @@ const enqueue = async (page: Page, text: string, key = 'Enter') => {
 const actionButton = (page: Page) => page.locator('form button[type="submit"]');
 const tray = (page: Page) => page.getByTestId('queued-messages');
 const queued = (page: Page) => page.getByTestId('queued-message');
+const queuedTexts = (page: Page) => queued(page).getByTestId('queued-message-text');
 const userTexts = (page: Page) =>
   page.locator('[data-testid="message-user"] [data-testid="message-content"]');
 
@@ -64,18 +65,18 @@ for (const pagePath of ['side-panel', 'full-page-chat'] as const) {
     await enqueue(page, '排队 2');
     await enqueue(page, '排队 3');
     await expect(tray(page)).toContainText('待发送 3 条');
-    await expect(queued(page)).toHaveText(['排队 1', '排队 2', '排队 3']);
+    await expect(queuedTexts(page)).toHaveText(['排队 1', '排队 2', '排队 3']);
 
     await queued(page).nth(1).hover();
     await queued(page).nth(1).getByRole('button', { name: '移除' }).click();
-    await expect(queued(page)).toHaveText(['排队 1', '排队 3']);
+    await expect(queuedTexts(page)).toHaveText(['排队 1', '排队 3']);
     await expect(tray(page)).toContainText('待发送 2 条');
     expect(await streamCount(worker)).toBe(1);
 
     await emit(worker, 0, '第一条答复。', true);
     await waitForStreams(worker, 2);
     expect(await streamBody(worker, 1)).toContain('排队 1');
-    await expect(queued(page)).toHaveText(['排队 3']);
+    await expect(queuedTexts(page)).toHaveText(['排队 3']);
     await expect(page.getByText('第一条答复。', { exact: true })).toBeVisible();
 
     await emit(worker, 1, '第二条答复。', true);
@@ -145,7 +146,7 @@ test('stopping pauses the queue until the user resumes it', async ({ context, ex
   await expect.poll(() => abortedStreams(worker)).toEqual([true]);
   await expect(page.getByTestId('queued-messages-paused')).toContainText('已停止生成，队列已暂停');
   // The unsent steering message goes back to the queue as a normal item.
-  await expect(queued(page)).toHaveText(['排队 A']);
+  await expect(queuedTexts(page)).toHaveText(['排队 A']);
   await page.waitForTimeout(500);
   expect(await streamCount(worker)).toBe(1);
   await expect(actionButton(page)).toHaveAttribute('aria-label', '发送');
@@ -180,12 +181,12 @@ test('the composer guards clearing, commands and the queue limit', async ({
   await page.getByRole('menuitem', { name: /加入队列/ }).click();
   await expect(input).toHaveValue('');
   await enqueue(page, '第二条');
-  await expect(queued(page)).toHaveText(['菜单加入', '第二条']);
+  await expect(queuedTexts(page)).toHaveText(['菜单加入', '第二条']);
 
   await page.getByRole('button', { name: '清空', exact: true }).click();
   await expect(tray(page)).toHaveCount(0);
   await page.getByRole('button', { name: '撤销' }).click();
-  await expect(queued(page)).toHaveText(['菜单加入', '第二条']);
+  await expect(queuedTexts(page)).toHaveText(['菜单加入', '第二条']);
 
   for (let i = 3; i <= 20; i++) await enqueue(page, `第 ${i} 条`);
   await expect(tray(page)).toContainText('待发送 20 条');

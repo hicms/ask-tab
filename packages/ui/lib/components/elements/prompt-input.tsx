@@ -16,7 +16,10 @@ import type { ComponentProps, HTMLAttributes, KeyboardEventHandler } from 'react
 export type PromptInputProps = HTMLAttributes<HTMLFormElement>;
 export const PromptInput = ({ className, ...props }: PromptInputProps) => (
   <form
-    className={cn('bg-background shadow-xs w-full overflow-hidden rounded-xl border', className)}
+    className={cn(
+      'chat-composer bg-background shadow-xs w-full overflow-hidden rounded-xl border transition-colors',
+      className,
+    )}
     {...props}
   />
 );
@@ -118,13 +121,18 @@ export const PromptInputSubmit = ({
   children,
   ...props
 }: PromptInputSubmitProps) => {
-  let Icon = <ChatSendIcon className="size-4" />;
+  let Icon = <ChatSendIcon className="size-6" />;
   if (status === 'submitted') Icon = <Loader2Icon className="size-4 animate-spin" />;
   else if (status === 'streaming') Icon = <SquareIcon className="size-4" />;
   else if (status === 'error') Icon = <XIcon className="size-4" />;
   return (
     <Button
-      className={cn('gap-1.5 rounded-lg', variant === 'default' && 'chat-send-button', className)}
+      className={cn(
+        'gap-1.5 rounded-lg',
+        variant === 'default' && 'chat-send-button',
+        (!status || status === 'ready') && '[&_svg]:size-6',
+        className,
+      )}
       size={size}
       type="submit"
       variant={variant}
