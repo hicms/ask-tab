@@ -70,9 +70,9 @@ Creates a hidden extension document for JavaScript tools that need DOM parsing a
 Authenticates optional Google integrations through Chrome's OAuth APIs when users connect a Google account. Authorized tokens allow the configured assistant tools to access Gmail, Calendar, and Drive within the granted scopes.
 ```
 
-### 需请求 cookies 的理由（待处理，暂不填写）
+### cookies 权限（无需申请）
 
-清单声明了这个权限，但当前项目源码中未找到直接调用 Cookies API 的位置。页面脚本访问 document.cookie 或普通的带登录态请求，本身不能作为申请 chrome.cookies 权限的理由。应核对打包代码；确认未使用后，移除权限并上传新包，再提交表单。
+清单不再声明此权限，项目也未调用 Cookies API。`web_fetch` 通过浏览器标签页读取已登录的网页，普通请求可使用 `fetch` 的 credentials；这两种方式都不需要 `chrome.cookies` 权限。提交前核对上传包中的清单。
 
 ### 需请求 declarativeNetRequest 的理由（网络请求规则）
 
