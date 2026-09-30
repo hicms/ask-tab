@@ -8,14 +8,14 @@ type AttachmentsButtonProps = {
 
 const AttachmentsButton = ({ onClick, disabled }: AttachmentsButtonProps) => (
   <Button
-    className="chat-action-button bg-muted size-8 rounded-lg [&_svg]:size-5"
+    className="chat-action-button bg-muted size-10 shrink-0 rounded-lg [&_svg]:size-7"
     data-testid="attachments-button"
     disabled={disabled}
     onClick={onClick}
     size="icon"
     type="button"
     variant="ghost">
-    <ChatAttachmentIcon className="size-5" />
+    <ChatAttachmentIcon className="size-7" />
   </Button>
 );
 

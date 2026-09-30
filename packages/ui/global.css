@@ -91,6 +91,17 @@
   border-color: var(--chat-composer-focus-border);
 }
 
+.chat-model-select {
+  border-color: var(--chat-composer-border);
+  background-color: var(--muted);
+}
+
+.chat-model-select:hover,
+.chat-model-select:focus,
+.chat-model-select[data-state='open'] {
+  border-color: var(--chat-composer-focus-border);
+}
+
 .chat-action-icon,
 .chat-action-button {
   color: var(--chat-action);

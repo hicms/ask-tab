@@ -570,7 +570,7 @@ const ChatInput = ({
           value={input}
         />
         <div className="flex items-center justify-between p-1">
-          <div className="flex items-center gap-1">
+          <div className="flex min-w-0 items-center gap-2">
             <AttachmentsButton
               disabled={busy || isCompacting}
               onClick={() => fileInputRef.current?.click()}
@@ -579,8 +579,8 @@ const ChatInput = ({
               <Select onValueChange={onModelChange} value={selectedModelId}>
                 <SelectTrigger
                   className={cn(
-                    'text-muted-foreground h-auto border-none bg-transparent px-2 py-1.5 font-medium shadow-none transition-colors',
-                    'hover:bg-accent hover:text-foreground',
+                    'chat-model-select text-muted-foreground h-10 w-auto min-w-0 rounded-lg px-3 py-2 font-medium shadow-none transition-colors',
+                    'hover:text-foreground focus:ring-0 focus:ring-offset-0',
                   )}>
                   <SelectValue placeholder={t('chat_modelSelect')} />
                 </SelectTrigger>
