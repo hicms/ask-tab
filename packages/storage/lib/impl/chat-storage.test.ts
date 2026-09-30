@@ -12,6 +12,7 @@ import {
   finishModelTurn,
   deleteMessagesByChatId,
   deleteMessagesAfter,
+  replaceMessageAndDeleteAfter,
   saveArtifact,
   getArtifactById,
   getArtifactsByChatId,
@@ -532,6 +533,91 @@ describe('deleteMessagesAfter', () => {
 
     const otherMessages = await getMessagesByChatId('chat-2');
     expect(otherMessages).toHaveLength(1);
+  });
+});
+
+describe('replaceMessageAndDeleteAfter', () => {
+  const original: DbChatMessage = {
+    id: 'edited-user',
+    chatId: 'chat-1',
+    role: 'user',
+    parts: [{ type: 'text', text: '这是什么模型？' }],
+    createdAt: 10,
+  };
+  const edited: DbChatMessage = {
+    ...original,
+    parts: [{ type: 'text', text: '这是什么页面？' }],
+  };
+
+  beforeEach(async () => {
+    await createChat({
+      id: 'chat-1',
+      title: 'Edit',
+      createdAt: 1,
+      updatedAt: 1,
+      compactionSummary: 'Old question summary',
+    });
+    await createChat({ id: 'chat-2', title: 'Other', createdAt: 1, updatedAt: 1 });
+    await addMessage(original);
+    await saveModelTranscript({
+      chatId: 'chat-1',
+      schemaVersion: 1,
+      status: 'running',
+      sourceKey: 'test',
+      messages: [{ role: 'user', content: '这是什么模型？', timestamp: 10 }],
+    });
+  });
+
+  it('replaces the original and discards later messages, transcript and summary atomically', async () => {
+    await addMessage({
+      id: 'stopped-assistant',
+      chatId: 'chat-1',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Partial old reply' }],
+      createdAt: 20,
+    });
+    await addMessage({
+      id: 'later-user',
+      chatId: 'chat-1',
+      role: 'user',
+      parts: [{ type: 'text', text: 'Later' }],
+      createdAt: 30,
+    });
+    await addMessage({
+      id: 'other-user',
+      chatId: 'chat-2',
+      role: 'user',
+      parts: [],
+      createdAt: 20,
+    });
+    await saveModelTranscript({
+      chatId: 'chat-2',
+      schemaVersion: 1,
+      status: 'complete',
+      sourceKey: 'other',
+      messages: [],
+    });
+
+    await replaceMessageAndDeleteAfter(edited);
+    expect(await getMessagesByChatId('chat-1')).toEqual([edited]);
+    expect(await getModelTranscript('chat-1')).toBeUndefined();
+    expect((await getChat('chat-1'))?.compactionSummary).toBeUndefined();
+    expect(await getMessagesByChatId('chat-2')).toHaveLength(1);
+    expect(await getModelTranscript('chat-2')).toBeDefined();
+  });
+
+  it('invalidates a running checkpoint even when the edited user is the last stored message', async () => {
+    await replaceMessageAndDeleteAfter(edited);
+    expect(await getMessagesByChatId('chat-1')).toEqual([edited]);
+    expect(await getModelTranscript('chat-1')).toBeUndefined();
+  });
+
+  it('rejects a missing target without changing history or its checkpoint', async () => {
+    await expect(replaceMessageAndDeleteAfter({ ...edited, id: 'missing' })).rejects.toThrow(
+      'User message not found',
+    );
+    expect(await getMessagesByChatId('chat-1')).toEqual([original]);
+    expect(await getModelTranscript('chat-1')).toBeDefined();
   });
 });
 

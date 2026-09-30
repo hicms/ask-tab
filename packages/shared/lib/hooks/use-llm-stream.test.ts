@@ -165,6 +165,66 @@ describe('useLLMStream — stop and resume', () => {
     );
     expect(newPort.disconnect).not.toHaveBeenCalled();
   });
+
+  it('replaces a stopped user turn once in the UI and outgoing request, preserving attachments', () => {
+    const onUserMessageCreated = vi.fn();
+    const earlier: ChatMessage[] = [
+      {
+        id: 'earlier-user',
+        chatId: 'test-chat',
+        role: 'user',
+        parts: [{ type: 'text', text: 'Earlier' }],
+        createdAt: 1,
+      },
+      {
+        id: 'earlier-assistant',
+        chatId: 'test-chat',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Answer' }],
+        createdAt: 2,
+      },
+    ];
+    const hook = useLLMStream({
+      chatId: 'test-chat',
+      model: mockModel,
+      initialMessages: earlier,
+      onUserMessageCreated,
+    });
+    hook.sendMessage('这是什么模型？', [
+      { url: 'data:image/png;base64,aGVsbG8=', name: 'page.png', contentType: 'image/png' },
+    ]);
+    const original = (stateSlots[0].value as ChatMessage[]).at(-2)!;
+    hook.stop();
+    hook.sendMessage('这是什么页面？', undefined, original.id);
+
+    const messages = stateSlots[0].value as ChatMessage[];
+    const edited = messages.at(-2)!;
+    expect(messages).toHaveLength(4);
+    expect(messages.slice(0, 2)).toEqual(earlier);
+    expect(edited).toEqual({
+      ...original,
+      parts: [original.parts[0], { type: 'text', text: '这是什么页面？' }],
+    });
+    expect(onUserMessageCreated).toHaveBeenCalledOnce();
+    const port = vi.mocked(chrome.runtime.connect).mock.results[1].value as chrome.runtime.Port;
+    expect(port.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'LLM_REQUEST',
+        replaceMessageId: original.id,
+        messages: [...earlier, edited],
+      }),
+    );
+  });
+
+  it('keeps intentional identical new messages as separate turns', () => {
+    const hook = useLLMStream({ chatId: 'test-chat', model: mockModel });
+    hook.sendMessage('Same question');
+    hook.stop();
+    hook.sendMessage('Same question');
+    const users = (stateSlots[0].value as ChatMessage[]).filter(m => m.role === 'user');
+    expect(users).toHaveLength(2);
+    expect(users[0].id).not.toBe(users[1].id);
+  });
 });
 
 // ── Tests ────────────────────────────────────────────────

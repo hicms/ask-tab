@@ -142,6 +142,8 @@ interface LLMRequestMessage {
   model: ChatModel;
   /** ID for the assistant message so the background SW can persist it directly. */
   assistantMessageId?: string;
+  /** Replace this user message and discard its later history before running. */
+  replaceMessageId?: string;
   tools?: Record<string, unknown>;
 }
 

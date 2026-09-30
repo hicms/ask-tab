@@ -13,7 +13,7 @@ import {
   MAX_QUEUED_MESSAGES,
 } from '@extension/shared';
 import { diagnostics } from '@extension/shared/lib/diagnostics.js';
-import { addMessage, deleteMessagesAfter, touchChat } from '@extension/storage';
+import { addMessage, touchChat } from '@extension/storage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { UIArtifact } from '../artifact-types';
@@ -282,21 +282,10 @@ const Chat = ({
   );
 
   const handleEditSubmit = useCallback(
-    async (messageId: string, content: string) => {
-      // Truncate messages after the edited one, update the message, and re-send
-      await deleteMessagesAfter(chatId, messageId);
-      setMessages(prev => {
-        const idx = prev.findIndex(m => m.id === messageId);
-        if (idx < 0) return prev;
-        const updated = {
-          ...prev[idx],
-          parts: [{ type: 'text' as const, text: content }],
-        };
-        return prev.slice(0, idx + 1).map(m => (m.id === messageId ? updated : m));
-      });
-      sendMessage(content);
+    (messageId: string, content: string) => {
+      sendMessage(content, undefined, messageId);
     },
-    [chatId, setMessages, sendMessage],
+    [sendMessage],
   );
 
   const [artifact, setArtifact] = useState<UIArtifact>(initialArtifactData);

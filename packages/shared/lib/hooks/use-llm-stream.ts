@@ -40,7 +40,7 @@ interface UseLLMStreamOptions {
 interface UseLLMStreamReturn {
   messages: ChatMessage[];
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
-  sendMessage: (content: string, attachments?: Attachment[]) => void;
+  sendMessage: (content: string, attachments?: Attachment[], replaceMessageId?: string) => void;
   status: StreamingStatus;
   stop: () => void;
   input: string;
@@ -81,7 +81,11 @@ const useLLMStream = ({
   const messagesRef = useRef(initialMessages);
   const runningRef = useRef(false);
   const synchronizingRef = useRef(false);
-  const pendingSendRef = useRef<{ content: string; attachments?: Attachment[] } | null>(null);
+  const pendingSendRef = useRef<{
+    content: string;
+    attachments?: Attachment[];
+    replaceMessageId?: string;
+  } | null>(null);
   const [queue, setQueueState] = useState<ChatQueueState>(EMPTY_QUEUE);
   const queueRef = useRef(EMPTY_QUEUE);
 
@@ -354,17 +358,27 @@ const useLLMStream = ({
   }, [chatId, markStopped, setMessages, updateAssistantPart]);
 
   const sendMessage = useCallback(
-    (content: string, attachments?: Attachment[]) => {
+    (content: string, attachments?: Attachment[], replaceMessageId?: string) => {
       if (synchronizingRef.current) {
         // Welcome cards are usable before the initial subscription replies.
         // Acknowledge the click and retain its intent instead of dropping it.
-        pendingSendRef.current = { content, attachments };
+        pendingSendRef.current = { content, attachments, replaceMessageId };
         setInput(content);
         return;
       }
       if (runningRef.current) return;
 
-      const userParts: ChatMessagePart[] = [];
+      const editedIndex = replaceMessageId
+        ? messagesRef.current.findIndex(m => m.id === replaceMessageId && m.role === 'user')
+        : -1;
+      if (replaceMessageId && editedIndex < 0) return;
+      const editedMessage = editedIndex >= 0 ? messagesRef.current[editedIndex] : undefined;
+      const history = editedMessage
+        ? messagesRef.current.slice(0, editedIndex)
+        : messagesRef.current;
+      const userParts: ChatMessagePart[] = editedMessage
+        ? editedMessage.parts.filter(part => part.type !== 'text')
+        : [];
 
       // Add file parts first (for attachments)
       if (attachments?.length) {
@@ -385,11 +399,11 @@ const useLLMStream = ({
       }
 
       const userMessage: ChatMessage = {
-        id: nanoid(),
+        id: editedMessage?.id ?? nanoid(),
         chatId,
         role: 'user',
         parts: userParts,
-        createdAt: Date.now(),
+        createdAt: editedMessage?.createdAt ?? Date.now(),
       };
 
       const assistantMessage: ChatMessage = {
@@ -404,7 +418,7 @@ const useLLMStream = ({
       assistantMessageRef.current = assistantMessage;
       abortedRef.current = false;
 
-      const newMessages = [...messagesRef.current, userMessage, assistantMessage];
+      const newMessages = [...history, userMessage, assistantMessage];
       setMessages(newMessages);
 
       if (isFirstMessageRef.current) {
@@ -413,7 +427,8 @@ const useLLMStream = ({
       }
 
       // Persist user message to IndexedDB immediately (after chat is created for first msg)
-      onUserMessageCreated?.(userMessage);
+      // Edits are committed by the background after the stopped turn finishes saving.
+      if (!editedMessage) onUserMessageCreated?.(userMessage);
 
       // Open port and send request
       setStatus('connecting');
@@ -428,6 +443,7 @@ const useLLMStream = ({
         messages: messagesToSend,
         model,
         assistantMessageId: assistantMessage.id,
+        ...(replaceMessageId ? { replaceMessageId } : {}),
       });
 
       setInput('');
@@ -504,7 +520,8 @@ const useLLMStream = ({
     const pending = pendingSendRef.current;
     pendingSendRef.current = null;
     // Editing or clearing the visible draft cancels the pending shortcut.
-    if (pending && input === pending.content) sendMessage(pending.content, pending.attachments);
+    if (pending && input === pending.content)
+      sendMessage(pending.content, pending.attachments, pending.replaceMessageId);
   }, [input, status, sendMessage]);
 
   useEffect(() => {

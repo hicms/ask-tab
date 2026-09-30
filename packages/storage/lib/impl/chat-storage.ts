@@ -233,6 +233,30 @@ const deleteMessagesAfter = async (chatId: string, messageId: string): Promise<v
   }
 };
 
+/** Commit an edit and invalidate the model history in the same transaction. */
+const replaceMessageAndDeleteAfter = async (message: DbChatMessage): Promise<void> => {
+  await chatDb.transaction(
+    'rw',
+    [chatDb.chats, chatDb.messages, chatDb.modelTranscripts],
+    async () => {
+      const messages = await getMessagesByChatId(message.chatId);
+      const index = messages.findIndex(m => m.id === message.id);
+      const original = messages[index];
+      if (!original || original.role !== 'user' || message.role !== 'user') {
+        throw new Error(`User message not found: ${message.id}`);
+      }
+      await chatDb.messages.put({ ...original, parts: message.parts });
+      await chatDb.messages.bulkDelete(messages.slice(index + 1).map(m => m.id));
+      // Even an edit to the last stored message can leave a running checkpoint behind.
+      await chatDb.modelTranscripts.delete(message.chatId);
+      await chatDb.chats.update(message.chatId, {
+        compactionSummary: undefined,
+        updatedAt: Date.now(),
+      });
+    },
+  );
+};
+
 // ── Clear All ─────────────────────────────────
 
 const clearAllChatHistory = async (): Promise<void> => {
@@ -709,6 +733,7 @@ export {
   finishModelTurn,
   deleteMessagesByChatId,
   deleteMessagesAfter,
+  replaceMessageAndDeleteAfter,
   saveArtifact,
   getArtifactById,
   getArtifactsByChatId,

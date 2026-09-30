@@ -18,6 +18,7 @@ import {
   getMessagesByChatId,
   updateSessionTokens,
   saveArtifact,
+  replaceMessageAndDeleteAfter,
 } from '@extension/storage';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { RunAgentOpts } from './agent-setup';
@@ -80,6 +81,7 @@ vi.mock('@extension/storage', () => ({
   finishModelTurn: vi.fn(async () => {}),
   updateSessionTokens: vi.fn(async () => {}),
   getMessagesByChatId: vi.fn(async () => []),
+  replaceMessageAndDeleteAfter: vi.fn(async () => {}),
 }));
 
 // ── Test fixtures ────────────────────────────────────────
@@ -369,6 +371,63 @@ describe('handleLLMStream', () => {
         retryAttempts: 0,
       };
     });
+  });
+
+  it('waits for a stopped turn to finish saving before replacing history and loading the new prompt', async () => {
+    const completeOld = pausedAgent();
+    const port = createMockPort();
+    const oldDone = handleLLMStream(
+      port as never,
+      makeRequest({ assistantMessageId: 'old-assistant' }),
+    );
+    await vi.waitFor(() => expect(mockRunAgent).toHaveBeenCalledOnce());
+    expect(stopLLMStream('chat-1', 'old-assistant')).toBe(true);
+
+    let finishSaving!: () => void;
+    const saving = new Promise<void>(resolve => {
+      finishSaving = resolve;
+    });
+    vi.mocked(finishModelTurn).mockImplementationOnce(() => saving);
+    const edited = makeMessage({ parts: [{ type: 'text', text: '这是什么页面？' }] });
+    const newDone = handleLLMStream(
+      createMockPort() as never,
+      makeRequest({
+        messages: [edited],
+        replaceMessageId: edited.id,
+        assistantMessageId: 'new-assistant',
+      }),
+    );
+    expect(replaceMessageAndDeleteAfter).not.toHaveBeenCalled();
+    completeOld();
+    await vi.waitFor(() => expect(finishModelTurn).toHaveBeenCalledOnce());
+    expect(replaceMessageAndDeleteAfter).not.toHaveBeenCalled();
+    expect(mockRunAgent).toHaveBeenCalledOnce();
+
+    finishSaving();
+    await Promise.all([oldDone, newDone]);
+    expect(replaceMessageAndDeleteAfter).toHaveBeenCalledExactlyOnceWith(edited);
+    expect(mockRunAgent).toHaveBeenCalledTimes(2);
+    expect(mockRunAgent.mock.calls[1][0]).toEqual(
+      expect.objectContaining({
+        messages: [],
+        prompt: expect.objectContaining({ content: '这是什么页面？' }),
+      }),
+    );
+    expect(vi.mocked(replaceMessageAndDeleteAfter).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(getModelTranscript).mock.invocationCallOrder.at(-1)!,
+    );
+  });
+
+  it('does not call the model when replacing the stored message fails', async () => {
+    vi.mocked(replaceMessageAndDeleteAfter).mockRejectedValueOnce(
+      new Error('User message not found'),
+    );
+    const port = createMockPort();
+    await handleLLMStream(port as never, makeRequest({ replaceMessageId: 'msg-1' }));
+    expect(mockRunAgent).not.toHaveBeenCalled();
+    expect(port.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'LLM_STREAM_ERROR', error: 'User message not found' }),
+    );
   });
 
   it('sends LLM_STREAM_ERROR when no messages provided', async () => {

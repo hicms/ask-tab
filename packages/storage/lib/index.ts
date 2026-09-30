@@ -49,6 +49,7 @@ export {
   finishModelTurn,
   deleteMessagesByChatId,
   deleteMessagesAfter,
+  replaceMessageAndDeleteAfter,
   saveArtifact,
   getArtifactById,
   getArtifactsByChatId,

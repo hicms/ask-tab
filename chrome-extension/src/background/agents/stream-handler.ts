@@ -707,6 +707,26 @@ const handleLLMStream = async (
   };
   try {
     await previous?.done;
+    if (!controller.signal.aborted && request.replaceMessageId) {
+      // Stop returns immediately in the UI; the old turn may still be persisting.
+      // Only truncate after it has settled so its final write cannot restore the tail.
+      try {
+        const editedMessage = request.messages.at(-1);
+        if (
+          !editedMessage ||
+          editedMessage.id !== request.replaceMessageId ||
+          editedMessage.chatId !== request.chatId ||
+          editedMessage.role !== 'user'
+        ) {
+          throw new Error('Invalid edited user message');
+        }
+        const { replaceMessageAndDeleteAfter } = await import('@extension/storage');
+        await replaceMessageAndDeleteAfter(editedMessage);
+      } catch (err) {
+        sendError(target, request.chatId, err instanceof Error ? err.message : String(err));
+        return;
+      }
+    }
     if (!controller.signal.aborted) await runLLMStream(target, active);
   } finally {
     if (activeStreams.get(request.chatId) === active) activeStreams.delete(request.chatId);
