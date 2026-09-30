@@ -1,6 +1,11 @@
 import { AgentSwitcher } from './agent-switcher';
+import {
+  ChatAccountIcon,
+  ChatExpandIcon,
+  ChatMenuIcon,
+  ChatNewChatIcon,
+} from './chat-action-icons';
 import { ContextStatusBadge } from './context-status';
-import { PlusIcon } from './icons';
 import { ModelPriceMultiplier } from './model-price-multiplier';
 import { ModelVendorIcon } from './model-vendor-icon';
 import {
@@ -12,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from './ui';
 import { useT } from '@extension/i18n';
-import { Maximize2Icon, SettingsIcon, UserIcon } from 'lucide-react';
+import { SettingsIcon } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
 import type { AgentSwitcherAgent } from './agent-switcher';
 import type { ChatModel } from '@extension/shared';
@@ -76,118 +81,132 @@ const PureChatHeader = ({
     if (next && next !== chatTitle) onRenameTitle?.(next);
   };
   return (
-    <header className="bg-background sticky top-0 z-10 flex items-center gap-2 border-b px-2 py-1.5">
-      {onOpenSidebar && (
-        <Button
-          className="h-8 px-2"
-          onClick={onOpenSidebar}
-          size="sm"
-          title="Toggle sidebar"
-          variant="ghost">
-          <svg
-            className="size-4"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            viewBox="0 0 24 24">
-            <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </Button>
-      )}
-
-      {agents && activeAgentId && onAgentChange && agents.length > 1 && (
-        <AgentSwitcher
-          activeAgentId={activeAgentId}
-          agents={agents}
-          onAgentChange={onAgentChange}
-        />
-      )}
-
-      <Button className="h-8 px-2" onClick={onNewChat} size="sm" variant="outline">
-        <PlusIcon />
-        <span className="sr-only sm:not-sr-only">{t('session_newSession')}</span>
-      </Button>
-
-      {chatTitle &&
-        (isRenaming ? (
-          <input
-            ref={renameInputRef}
-            className="bg-background border-input focus:ring-ring min-w-0 flex-1 rounded border px-1.5 py-0.5 text-sm outline-none focus:ring-1"
-            onBlur={commitRename}
-            onChange={e => setRenameValue(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                commitRename();
-              } else if (e.key === 'Escape') {
-                e.preventDefault();
-                setRenameValue('');
-                setIsRenaming(false);
-              }
-            }}
-            type="text"
-            value={renameValue}
-          />
-        ) : (
-          <span className="min-w-0 flex-1 truncate text-sm font-medium" onDoubleClick={startRename}>
-            {chatTitle}
-          </span>
-        ))}
-
-      {model && (
-        <Badge
-          className="hidden shrink-0 items-center gap-1.5 sm:flex"
-          data-testid="chat-header-model"
-          variant="secondary">
-          <ModelVendorIcon vendor={model.vendor} />
-          {model.name}
-          <ModelPriceMultiplier multiplier={model.priceMultiplier} />
-        </Badge>
-      )}
-
-      {contextStatus && contextStatus.totalTokens > 0 && (
-        <ContextStatusBadge
-          compactionCount={contextStatus.compactionCount}
-          contextLimit={contextStatus.contextLimit}
-          inputTokens={contextStatus.inputTokens}
-          lastCompactionMethod={contextStatus.lastCompactionMethod}
-          lastCompactionTokensSaved={contextStatus.lastCompactionTokensSaved}
-          outputTokens={contextStatus.outputTokens}
-          totalTokens={contextStatus.totalTokens}
-        />
-      )}
-
-      <div className="ml-auto flex items-center gap-1">
-        {!isFullPage && (
+    <header className="chat-header sticky top-0 z-10 shrink-0">
+      <div className="chat-header-content flex min-w-0 items-center">
+        {onOpenSidebar && (
           <Button
-            className="h-8 w-8 p-0"
-            onClick={() => {
-              chrome.tabs.create({ url: chrome.runtime.getURL('full-page-chat/index.html') });
-              window.close();
-            }}
+            aria-label="Toggle sidebar"
+            className="chat-header-control"
+            onClick={onOpenSidebar}
             size="sm"
-            title="Open in full page"
+            title="Toggle sidebar"
             variant="ghost">
-            <Maximize2Icon className="size-4" />
+            <ChatMenuIcon />
           </Button>
         )}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+
+        {agents && activeAgentId && onAgentChange && agents.length > 1 && (
+          <AgentSwitcher
+            activeAgentId={activeAgentId}
+            agents={agents}
+            onAgentChange={onAgentChange}
+          />
+        )}
+
+        <Button
+          aria-label={t('session_newSession')}
+          className="chat-header-new"
+          onClick={onNewChat}
+          size="sm">
+          <ChatNewChatIcon />
+          <span className="chat-header-new-label">{t('session_newSession')}</span>
+        </Button>
+
+        {chatTitle && (
+          <div className="chat-header-title min-w-0">
+            {isRenaming ? (
+              <input
+                ref={renameInputRef}
+                className="chat-header-title-input w-full min-w-0 rounded border px-1.5 py-0.5 text-sm outline-none"
+                onBlur={commitRename}
+                onChange={e => setRenameValue(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    commitRename();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setRenameValue('');
+                    setIsRenaming(false);
+                  }
+                }}
+                type="text"
+                value={renameValue}
+              />
+            ) : (
+              <span
+                className="block truncate text-sm font-medium"
+                onDoubleClick={startRename}
+                title={chatTitle}>
+                {chatTitle}
+              </span>
+            )}
+          </div>
+        )}
+
+        {model && (
+          <Badge
+            className="chat-header-model min-w-0 items-center gap-2"
+            data-testid="chat-header-model"
+            variant="outline">
+            <ModelVendorIcon className="size-5" vendor={model.vendor} />
+            <span className="min-w-0 truncate" title={model.name}>
+              {model.name}
+            </span>
+            <ModelPriceMultiplier
+              className="chat-header-price"
+              multiplier={model.priceMultiplier}
+            />
+          </Badge>
+        )}
+
+        {contextStatus && contextStatus.totalTokens > 0 && (
+          <ContextStatusBadge
+            compactionCount={contextStatus.compactionCount}
+            contextLimit={contextStatus.contextLimit}
+            inputTokens={contextStatus.inputTokens}
+            lastCompactionMethod={contextStatus.lastCompactionMethod}
+            lastCompactionTokensSaved={contextStatus.lastCompactionTokensSaved}
+            outputTokens={contextStatus.outputTokens}
+            totalTokens={contextStatus.totalTokens}
+          />
+        )}
+
+        <div className="chat-header-tools ml-auto flex shrink-0 items-center gap-2">
+          {!isFullPage && (
             <Button
-              className="h-8 w-8 rounded-full p-0"
-              data-testid="user-menu-button"
+              aria-label="Open in full page"
+              className="chat-header-control"
+              onClick={() => {
+                chrome.tabs.create({ url: chrome.runtime.getURL('full-page-chat/index.html') });
+                window.close();
+              }}
               size="sm"
+              title="Open in full page"
               variant="ghost">
-              <UserIcon className="size-4" />
+              <ChatExpandIcon />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem onClick={() => chrome.runtime.openOptionsPage()}>
-              <SettingsIcon className="mr-2 size-4" />
-              {t('settings_title')}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                aria-label="Account menu"
+                className="chat-header-control"
+                data-testid="user-menu-button"
+                size="sm"
+                title="Account menu"
+                variant="ghost">
+                <ChatAccountIcon />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={() => chrome.runtime.openOptionsPage()}>
+                <SettingsIcon className="mr-2 size-4" />
+                {t('settings_title')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </header>
   );

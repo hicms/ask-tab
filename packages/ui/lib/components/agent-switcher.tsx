@@ -30,10 +30,15 @@ const PureAgentSwitcher = ({ agents, activeAgentId, onAgentChange }: AgentSwitch
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button className="h-8 gap-1 px-2 text-xs" size="sm" variant="ghost">
+        <Button
+          aria-label={activeAgent.name}
+          className="chat-header-control chat-header-agent gap-1.5"
+          size="sm"
+          title={activeAgent.name}
+          variant="ghost">
           <span>{activeAgent.emoji || '\u{1F916}'}</span>
-          <span className="max-w-[80px] truncate">{activeAgent.name}</span>
-          <ChevronDownIcon className="size-3 opacity-50" />
+          <span className="chat-header-agent-name max-w-[80px] truncate">{activeAgent.name}</span>
+          <ChevronDownIcon className="chat-header-agent-chevron opacity-50" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[160px]">

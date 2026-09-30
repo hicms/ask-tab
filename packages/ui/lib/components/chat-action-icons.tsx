@@ -80,6 +80,31 @@ const ChatQueuedMessageIcon = (props: ChatActionIconProps) => (
   </ChatActionIcon>
 );
 
+const ChatMenuIcon = (props: ChatActionIconProps) => (
+  <ChatActionIcon strokeWidth={2.4} {...props}>
+    <path d="M4.5 5.5h15M4.5 12h15M4.5 18.5h15" />
+  </ChatActionIcon>
+);
+
+const ChatNewChatIcon = (props: ChatActionIconProps) => (
+  <ChatActionIcon strokeWidth={2.4} {...props}>
+    <path d="M12 4v16M4 12h16" />
+  </ChatActionIcon>
+);
+
+const ChatExpandIcon = (props: ChatActionIconProps) => (
+  <ChatActionIcon strokeWidth={2.4} {...props}>
+    <path d="M14.5 4H20v5.5M20 4l-6.5 6.5M9.5 20H4v-5.5M4 20l6.5-6.5" />
+  </ChatActionIcon>
+);
+
+const ChatAccountIcon = (props: ChatActionIconProps) => (
+  <ChatActionIcon strokeWidth={2.2} {...props}>
+    <circle cx={12} cy={7} r={3.5} />
+    <path d="M4.5 21v-1.5a7.5 7.5 0 0 1 15 0V21" />
+  </ChatActionIcon>
+);
+
 export {
   ChatSendIcon,
   ChatAttachmentIcon,
@@ -87,5 +112,9 @@ export {
   ChatQueueIcon,
   ChatOptionsIcon,
   ChatQueuedMessageIcon,
+  ChatMenuIcon,
+  ChatNewChatIcon,
+  ChatExpandIcon,
+  ChatAccountIcon,
 };
 export type { ChatActionIconProps };

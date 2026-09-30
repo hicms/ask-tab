@@ -46,11 +46,12 @@ const ContextStatusBadge = ({
     <HoverCard>
       <HoverCardTrigger asChild>
         <button
-          className="hover:bg-muted flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs transition-colors"
+          aria-label={`Context: ${percent}%`}
+          className="chat-header-context flex shrink-0 items-center justify-center gap-1.5 text-xs transition-colors"
           title={`Context: ${percent}%`}
           type="button">
-          <GaugeIcon className={`size-3 ${colorClass}`} />
-          <span className={colorClass}>{percent}%</span>
+          <GaugeIcon className={`size-[18px] shrink-0 ${colorClass}`} />
+          <span className={`chat-header-context-percent ${colorClass}`}>{percent}%</span>
         </button>
       </HoverCardTrigger>
       <HoverCardContent align="end" className="w-52 p-3 text-xs">
