@@ -1,8 +1,9 @@
-import { PlusIcon, CrossIcon } from './icons';
+import { ChatNewChatIcon } from './chat-action-icons';
 import { SessionList } from './session-list';
 import { Button } from './ui';
 import { cn } from '../utils';
 import { useT } from '@extension/i18n';
+import { HistoryIcon, XIcon } from 'lucide-react';
 import { useCallback, useRef } from 'react';
 import type { Chat } from '@extension/shared';
 
@@ -89,18 +90,31 @@ const ChatSidebar = ({
   }, [onNewChat, onClose, mode]);
 
   const header = (
-    <div className="flex items-center justify-between border-b px-3 py-2">
-      <span className="text-xs font-medium">{t('tab_sessions')}</span>
-      <div className="flex items-center gap-1">
+    <div className="chat-history-head flex shrink-0 items-center justify-between gap-2">
+      <div className="flex min-w-0 items-center gap-2">
+        <HistoryIcon aria-hidden className="chat-history-heading-icon size-[22px] shrink-0" />
+        <span className="truncate text-base font-semibold" title={t('tab_sessions')}>
+          {t('tab_sessions')}
+        </span>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
         <Button
+          aria-label={t('session_newSession')}
+          className="chat-history-new"
           onClick={handleNewChatClick}
           size="sm"
           title={t('session_newSession')}
           variant="ghost">
-          <PlusIcon />
+          <ChatNewChatIcon />
         </Button>
-        <Button onClick={onClose} size="sm" variant="ghost">
-          <CrossIcon size={16} />
+        <Button
+          aria-label="Close sidebar"
+          className="chat-history-close"
+          onClick={onClose}
+          size="sm"
+          title="Close sidebar"
+          variant="ghost">
+          <XIcon aria-hidden />
         </Button>
       </div>
     </div>
@@ -112,7 +126,7 @@ const ChatSidebar = ({
 
     return (
       <div
-        className="bg-background relative flex flex-shrink-0 flex-col border-r"
+        className="chat-history-drawer relative flex min-h-0 flex-shrink-0 flex-col border-r"
         data-testid="sidebar-push"
         style={{ width }}>
         {header}
@@ -139,14 +153,19 @@ const ChatSidebar = ({
     <>
       {/* Overlay backdrop */}
       {isOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} role="presentation" />
+        <div
+          className="chat-history-backdrop fixed inset-0 z-40"
+          onClick={onClose}
+          role="presentation"
+        />
       )}
 
       {/* Sidebar panel */}
       <div
         className={cn(
-          'bg-background fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r transition-transform duration-200',
+          'chat-history-drawer chat-history-drawer-overlay fixed inset-y-0 left-0 z-50 flex min-h-0 flex-col border-r transition-transform duration-200',
           isOpen ? 'translate-x-0' : '-translate-x-full',
+          isOpen && 'chat-history-drawer-open',
         )}>
         {header}
         <SessionList

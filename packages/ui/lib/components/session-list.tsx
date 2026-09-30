@@ -1,4 +1,4 @@
-import { MessageIcon, PencilEditIcon } from './icons';
+import { MessageIcon } from './icons';
 import { RunningChatIndicator } from './running-chat-indicator';
 import {
   AlertDialog,
@@ -31,7 +31,7 @@ import {
   updateChatTitle,
 } from '@extension/storage';
 import { liveQuery } from 'dexie';
-import { ArchiveIcon, EllipsisVertical, SendIcon } from 'lucide-react';
+import { ArchiveIcon, EllipsisVertical, PencilIcon, SearchIcon, SendIcon } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Chat } from '@extension/shared';
 
@@ -43,9 +43,6 @@ type SessionListProps = {
   isVisible: boolean;
   showSearch?: boolean;
 };
-
-const truncateTitle = (title: string, max = 36): string =>
-  title.length > max ? title.slice(0, max) + '...' : title;
 
 const SessionSection = ({
   title,
@@ -87,28 +84,27 @@ const SessionSection = ({
   if (chats.length === 0) return null;
 
   return (
-    <div className="mb-4">
-      <h3 className="text-muted-foreground mb-1 px-3 text-xs font-medium uppercase tracking-wide">
-        {title}
-      </h3>
+    <div className="chat-history-section">
+      <h3 className="chat-history-date flex items-center gap-3 text-xs font-semibold">{title}</h3>
       {chats.map(chat => {
         const displayTitle = chat.title || t('session_newSession');
         const isRenaming = renamingId === chat.id;
+        const isActive = chat.id === currentChatId;
 
         return (
           <div
             className={cn(
-              'hover:bg-muted group flex items-center gap-1 rounded-md px-3 py-1.5 text-sm transition-colors',
-              chat.id === currentChatId && 'bg-muted',
+              'chat-history-row group flex min-w-0 items-center gap-2 text-sm transition-colors',
+              isActive && 'chat-history-row-active',
             )}
             key={chat.id}>
             {chat.source === 'telegram' && (
-              <SendIcon className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+              <SendIcon aria-hidden className="chat-history-source size-4 shrink-0" />
             )}
             {isRenaming ? (
               <input
                 ref={renameInputRef}
-                className="bg-background border-input focus:ring-ring min-w-0 flex-1 rounded border px-1.5 py-0.5 text-sm outline-none focus:ring-1"
+                className="chat-history-rename min-w-0 flex-1 rounded border px-1.5 py-0.5 text-sm outline-none"
                 onBlur={() => commitRename(chat.id, displayTitle)}
                 onChange={e => setRenameValue(e.target.value)}
                 onKeyDown={e => {
@@ -126,38 +122,40 @@ const SessionSection = ({
             ) : (
               <>
                 <button
-                  className="min-w-0 flex-1 truncate text-left"
+                  aria-current={isActive ? 'page' : undefined}
+                  className="chat-history-select min-w-0 flex-1 truncate text-left"
                   onClick={() => onSelectChat(chat)}
                   onDoubleClick={() => {
                     setRenameValue(displayTitle);
                     setRenamingId(chat.id);
                   }}
+                  title={displayTitle}
                   type="button">
-                  {truncateTitle(displayTitle)}
+                  {displayTitle}
                 </button>
                 {runningChatIds.has(chat.id) && <RunningChatIndicator />}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
                       aria-label={t('archive_chatMenu', displayTitle)}
-                      className="text-muted-foreground hover:bg-accent shrink-0 rounded p-0.5 opacity-50 transition-all hover:opacity-100 data-[state=open]:opacity-100"
+                      className="chat-history-more flex shrink-0 items-center justify-center transition-colors"
                       onClick={e => e.stopPropagation()}
                       type="button">
-                      <EllipsisVertical size={14} />
+                      <EllipsisVertical aria-hidden size={18} />
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" sideOffset={4}>
+                  <DropdownMenuContent align="end" className="chat-history-menu" sideOffset={4}>
                     <DropdownMenuItem
                       onClick={() => {
                         setRenameValue(displayTitle);
                         setRenamingId(chat.id);
                       }}>
-                      <PencilEditIcon size={14} />
-                      <span className="ml-2">{t('session_rename')}</span>
+                      <PencilIcon aria-hidden size={18} />
+                      <span>{t('session_rename')}</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => onDeleteChat(chat.id)}>
-                      <ArchiveIcon size={14} />
-                      <span className="ml-2">{t('archive_action')}</span>
+                      <ArchiveIcon aria-hidden size={18} />
+                      <span>{t('archive_action')}</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -219,22 +217,32 @@ const SessionList = ({
     <>
       {/* Search */}
       {showSearch && (
-        <div className="border-b px-3 py-2">
-          <Input
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder={t('session_searchPlaceholder')}
-            type="search"
-            value={searchQuery}
-          />
+        <div className="chat-history-search shrink-0">
+          <div className="relative">
+            <SearchIcon
+              aria-hidden
+              className="chat-history-search-icon pointer-events-none absolute size-[18px]"
+            />
+            <Input
+              aria-label={t('session_searchPlaceholder')}
+              className="chat-history-search-input"
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder={t('session_searchPlaceholder')}
+              type="search"
+              value={searchQuery}
+            />
+          </div>
         </div>
       )}
 
       {/* Session list */}
-      <ScrollArea className="flex-1 [&>[data-radix-scroll-area-viewport]>div]:!block">
-        <div className="py-2">
+      <ScrollArea className="chat-history-scroll min-h-0 flex-1 [&>[data-radix-scroll-area-viewport]>div]:!block">
+        <div className="chat-history-list">
           {chats.length === 0 && (
-            <div className="text-muted-foreground flex flex-col items-center gap-2 px-3 py-8 text-center text-sm">
-              <MessageIcon size={24} />
+            <div className="chat-history-empty flex flex-col items-center gap-3 px-3 py-8 text-center text-sm">
+              <span className="chat-history-empty-icon flex size-12 items-center justify-center rounded-full">
+                <MessageIcon size={32} />
+              </span>
               <span>{searchQuery ? t('session_noMatching') : t('session_noSessions')}</span>
             </div>
           )}
@@ -286,13 +294,13 @@ const SessionList = ({
         </div>
       </ScrollArea>
 
-      <div className="border-t p-2">
+      <div className="chat-history-footer shrink-0 border-t p-2">
         <Button
           variant="ghost"
           size="sm"
-          className="text-muted-foreground w-full justify-start"
+          className="chat-history-archive w-full justify-start"
           onClick={openArchive}>
-          <ArchiveIcon className="size-4" />
+          <ArchiveIcon aria-hidden />
           {t('archive_title')}
         </Button>
       </div>
