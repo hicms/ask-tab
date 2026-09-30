@@ -1,6 +1,6 @@
 import { useT } from '@extension/i18n';
 import { modelCapabilities } from '@extension/shared';
-import { BrainCircuitIcon, ImageIcon } from 'lucide-react';
+import { BrainIcon, ImageIcon } from 'lucide-react';
 import type { MessageKeyType } from '@extension/i18n';
 import type { ChatModel, ModelCapability } from '@extension/shared';
 import type { LucideIcon } from 'lucide-react';
@@ -10,7 +10,7 @@ const capabilityIcons: Record<
   { Icon: LucideIcon; label: MessageKeyType }
 > = {
   image: { Icon: ImageIcon, label: 'model_supportsImages' },
-  reasoning: { Icon: BrainCircuitIcon, label: 'model_supportsReasoning' },
+  reasoning: { Icon: BrainIcon, label: 'model_supportsReasoning' },
 };
 
 type ModelCapabilityIconsProps = {
@@ -28,7 +28,7 @@ const ModelCapabilityIcons = ({ model }: ModelCapabilityIconsProps) => {
         const { Icon, label } = capabilityIcons[capability];
         return (
           <span aria-label={t(label)} key={capability} role="img" title={t(label)}>
-            <Icon aria-hidden className="size-3" />
+            <Icon aria-hidden className="size-4" />
           </span>
         );
       })}

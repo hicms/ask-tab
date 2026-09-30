@@ -19,11 +19,11 @@ const ModelVendorIcon = ({ vendor, className }: ModelVendorIconProps) => {
       data-vendor={known ? vendor : 'unknown'}
       {...(label ? { 'aria-label': label, role: 'img', title: label } : { 'aria-hidden': true })}>
       {known ? (
-        <svg aria-hidden className={cn('size-3.5', className)} viewBox="0 0 24 24" {...known.svg}>
+        <svg aria-hidden className={cn('size-5', className)} viewBox="0 0 24 24" {...known.svg}>
           {known.art(id)}
         </svg>
       ) : (
-        <BotIcon aria-hidden className={cn('text-muted-foreground size-3.5', className)} />
+        <BotIcon aria-hidden className={cn('text-muted-foreground size-5', className)} />
       )}
     </span>
   );

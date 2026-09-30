@@ -579,17 +579,19 @@ const ChatInput = ({
               <Select onValueChange={onModelChange} value={selectedModelId}>
                 <SelectTrigger
                   className={cn(
-                    'chat-model-select text-muted-foreground h-10 w-auto min-w-0 rounded-lg px-3 py-2 font-medium shadow-none transition-colors',
-                    'hover:text-foreground focus:ring-0 focus:ring-offset-0',
-                  )}>
+                    'chat-model-select text-muted-foreground h-10 w-auto min-w-0 gap-2 rounded-lg px-3 py-2 font-medium shadow-none transition-colors',
+                    'hover:text-foreground focus:ring-0 focus:ring-offset-0 [&>span]:!flex [&>span]:min-w-0 [&>svg]:shrink-0',
+                  )}
+                  title={models.find(model => (model.dbId ?? model.id) === selectedModelId)?.name}>
                   <SelectValue placeholder={t('chat_modelSelect')} />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-w-[calc(100vw-20px)]">
                   {groupModelsByTier(models).map(group => (
                     <SelectGroup key={group.tier ?? 'unrated'}>
                       {group.tier && <SelectLabel>{t(tierLabels[group.tier])}</SelectLabel>}
                       {group.models.map(model => (
                         <SelectItem
+                          className="[&>span:has(>.chat-model-label)]:min-w-0 [&>span:not(:has(>.chat-model-label))]:shrink-0"
                           key={model.dbId ?? model.id}
                           trailing={
                             knownTier(model.tier) || model.priceMultiplier ? (
@@ -600,9 +602,11 @@ const ChatInput = ({
                             ) : undefined
                           }
                           value={model.dbId ?? model.id}>
-                          <span className="inline-flex items-center gap-2">
+                          <span className="chat-model-label inline-flex min-w-0 max-w-full items-center gap-2">
                             <ModelVendorIcon vendor={model.vendor} />
-                            {model.name}
+                            <span className="min-w-0 truncate" title={model.name}>
+                              {model.name}
+                            </span>
                             <ModelCapabilityIcons model={model} />
                           </span>
                         </SelectItem>
