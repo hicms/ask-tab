@@ -1,5 +1,11 @@
+import { ASK_SERVICE_URL, LOCAL_ASK_SERVICE_URL } from '@extension/env';
 import { useT, LOCALE_OPTIONS } from '@extension/i18n';
-import { askSessionStorage, settingsStorage } from '@extension/storage';
+import {
+  askSessionStorage,
+  isFileLoadedInstall,
+  serviceTargetStorage,
+  settingsStorage,
+} from '@extension/storage';
 import {
   Button,
   Card,
@@ -17,7 +23,7 @@ import {
 import { CheckCircle2Icon, Loader2Icon, LogOutIcon, SettingsIcon } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import type { LocaleCode } from '@extension/i18n';
-import type { AskSession, SettingsData } from '@extension/storage';
+import type { AskSession, ServiceTarget, SettingsData } from '@extension/storage';
 
 const Settings = () => {
   const t = useT();
@@ -25,9 +31,20 @@ const Settings = () => {
   const [saved, setSaved] = useState(false);
   const [session, setSession] = useState<AskSession | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  const [showServerChoice, setShowServerChoice] = useState(false);
+  const [serviceTarget, setServiceTarget] = useState<ServiceTarget>('remote');
 
   useEffect(() => {
     settingsStorage.get().then(setSettings);
+  }, []);
+
+  useEffect(() => {
+    if (!LOCAL_ASK_SERVICE_URL) return;
+    isFileLoadedInstall().then(setShowServerChoice);
+    serviceTargetStorage.get().then(setServiceTarget);
+    return serviceTargetStorage.subscribe(() => {
+      serviceTargetStorage.get().then(setServiceTarget);
+    });
   }, []);
 
   useEffect(() => {
@@ -50,6 +67,17 @@ const Settings = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }, []);
+
+  const handleServiceTargetChange = useCallback(
+    async (value: string) => {
+      if (value === serviceTarget) return;
+      // Sign out against the current server first: the token is not valid on the other one.
+      if (session) await chrome.runtime.sendMessage({ type: 'ASK_LOGOUT' });
+      await serviceTargetStorage.set(value as ServiceTarget);
+      triggerSaved();
+    },
+    [serviceTarget, session, triggerSaved],
+  );
 
   const applyTheme = useCallback((theme: string) => {
     const root = document.documentElement;
@@ -118,6 +146,27 @@ const Settings = () => {
             )}
           </div>
         </div>
+
+        {showServerChoice && (
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium">{t('settings_server')}</h3>
+            <Select onValueChange={handleServiceTargetChange} value={serviceTarget}>
+              <SelectTrigger data-testid="service-target">
+                <SelectValue placeholder={t('settings_server')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="remote">{t('settings_serverRemote')}</SelectItem>
+                <SelectItem value="local">{t('settings_serverLocal')}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">
+              {t(
+                'settings_serverHint',
+                serviceTarget === 'local' ? LOCAL_ASK_SERVICE_URL : ASK_SERVICE_URL,
+              )}
+            </p>
+          </div>
+        )}
 
         <div className="space-y-4">
           <h3 className="text-sm font-medium">{t('settings_appearance')}</h3>

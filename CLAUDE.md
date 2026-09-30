@@ -141,9 +141,12 @@ Set in `.env` at the repo root, created from the tracked `.example.env` template
 CEB_GOOGLE_CLIENT_ID=            # Google OAuth2 client ID (for Gmail/Calendar/Drive)
 CEB_DEV_LOCALE=                  # Force locale for dev
 CEB_CI=                          # CI mode flag
+CEB_ASK_SERVICE_URL_LOCAL=       # Local ask_service offered in General settings for file-loaded installs; empty hides it
 ```
 
 Build flags: `CLI_CEB_DEV=true` (dev mode), `CLI_CEB_FIREFOX=true` (Firefox build).
+
+The service URL follows `CLI_CEB_TARGET` (`production` by default, also `development` or `test`), read from `CEB_ASK_SERVICE_URL_<TARGET>`. Default to the production address (`CEB_ASK_SERVICE_URL_PRODUCTION`) unless told otherwise.
 
 ## Requirements
 

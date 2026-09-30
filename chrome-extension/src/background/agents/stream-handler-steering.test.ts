@@ -54,6 +54,10 @@ vi.mock('../context/transform', () => ({
 
 vi.mock('../memory/memory-flush', () => ({ runMemoryFlushIfNeeded: vi.fn(async () => {}) }));
 
+vi.mock('../ask-service/endpoint', () => ({
+  getServiceUrl: () => 'http://ask.test',
+  serviceUrlReady: async () => {},
+}));
 vi.mock('@extension/storage', () => ({
   activeAgentStorage: { get: vi.fn(async () => 'main') },
   saveArtifact: vi.fn(async () => {}),

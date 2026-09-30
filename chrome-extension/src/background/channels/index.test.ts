@@ -28,6 +28,10 @@ vi.mock('./telegram/commands', () => ({ registerBotCommands: vi.fn() }));
 vi.mock('../logging/logger-buffer', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() }),
 }));
+vi.mock('../ask-service/endpoint', () => ({
+  getServiceUrl: () => 'http://ask.test',
+  serviceUrlReady: async () => {},
+}));
 vi.mock('@extension/storage', () => ({
   askSessionStorage: { get: vi.fn(async () => ({ token: 't' })) },
 }));

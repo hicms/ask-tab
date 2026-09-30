@@ -99,6 +99,10 @@ vi.mock('@extension/shared', () => ({
   resolveToolPromptHints: vi.fn(() => []),
   resolveToolListings: vi.fn(() => []),
 }));
+vi.mock('../ask-service/endpoint', () => ({
+  getServiceUrl: () => 'http://ask.test',
+  serviceUrlReady: async () => {},
+}));
 vi.mock('@extension/storage', () => ({
   createChat: vi.fn(async () => {}),
   addMessage: vi.fn(async () => {}),

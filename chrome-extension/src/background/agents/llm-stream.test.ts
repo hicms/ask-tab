@@ -153,6 +153,10 @@ vi.mock('@extension/shared', async () => ({
   getModelContextLimit: vi.fn(() => 4096),
 }));
 
+vi.mock('../ask-service/endpoint', () => ({
+  getServiceUrl: () => 'http://ask.test',
+  serviceUrlReady: async () => {},
+}));
 vi.mock('@extension/storage', () => ({
   activeAgentStorage: {
     get: vi.fn(() => Promise.resolve('main')),

@@ -207,6 +207,23 @@
   "account_signOut": {
     "message": "退出登录"
   },
+  "settings_server": {
+    "message": "服务器"
+  },
+  "settings_serverRemote": {
+    "message": "AskTab 服务"
+  },
+  "settings_serverLocal": {
+    "message": "本地服务"
+  },
+  "settings_serverHint": {
+    "message": "仅在通过文件加载扩展时可用。各服务器的账号相互独立，切换后会退出当前登录。当前地址：$URL$",
+    "placeholders": {
+      "url": {
+        "content": "$1"
+      }
+    }
+  },
   "firstRun_restoreFailed": {
     "message": "从备份恢复智能体失败"
   },

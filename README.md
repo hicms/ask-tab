@@ -54,7 +54,7 @@ Requirements: Node.js 22.15.1 or newer, pnpm 10.11.0, and `bash` available for t
 pnpm install --frozen-lockfile
 ```
 
-The install script creates `.env` from `.example.env` when needed. Set `CEB_ASK_SERVICE_URL_DEVELOPMENT` and `CEB_ASK_SERVICE_URL_TEST` there to the two AskTab service URLs. Both currently use `http://127.0.0.1:37817`; change either value independently when its service address is known. Do not commit `.env` or credentials.
+The install script creates `.env` from `.example.env` when needed. Builds use the production AskTab service (`CEB_ASK_SERVICE_URL_PRODUCTION`, currently `https://ask.vigoai.cn`) unless you choose another target. `CEB_ASK_SERVICE_URL_DEVELOPMENT` and `CEB_ASK_SERVICE_URL_TEST` hold the other two service URLs; both currently use `http://127.0.0.1:37817`, and each can be changed independently. `CEB_ASK_SERVICE_URL_LOCAL` is the address of a local service; when the extension is loaded from files (unpacked), General → Settings lets you switch between it and the built-in AskTab service. Leave it empty to hide that option. Do not commit `.env` or credentials.
 
 ```bash
 pnpm build
@@ -64,12 +64,13 @@ On Windows, choose the service environment at build time:
 
 ```powershell
 .\scripts\build.ps1
+.\scripts\build.ps1 -Environment development
 .\scripts\build.ps1 -Environment test
 .\scripts\build.ps1 -Full
 .\scripts\build.ps1 -Environment test -Full
 ```
 
-By default, `build.ps1` quickly rebuilds only the background script for the development service. Use `-Environment test` to select the test service. Run `-Full` first for the same environment, after changing page or shared UI code, or when switching environments. Full builds produce a local bundle in `dist/`; they do not publish a release. `pnpm build` uses the development service URL by default.
+By default, `build.ps1` quickly rebuilds only the background script for the production service. Use `-Environment development` or `-Environment test` to select another service. Run `-Full` first for the same environment, after changing page or shared UI code, or when switching environments. Full builds produce a local bundle in `dist/`; they do not publish a release. `pnpm build` uses the production service URL by default; set `CLI_CEB_TARGET` to `development` or `test` to change that.
 
 Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select the generated `dist/` directory. Sign in to the AskTab service and select a model in the extension.
 

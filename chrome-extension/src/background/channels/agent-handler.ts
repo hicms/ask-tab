@@ -18,6 +18,7 @@ import {
   modelSourceKey,
 } from '../agents/model-transcript';
 import { AskServiceError } from '../ask-service/client';
+import { serviceUrlReady } from '../ask-service/endpoint';
 import { createTransformContext } from '../context/transform';
 import { createLogger } from '../logging/logger-buffer';
 import { resolveTranscription } from '../media-understanding';
@@ -305,6 +306,7 @@ const handleChannelMessageInner = async (
 
         // 6. Load the model transcript; display history supplies portable context on model changes.
         const uiMessages = await getMessagesByChatId(chat.id);
+        await serviceUrlReady();
         const sourceKey = modelSourceKey(model);
         const historyMessages = await loadModelHistory(
           chat.id,

@@ -219,6 +219,23 @@
   "account_signOut": {
     "message": "Sign out"
   },
+  "settings_server": {
+    "message": "Server"
+  },
+  "settings_serverRemote": {
+    "message": "AskTab service"
+  },
+  "settings_serverLocal": {
+    "message": "Local server"
+  },
+  "settings_serverHint": {
+    "message": "Available because the extension was loaded from files. Accounts are separate on each server, so switching signs you out. Current address: $URL$",
+    "placeholders": {
+      "url": {
+        "content": "$1"
+      }
+    }
+  },
   "chat_placeholder": {
     "message": "What would you like to know?"
   },

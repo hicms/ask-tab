@@ -31,12 +31,13 @@ On Windows, select which AskTab service the build connects to:
 
 ```powershell
 .\scripts\build.ps1
+.\scripts\build.ps1 -Environment development
 .\scripts\build.ps1 -Environment test
 .\scripts\build.ps1 -Full
 .\scripts\build.ps1 -Environment test -Full
 ```
 
-By default, `build.ps1` quickly rebuilds only the background script for the development service. Use `-Environment test` to select the test service. Run `-Full` first for the same environment, after changing page or shared UI code, or when switching environments. Full builds are production builds in `dist/`. The selected service URL is embedded in the extension. `pnpm build` uses the development URL by default.
+By default, `build.ps1` quickly rebuilds only the background script for the production service. Use `-Environment development` or `-Environment test` to select another service. Run `-Full` first for the same environment, after changing page or shared UI code, or when switching environments. Full builds are production builds in `dist/`. The selected service URL is embedded in the extension. `pnpm build` uses the production URL by default; set `CLI_CEB_TARGET` to `development` or `test` to change that.
 
 ### Load in Chrome
 
@@ -89,6 +90,8 @@ Set in `.env` (auto-copied from `.example.env` on install):
 | `CEB_CI` | CI mode flag | — |
 | `CEB_ASK_SERVICE_URL_DEVELOPMENT` | Development AskTab service URL | `http://127.0.0.1:37817` |
 | `CEB_ASK_SERVICE_URL_TEST` | Test AskTab service URL | `http://127.0.0.1:37817` |
+| `CEB_ASK_SERVICE_URL_PRODUCTION` | Production AskTab service URL, used when `CLI_CEB_TARGET=production`. Release builds override it with `ASKTAB_RELEASE_SERVICE_URL` | `https://ask.vigoai.cn` |
+| `CEB_ASK_SERVICE_URL_LOCAL` | Local AskTab service URL offered in General → Settings, only when the extension is loaded from files (unpacked). Empty hides the option | `http://127.0.0.1:37817` |
 
 CLI flags set automatically by build scripts:
 
@@ -96,4 +99,4 @@ CLI flags set automatically by build scripts:
 |----------|-------------|
 | `CLI_CEB_DEV` | Development mode (set by `pnpm dev`) |
 | `CLI_CEB_FIREFOX` | Firefox build (set by `pnpm build:firefox`) |
-| `CLI_CEB_TARGET` | Service target selected by `scripts/build.ps1`; defaults to `development` |
+| `CLI_CEB_TARGET` | Service target selected by `scripts/build.ps1`; defaults to `production` |

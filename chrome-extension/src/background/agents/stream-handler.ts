@@ -7,6 +7,7 @@ import {
   modelSourceKey,
 } from './model-transcript';
 import { createRunSteering, queuedToUserMessage } from './run-steering';
+import { serviceUrlReady } from '../ask-service/endpoint';
 import { createTransformContext } from '../context/transform';
 import { createLogger } from '../logging/logger-buffer';
 import { runMemoryFlushIfNeeded } from '../memory/memory-flush';
@@ -186,6 +187,7 @@ const runLLMStream = async (port: StreamTarget, active: ActiveStream): Promise<v
   });
 
   try {
+    await serviceUrlReady();
     const sourceKey = modelSourceKey(modelConfig);
     const history = await loadModelHistory(chatId, messages, modelConfig);
     if (controller.signal.aborted) return;

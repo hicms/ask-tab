@@ -6,6 +6,8 @@ interface ICebEnv {
   readonly CEB_CI: string;
   readonly CEB_ASK_SERVICE_URL_DEVELOPMENT: string;
   readonly CEB_ASK_SERVICE_URL_TEST: string;
+  readonly CEB_ASK_SERVICE_URL_PRODUCTION: string;
+  readonly CEB_ASK_SERVICE_URL_LOCAL: string;
 }
 
 interface ICebCliEnv {

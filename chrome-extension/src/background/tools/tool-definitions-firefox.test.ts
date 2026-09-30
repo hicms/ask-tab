@@ -9,6 +9,10 @@
 import { describe, it, expect, vi } from 'vitest';
 
 // ── Mock IS_FIREFOX = true ──
+vi.mock('../ask-service/endpoint', () => ({
+  getServiceUrl: () => 'http://ask.test',
+  serviceUrlReady: async () => {},
+}));
 vi.mock('@extension/env', () => ({
   IS_FIREFOX: true,
   IS_DEV: false,

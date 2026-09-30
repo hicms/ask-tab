@@ -3,7 +3,7 @@
 Builds the extension for the selected AskTab service environment.
 
 .PARAMETER Environment
-Choose development or test (default: development). The selected service URL comes from .env.
+Choose production, development or test (default: production). The selected service URL comes from .env.
 
 .PARAMETER Help
 Show usage without building.
@@ -21,8 +21,8 @@ Build the full extension. By default, only the background script is rebuilt.
 .\scripts\build.ps1 -Environment development -Full
 #>
 param(
-    [ValidateSet('development', 'test')]
-    [string] $Environment = 'development',
+    [ValidateSet('production', 'development', 'test')]
+    [string] $Environment = 'production',
     [switch] $Full,
     [switch] $Help
 )
@@ -31,7 +31,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $usage = @'
-Usage: .\scripts\build.ps1 [-Environment <development|test>] [-Full]
+Usage: .\scripts\build.ps1 [-Environment <production|development|test>] [-Full]
        .\scripts\build.ps1 -Help
 
 Examples:
@@ -50,10 +50,10 @@ if ($Help) {
 
 $root = Split-Path -Parent $PSScriptRoot
 $envFile = Join-Path $root '.env'
-$urlKey = if ($Environment -eq 'development') {
-    'CEB_ASK_SERVICE_URL_DEVELOPMENT'
-} else {
-    'CEB_ASK_SERVICE_URL_TEST'
+$urlKey = switch ($Environment) {
+    'production' { 'CEB_ASK_SERVICE_URL_PRODUCTION' }
+    'development' { 'CEB_ASK_SERVICE_URL_DEVELOPMENT' }
+    'test' { 'CEB_ASK_SERVICE_URL_TEST' }
 }
 
 try {

@@ -29,6 +29,10 @@ vi.mock('../../logging/logger-buffer', () => ({
 }));
 
 // Mock storage
+vi.mock('../../ask-service/endpoint', () => ({
+  getServiceUrl: () => 'http://ask.test',
+  serviceUrlReady: async () => {},
+}));
 vi.mock('@extension/storage', () => ({
   findChatByChannelChatId: vi.fn(() => Promise.resolve(null)),
   deleteChat: vi.fn(() => Promise.resolve()),

@@ -3,3 +3,7 @@ export const IS_PROD = !IS_DEV;
 export const IS_FIREFOX = process.env['CLI_CEB_FIREFOX'] === 'true';
 export const IS_CI = process.env['CEB_CI'] === 'true';
 export const ASK_SERVICE_URL = process.env['CEB_ASK_SERVICE_URL']!.replace(/\/+$/, '');
+/** Empty when `CEB_ASK_SERVICE_URL_LOCAL` is unset; the local server option is then unavailable. */
+export const LOCAL_ASK_SERVICE_URL = (process.env['CEB_ASK_SERVICE_URL_LOCAL'] ?? '')
+  .trim()
+  .replace(/\/+$/, '');

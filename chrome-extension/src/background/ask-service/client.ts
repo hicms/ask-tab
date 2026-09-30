@@ -1,4 +1,4 @@
-import { ASK_SERVICE_URL } from '@extension/env';
+import { getServiceUrl, serviceUrlReady } from './endpoint';
 import { askSessionStorage, publicModelsStorage, serverModelsStorage } from '@extension/storage';
 import type { AskSession } from '@extension/storage';
 
@@ -26,12 +26,14 @@ const serverMessage = async (response: Response): Promise<string> => {
 };
 
 const send = async (path: string, init: RequestInit): Promise<Response> => {
+  await serviceUrlReady();
+  const baseUrl = getServiceUrl();
   let response: Response;
   try {
-    response = await fetch(`${ASK_SERVICE_URL}${path}`, init);
+    response = await fetch(`${baseUrl}${path}`, init);
   } catch (error) {
     if (init.signal?.aborted) throw error;
-    throw new AskServiceError(`Cannot reach the AskTab server at ${ASK_SERVICE_URL}`, 0);
+    throw new AskServiceError(`Cannot reach the AskTab server at ${baseUrl}`, 0);
   }
   if (!response.ok) throw new AskServiceError(await serverMessage(response), response.status);
   return response;
@@ -105,6 +107,7 @@ const requestAnonymous = (path: string, init: RequestInit = {}): Promise<Respons
   send(path, init);
 
 const requireSession = async (expected?: AskSession): Promise<AskSession> => {
+  await serviceUrlReady();
   const session = await askSessionStorage.get();
   if (!session) throw new AskServiceError('Sign in to your AskTab account first', 401);
   if (expected && !sameSession(session, expected)) {
@@ -156,7 +159,7 @@ const confirmSessionAfterModelError = async (
   baseUrl: string | undefined,
   token: string | undefined,
 ): Promise<void> => {
-  if (!token || !baseUrl?.startsWith(`${ASK_SERVICE_URL}/api/llm/`)) return;
+  if (!token || !baseUrl?.startsWith(`${getServiceUrl()}/api/llm/`)) return;
   if ((await askSessionStorage.get())?.token !== token) return;
   // A rejected session is cleared inside requestAuthorized; other failures change nothing.
   await requestAuthorized('/api/auth/me').catch(() => {});

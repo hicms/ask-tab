@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('./endpoint', () => ({
+  getServiceUrl: () => 'http://ask.test',
+  serviceUrlReady: async () => {},
+}));
 vi.mock('@extension/env', () => ({ ASK_SERVICE_URL: 'http://ask.test' }));
 vi.mock('@extension/storage', () => ({
   askSessionStorage: { get: vi.fn(async () => null), set: vi.fn(), subscribe: vi.fn() },

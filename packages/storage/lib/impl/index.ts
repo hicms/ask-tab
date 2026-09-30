@@ -8,6 +8,12 @@ export {
 } from './public-models-storage.js';
 export { askSessionStorage, type AskSession } from './ask-session-storage.js';
 export {
+  isFileLoadedInstall,
+  resolveServiceUrl,
+  serviceTargetStorage,
+  type ServiceTarget,
+} from './service-target-storage.js';
+export {
   toolConfigStorage,
   defaultWebSearchConfig,
   createAgentToolConfig,

@@ -57,6 +57,10 @@ vi.mock('../../chrome-extension/src/background/logging/logger-buffer', () => ({
   }),
 }));
 
+vi.mock('../../chrome-extension/src/background/ask-service/endpoint', () => ({
+  getServiceUrl: () => 'http://ask.test',
+  serviceUrlReady: async () => {},
+}));
 vi.mock('@extension/storage', () => ({
   updateCompactionSummary: vi.fn(async () => {}),
   incrementCompactionCount: vi.fn(async () => {}),

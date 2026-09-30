@@ -1,4 +1,4 @@
-import { ASK_SERVICE_URL } from '@extension/env';
+import { getServiceUrl } from '../ask-service/endpoint';
 import { getModelContextLimit, modelInputs } from '@extension/shared';
 import type { ChatModel, ModelProvider } from '@extension/shared';
 import type { Api, Model } from '@mariozechner/pi-ai';
@@ -26,7 +26,7 @@ const chatModelToPiModel = (config: ChatModel): ResolvedModel => {
     name: config.name,
     api: route.api,
     provider: route.provider,
-    baseUrl: `${ASK_SERVICE_URL}/api/llm/${encodeURIComponent(config.id)}${route.pathSuffix}`,
+    baseUrl: `${getServiceUrl()}/api/llm/${encodeURIComponent(config.id)}${route.pathSuffix}`,
     reasoning: config.supportsReasoning ?? false,
     input: modelInputs(config),
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },

@@ -9,6 +9,7 @@
 import { withAbort } from './cancellation';
 import { chatModelToPiModel } from './model-adapter';
 import { confirmSessionAfterModelError, requireSession } from '../ask-service/client';
+import { serviceUrlReady } from '../ask-service/endpoint';
 import { createLogger } from '../logging/logger-buffer';
 import { completeSimple, streamGoogle, streamSimple } from '@mariozechner/pi-ai';
 import { buildBaseOptions } from '@mariozechner/pi-ai/dist/providers/simple-options.js';
@@ -64,6 +65,7 @@ export const completeText = async (
   userContent: string,
   opts?: { maxTokens?: number; signal?: AbortSignal },
 ): Promise<string> => {
+  await serviceUrlReady();
   const { model } = chatModelToPiModel(modelConfig);
   const session = await withAbort(opts?.signal, () => requireSession());
   const context: Context = {

@@ -25,6 +25,10 @@ const store = vi.hoisted(() => {
   };
 });
 
+vi.mock('./endpoint', () => ({
+  getServiceUrl: () => 'http://ask.test',
+  serviceUrlReady: async () => {},
+}));
 vi.mock('@extension/env', () => ({ ASK_SERVICE_URL: 'http://ask.test' }));
 vi.mock('@extension/storage', async () => ({
   modelTiers: (await vi.importActual<typeof import('@extension/storage')>('@extension/storage'))
