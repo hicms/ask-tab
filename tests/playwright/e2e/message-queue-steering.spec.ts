@@ -159,6 +159,55 @@ test('stopping pauses the queue until the user resumes it', async ({ context, ex
   await expect(page.getByText('恢复后的答复。', { exact: true })).toBeVisible();
 });
 
+test('editing a queued message moves it into the composer and out of the queue', async ({
+  context,
+  extensionId,
+}) => {
+  test.setTimeout(60000);
+  const worker = context.serviceWorkers()[0];
+  await installProvider(worker);
+  const page = await openChat(context, extensionId, 'side-panel', { cached: catalog });
+  const input = page.locator('textarea');
+  const editItem = async (index: number) => {
+    await queued(page).nth(index).hover();
+    await queued(page).nth(index).getByRole('button', { name: '编辑' }).click();
+  };
+
+  await start(page, '原始问题');
+  await enqueue(page, '排队 A');
+  await enqueue(page, '排队 B');
+  await enqueue(page, '引导 C', 'Control+Enter');
+
+  await editItem(2);
+  await expect(input).toHaveValue('引导 C');
+  await expect(input).toBeFocused();
+  await expect(queuedTexts(page)).toHaveText(['排队 A', '排队 B']);
+
+  await input.fill('草稿');
+  await editItem(0);
+  await expect(input).toHaveValue('草稿\n排队 A');
+  await expect(queuedTexts(page)).toHaveText(['排队 B']);
+
+  await enqueue(page, '改后的 A');
+  await expect(queuedTexts(page)).toHaveText(['排队 B', '改后的 A']);
+
+  // Neither message taken back is injected or sent when the reply finishes.
+  await emit(worker, 0, '第一条答复。', true);
+  await waitForStreams(worker, 2);
+  const next = await streamBody(worker, 1);
+  expect(next).toContain('排队 B');
+  expect(next).not.toContain('引导 C');
+  expect(next).not.toContain('改后的 A');
+
+  await emit(worker, 1, '第二条答复。', true);
+  await waitForStreams(worker, 3);
+  expect(await streamBody(worker, 2)).toContain('改后的 A');
+  await emit(worker, 2, '第三条答复。', true);
+  await expect(page.getByText('第三条答复。', { exact: true })).toBeVisible();
+  await expect(userTexts(page)).toHaveText(['原始问题', '排队 B', '改后的 A']);
+  expect(await streamCount(worker)).toBe(3);
+});
+
 test('the composer guards clearing, commands and the queue limit', async ({
   context,
   extensionId,

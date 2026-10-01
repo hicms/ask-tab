@@ -53,7 +53,16 @@ type LLMQueueCommand =
       pauseReason?: ChatQueuePauseReason;
     }
   | { type: 'LLM_QUEUE_STEER'; chatId: string; itemId: string }
-  | { type: 'LLM_QUEUE_RESUME'; chatId: string };
+  | { type: 'LLM_QUEUE_RESUME'; chatId: string }
+  /** Takes a message out of the queue to edit it in the composer of the view that asked. */
+  | { type: 'LLM_QUEUE_EDIT'; chatId: string; itemId: string };
+
+/** Background -> only the view that sent `LLM_QUEUE_EDIT`, once the message has left the queue. */
+interface LLMQueueEditText {
+  type: 'LLM_QUEUE_EDIT_TEXT';
+  chatId: string;
+  text: string;
+}
 
 export type {
   QueuedMessageMode,
@@ -62,5 +71,6 @@ export type {
   ChatQueueState,
   LLMQueueSnapshot,
   LLMQueueCommand,
+  LLMQueueEditText,
 };
 export { MAX_QUEUED_MESSAGES, SKIPPED_TOOL_RESULT, isSkippedToolCall };

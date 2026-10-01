@@ -5,6 +5,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import type {
   ChatQueueState,
   LLMQueueCommand,
+  LLMQueueEditText,
   LLMQueueSnapshot,
   QueuedMessageMode,
 } from '../chat-queue.js';
@@ -55,6 +56,8 @@ interface UseLLMStreamReturn {
   restoreQueue: (state: ChatQueueState) => void;
   steerQueued: (itemId: string) => void;
   resumeQueue: () => void;
+  /** Moves a queued message into `input`, taking it out of the queue. */
+  editQueued: (itemId: string) => void;
 }
 
 const EMPTY_MESSAGES: ChatMessage[] = [];
@@ -326,6 +329,12 @@ const useLLMStream = ({
           setQueueState(next);
           break;
         }
+        case 'LLM_QUEUE_EDIT_TEXT': {
+          const { text } = msg as unknown as LLMQueueEditText;
+          // Keep whatever is already typed; the edited message follows it.
+          setInput(previous => (previous.trim() ? `${previous.trimEnd()}\n${text}` : text));
+          break;
+        }
         case 'LLM_TTS_AUDIO':
           handlers.onTtsAudio?.(
             msg.audioBase64 as string,
@@ -515,6 +524,11 @@ const useLLMStream = ({
     [chatId, sendQueueCommand],
   );
 
+  const editQueued = useCallback(
+    (itemId: string) => sendQueueCommand({ type: 'LLM_QUEUE_EDIT', chatId, itemId }),
+    [chatId, sendQueueCommand],
+  );
+
   useEffect(() => {
     if (synchronizingRef.current || status !== 'idle') return;
     const pending = pendingSendRef.current;
@@ -556,6 +570,7 @@ const useLLMStream = ({
     restoreQueue,
     steerQueued,
     resumeQueue,
+    editQueued,
   };
 };
 

@@ -188,6 +188,9 @@
   "chat_queueRemove": {
     "message": "移除"
   },
+  "chat_queueEdit": {
+    "message": "編輯"
+  },
   "chat_queueSteerItem": {
     "message": "立即引導"
   },

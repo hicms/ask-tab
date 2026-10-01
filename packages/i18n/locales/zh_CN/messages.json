@@ -277,6 +277,9 @@
   "chat_queueRemove": {
     "message": "移除"
   },
+  "chat_queueEdit": {
+    "message": "编辑"
+  },
   "chat_queueSteerItem": {
     "message": "立即引导"
   },

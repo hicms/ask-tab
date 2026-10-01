@@ -16,6 +16,7 @@ import { diagnostics } from '@extension/shared/lib/diagnostics.js';
 import { addMessage, touchChat } from '@extension/storage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import type { ChatInputHandle } from './chat-input';
 import type { UIArtifact } from '../artifact-types';
 import type {
   Attachment,
@@ -204,6 +205,7 @@ const Chat = ({
     restoreQueue,
     steerQueued,
     resumeQueue,
+    editQueued,
   } = useLLMStream({
     chatId,
     model: selectedModel,
@@ -242,6 +244,15 @@ const Chat = ({
       duration: 5000,
     });
   }, [clearQueue, restoreQueue, t]);
+
+  const composerRef = useRef<ChatInputHandle>(null);
+  const handleEditQueued = useCallback(
+    (itemId: string) => {
+      editQueued(itemId);
+      composerRef.current?.focus();
+    },
+    [editQueued],
+  );
 
   // Append subagent result messages directly to messages state
   // (bypasses the broken initialMessages → useState path)
@@ -371,6 +382,7 @@ const Chat = ({
               sendMessage(content, attachments);
             }}
             queueActive={queueActive}
+            ref={composerRef}
             selectedModelId={selectedModel.dbId ?? selectedModel.id}
             setInput={setInput}
             status={status}
@@ -379,6 +391,7 @@ const Chat = ({
               <QueuedMessages
                 canSteer={isRunning}
                 onClear={handleClearQueue}
+                onEdit={handleEditQueued}
                 onRemove={removeQueued}
                 onResume={resumeQueue}
                 onSteer={steerQueued}

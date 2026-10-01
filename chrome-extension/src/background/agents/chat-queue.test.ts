@@ -44,6 +44,9 @@ const item = (id: string, mode: QueuedChatMessage['mode'] = 'queue'): QueuedChat
   createdAt: 1,
 });
 
+/** The view that sends commands; only it receives the text of a message taken back to edit. */
+const view = { postMessage: vi.fn() };
+
 const createStorage = (initial: Record<string, unknown> = {}) => {
   let stored = initial;
   return {
@@ -72,7 +75,10 @@ const startedTurns = () => vi.mocked(handleLLMStream).mock.calls.map(([, request
 const running = (value: boolean) => vi.mocked(isLLMStreamRunning).mockReturnValue(value);
 
 const add = (queue: ReturnType<typeof setup>['queue'], queued: QueuedChatMessage) =>
-  queue.handleCommand({ type: 'LLM_QUEUE_ADD', chatId: 'chat-1', item: queued });
+  queue.handleCommand({ type: 'LLM_QUEUE_ADD', chatId: 'chat-1', item: queued }, view);
+
+const edit = (queue: ReturnType<typeof setup>['queue'], itemId: string) =>
+  queue.handleCommand({ type: 'LLM_QUEUE_EDIT', chatId: 'chat-1', itemId }, view);
 
 /** Settlement dispatches asynchronously after the restored state is ready. */
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -80,6 +86,7 @@ const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 describe('chat queue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    view.postMessage.mockImplementation(() => {});
     running(true);
     vi.mocked(stopLLMStream).mockReturnValue(false);
     vi.mocked(getChat).mockResolvedValue({ id: 'chat-1' } as never);
@@ -153,7 +160,7 @@ describe('chat queue', () => {
     expect(lastSnapshot().pauseReason).toBe(reason);
     expect(handleLLMStream).not.toHaveBeenCalled();
 
-    await queue.handleCommand({ type: 'LLM_QUEUE_RESUME', chatId: 'chat-1' });
+    await queue.handleCommand({ type: 'LLM_QUEUE_RESUME', chatId: 'chat-1' }, view);
     expect(startedTurns()[0]!.messages.at(-1)!.id).toBe('a');
   });
 
@@ -256,30 +263,32 @@ describe('chat queue', () => {
     const { queue } = setup();
     await add(queue, item('a'));
     await add(queue, item('b'));
-    await queue.handleCommand({ type: 'LLM_QUEUE_REMOVE', chatId: 'chat-1', itemId: 'a' });
+    await queue.handleCommand({ type: 'LLM_QUEUE_REMOVE', chatId: 'chat-1', itemId: 'a' }, view);
     expect(snapshotIds()).toEqual(['b:queue']);
 
-    await queue.handleCommand({ type: 'LLM_QUEUE_CLEAR', chatId: 'chat-1' });
+    await queue.handleCommand({ type: 'LLM_QUEUE_CLEAR', chatId: 'chat-1' }, view);
     expect(lastSnapshot().items).toEqual([]);
     await add(queue, item('c'));
 
-    await queue.handleCommand({
-      type: 'LLM_QUEUE_RESTORE',
-      chatId: 'chat-1',
-      items: [item('b'), item('c')],
-    });
+    await queue.handleCommand(
+      { type: 'LLM_QUEUE_RESTORE', chatId: 'chat-1', items: [item('b'), item('c')] },
+      view,
+    );
     expect(snapshotIds()).toEqual(['b:queue', 'c:queue']);
   });
 
   it('keeps the pause when a cleared paused queue is restored', async () => {
     const { queue } = setup();
     running(false);
-    await queue.handleCommand({
-      type: 'LLM_QUEUE_RESTORE',
-      chatId: 'chat-1',
-      items: [item('a', 'steer')],
-      pauseReason: 'stopped',
-    });
+    await queue.handleCommand(
+      {
+        type: 'LLM_QUEUE_RESTORE',
+        chatId: 'chat-1',
+        items: [item('a', 'steer')],
+        pauseReason: 'stopped',
+      },
+      view,
+    );
 
     expect(snapshotIds()).toEqual(['a:queue']);
     expect(lastSnapshot().pauseReason).toBe('stopped');
@@ -290,7 +299,7 @@ describe('chat queue', () => {
     const { queue } = setup();
     await add(queue, item('a'));
     await add(queue, item('b'));
-    await queue.handleCommand({ type: 'LLM_QUEUE_STEER', chatId: 'chat-1', itemId: 'b' });
+    await queue.handleCommand({ type: 'LLM_QUEUE_STEER', chatId: 'chat-1', itemId: 'b' }, view);
 
     expect(snapshotIds()).toEqual(['a:queue', 'b:steer']);
     expect(queue.takeSteering('chat-1').map(i => i.id)).toEqual(['b']);
@@ -304,11 +313,95 @@ describe('chat queue', () => {
     queue.onSettled({ chatId: 'chat-1', outcome: 'stopped', unsentSteering: [] });
     await flush();
 
-    await queue.handleCommand({ type: 'LLM_QUEUE_STEER', chatId: 'chat-1', itemId: 'b' });
+    await queue.handleCommand({ type: 'LLM_QUEUE_STEER', chatId: 'chat-1', itemId: 'b' }, view);
 
     expect(startedTurns()[0]!.messages.at(-1)!.id).toBe('b');
     expect(snapshotIds()).toEqual(['a:queue']);
     expect(lastSnapshot()).not.toHaveProperty('pauseReason');
+  });
+
+  it('takes a message back to the editing view and drops it from every view', async () => {
+    const { queue, storage } = setup();
+    await add(queue, item('a'));
+    await add(queue, item('b'));
+
+    await edit(queue, 'a');
+
+    expect(view.postMessage).toHaveBeenCalledExactlyOnceWith({
+      type: 'LLM_QUEUE_EDIT_TEXT',
+      chatId: 'chat-1',
+      text: 'text a',
+    });
+    expect(snapshotIds()).toEqual(['b:queue']);
+    await flush();
+    expect(storage.read().chatQueues).toEqual({ 'chat-1': { items: [item('b')] } });
+    expect(handleLLMStream).not.toHaveBeenCalled();
+  });
+
+  it('keeps a paused queue paused when one of its messages is taken back', async () => {
+    const { queue } = setup();
+    await add(queue, item('a'));
+    await add(queue, item('b'));
+    running(false);
+    queue.onSettled({ chatId: 'chat-1', outcome: 'stopped', unsentSteering: [] });
+    await flush();
+
+    await edit(queue, 'a');
+
+    expect(snapshotIds()).toEqual(['b:queue']);
+    expect(lastSnapshot().pauseReason).toBe('stopped');
+    expect(handleLLMStream).not.toHaveBeenCalled();
+  });
+
+  it('skips a message being edited when the next turn starts', async () => {
+    const { queue } = setup();
+    await add(queue, item('a'));
+    await add(queue, item('b'));
+    await edit(queue, 'a');
+    running(false);
+
+    queue.onSettled({ chatId: 'chat-1', outcome: 'completed', unsentSteering: [] });
+    await vi.waitFor(() => expect(handleLLMStream).toHaveBeenCalledOnce());
+
+    expect(startedTurns()[0]!.messages.map(m => m.id)).toEqual(['b']);
+  });
+
+  it('no longer offers a steering message being edited to the running turn', async () => {
+    const { queue } = setup();
+    await add(queue, item('s1', 'steer'));
+
+    await edit(queue, 's1');
+
+    expect(view.postMessage).toHaveBeenCalledWith(expect.objectContaining({ text: 'text s1' }));
+    expect(queue.takeSteering('chat-1')).toEqual([]);
+  });
+
+  it('never hands back a message that already left the queue', async () => {
+    const { queue } = setup();
+    await add(queue, item('s1', 'steer'));
+    queue.takeSteering('chat-1');
+    await add(queue, item('a'));
+    running(false);
+    queue.onSettled({ chatId: 'chat-1', outcome: 'completed', unsentSteering: [] });
+    await vi.waitFor(() => expect(handleLLMStream).toHaveBeenCalledOnce());
+
+    await edit(queue, 's1');
+    await edit(queue, 'a');
+
+    expect(view.postMessage).not.toHaveBeenCalled();
+    expect(lastSnapshot().items).toEqual([]);
+  });
+
+  it('keeps the message queued when the editing view is gone', async () => {
+    const { queue } = setup();
+    await add(queue, item('a'));
+    view.postMessage.mockImplementation(() => {
+      throw new Error('Attempting to use a disconnected port object');
+    });
+
+    await edit(queue, 'a');
+
+    expect(snapshotIds()).toEqual(['a:queue']);
   });
 
   it('restores a queue after a worker restart as paused queued messages', async () => {
@@ -352,7 +445,7 @@ describe('chat queue', () => {
       return [];
     });
 
-    await queue.handleCommand({ type: 'LLM_QUEUE_RESUME', chatId: 'chat-1' });
+    await queue.handleCommand({ type: 'LLM_QUEUE_RESUME', chatId: 'chat-1' }, view);
 
     expect(handleLLMStream).not.toHaveBeenCalled();
     expect(snapshotIds()).toEqual(['a:queue']);

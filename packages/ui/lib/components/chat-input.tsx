@@ -31,7 +31,7 @@ import { groupModelsByTier, knownTier, useStorage, getSlashCommands } from '@ext
 import { diagnostics } from '@extension/shared/lib/diagnostics.js';
 import { sttConfigStorage } from '@extension/storage';
 import { Loader2Icon, SquareIcon } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type {
   Attachment,
@@ -48,6 +48,7 @@ import type {
   KeyboardEvent,
   MouseEvent,
   ReactNode,
+  Ref,
   SetStateAction,
 } from 'react';
 
@@ -56,16 +57,21 @@ const MAX_FILES = 5;
 const ACCEPTED_FILE_TYPES = 'image/*,.pdf,.txt,.md,.csv';
 const STEER_SHORTCUT = /Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘ Enter' : 'Ctrl Enter';
 
-const focusComposer = (event: MouseEvent<HTMLTextAreaElement>) => {
-  if (event.button !== 0) return;
-
-  const textarea = event.currentTarget;
-  // The textarea can be activeElement while browser chrome still owns keyboard
-  // focus. Claim the panel window during the click, before Ctrl+V is routed;
-  // waiting for onPaste is too late. Leave native caret placement/dragging alone.
+// The textarea can be activeElement while browser chrome still owns keyboard
+// focus, so claim the panel window before focusing it.
+const focusTextarea = (textarea: HTMLTextAreaElement) => {
   textarea.ownerDocument.defaultView?.focus();
   textarea.focus({ preventScroll: true });
 };
+
+const focusComposer = (event: MouseEvent<HTMLTextAreaElement>) => {
+  if (event.button !== 0) return;
+  // Claim focus during the click, before Ctrl+V is routed; waiting for onPaste
+  // is too late. Leave native caret placement/dragging alone.
+  focusTextarea(event.currentTarget);
+};
+
+type ChatInputHandle = { focus: () => void };
 
 type ChatInputProps = {
   input: string;
@@ -83,6 +89,7 @@ type ChatInputProps = {
   onEnqueue?: (content: string, mode: QueuedMessageMode) => boolean;
   /** Rendered above the composer. */
   tray?: ReactNode;
+  ref?: Ref<ChatInputHandle>;
 };
 
 const ChatInput = ({
@@ -98,6 +105,7 @@ const ChatInput = ({
   isCompacting = false,
   onEnqueue,
   tray,
+  ref,
 }: ChatInputProps) => {
   const t = useT();
   const sttConfig = useStorage(sttConfigStorage);
@@ -108,6 +116,16 @@ const ChatInput = ({
   const [recordingStream, setRecordingStream] = useState<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => {
+        if (textareaRef.current) focusTextarea(textareaRef.current);
+      },
+    }),
+    [],
+  );
 
   const history = useInputHistory();
   const { resetCursor } = history;
@@ -643,3 +661,4 @@ const ChatInput = ({
 };
 
 export { ChatInput };
+export type { ChatInputHandle };

@@ -155,8 +155,9 @@ describe('useLLMStream queue', () => {
     hook.removeQueued('a');
     hook.steerQueued('b');
     hook.resumeQueue();
+    hook.editQueued('c');
 
-    const [add, remove, steer, resume] = sent(lastPort()).slice(1);
+    const [add, remove, steer, resume, edit] = sent(lastPort()).slice(1);
     expect(add).toEqual({
       type: 'LLM_QUEUE_ADD',
       chatId: CHAT,
@@ -171,7 +172,24 @@ describe('useLLMStream queue', () => {
     expect(remove).toEqual({ type: 'LLM_QUEUE_REMOVE', chatId: CHAT, itemId: 'a' });
     expect(steer).toEqual({ type: 'LLM_QUEUE_STEER', chatId: CHAT, itemId: 'b' });
     expect(resume).toEqual({ type: 'LLM_QUEUE_RESUME', chatId: CHAT });
+    expect(edit).toEqual({ type: 'LLM_QUEUE_EDIT', chatId: CHAT, itemId: 'c' });
     expect(ports).toHaveLength(1);
+  });
+
+  it('puts a message taken back to edit into the composer after any draft', () => {
+    mount();
+    const port = lastPort();
+    port.receive({ type: 'LLM_QUEUE_EDIT_TEXT', chatId: CHAT, text: 'First' });
+    expect(render().input).toBe('First');
+
+    render().setInput('Draft  ');
+    port.receive({ type: 'LLM_QUEUE_EDIT_TEXT', chatId: CHAT, text: 'Second' });
+    expect(render().input).toBe('Draft\nSecond');
+
+    port.receive({ type: 'LLM_QUEUE_EDIT_TEXT', chatId: 'other', text: 'Elsewhere' });
+    port.dropConnection();
+    port.receive({ type: 'LLM_QUEUE_EDIT_TEXT', chatId: CHAT, text: 'Stale' });
+    expect(render().input).toBe('Draft\nSecond');
   });
 
   it('refuses to queue past the limit', () => {

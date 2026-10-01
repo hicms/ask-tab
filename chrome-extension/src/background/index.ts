@@ -577,7 +577,7 @@ chrome.runtime.onConnect.addListener(port => {
       } else if (msg.type === 'LLM_STREAM_WATCH') {
         watchLLMStreams(port);
       } else if (isQueueCommand(msg)) {
-        chatQueue.handleCommand(msg).catch(diagnostics.error);
+        chatQueue.handleCommand(msg, port).catch(diagnostics.error);
       }
     });
   }

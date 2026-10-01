@@ -1,7 +1,7 @@
 import { ChatQueuedMessageIcon, ChatQueueIcon } from './chat-action-icons';
 import { Button } from './ui';
 import { useT } from '@extension/i18n';
-import { XIcon } from 'lucide-react';
+import { PencilIcon, XIcon } from 'lucide-react';
 import type { ChatQueuePauseReason, ChatQueueState } from '@extension/shared';
 
 const pauseLabels = {
@@ -14,16 +14,22 @@ type QueuedMessagesProps = {
   queue: ChatQueueState;
   /** Only a running turn can take a steering message. */
   canSteer: boolean;
+  /** Moves the message into the composer. */
+  onEdit: (itemId: string) => void;
   onRemove: (itemId: string) => void;
   onSteer: (itemId: string) => void;
   onClear: () => void;
   onResume: () => void;
 };
 
+const secondaryActionClass =
+  'text-muted-foreground hover:text-foreground size-8 rounded-lg bg-zinc-200/50 dark:bg-zinc-700/40 [&_svg]:size-[18px]';
+
 /** Messages waiting for the running turn, shown as the top of the composer. */
 const QueuedMessages = ({
   queue,
   canSteer,
+  onEdit,
   onRemove,
   onSteer,
   onClear,
@@ -104,8 +110,18 @@ const QueuedMessages = ({
                 </Button>
               )}
               <Button
+                aria-label={t('chat_queueEdit')}
+                className={secondaryActionClass}
+                onClick={() => onEdit(item.id)}
+                size="icon-sm"
+                title={t('chat_queueEdit')}
+                type="button"
+                variant="ghost">
+                <PencilIcon className="size-[18px]" />
+              </Button>
+              <Button
                 aria-label={t('chat_queueRemove')}
-                className="text-muted-foreground hover:text-foreground size-8 rounded-lg bg-zinc-200/50 dark:bg-zinc-700/40 [&_svg]:size-[18px]"
+                className={secondaryActionClass}
                 onClick={() => onRemove(item.id)}
                 size="icon-sm"
                 title={t('chat_queueRemove')}

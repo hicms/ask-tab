@@ -1,6 +1,6 @@
 # 推理中消息排队与引导对话 需求文档
 
-> 状态：v0.2（已实施；与草案的差异见第 15 节）
+> 状态：v0.3（已实施；与草案的差异见第 15 节）
 > 范围：侧边栏（`pages/side-panel`）与全页聊天（`pages/full-page-chat`）的交互式聊天
 > 关联代码：`packages/ui/lib/components/chat-input.tsx`、`packages/shared/lib/hooks/use-llm-stream.ts`、`chrome-extension/src/background/agents/stream-handler.ts`、`chrome-extension/src/background/agents/agent-setup.ts`、`chrome-extension/src/background/agents/agent.ts`、`chrome-extension/src/background/agents/agent-loop.ts`
 
@@ -28,7 +28,7 @@
 ## 3. 非目标（v1 不做）
 
 - 队列消息携带附件（图片/文件）。v1 队列和引导只支持纯文本，推理中附件按钮保持禁用（与现状一致）。
-- 在队列中拖拽排序、编辑队列项内容（v2 考虑，见第 13 节）。
+- 在队列中拖拽排序、在托盘内直接编辑队列项（v2 考虑，见第 13 节）。v0.3 支持把队列项取回输入框编辑，见 R2.20。
 - Telegram / WhatsApp 渠道、定时任务（cron）、心跳（heartbeat）、子代理的消息排队。它们不经过聊天输入框。
 - 推理中执行斜杠命令（`/clear`、`/compact` 等）。推理中斜杠命令被拦截，见 7.6。
 - 跨浏览器重启保留队列。见 9.2。
@@ -155,7 +155,7 @@
 - **R2.8** 每个队列项一行，从上到下与发送顺序一致：
   - 文本预览，最多两行，超出省略，悬停显示全文；
   - 状态标记：排队中（无标记）/ 引导中（`chat_queueSteering`，带小动画）；
-  - 操作按钮（悬停或聚焦时显示，触屏设备常显）：「立即引导」（`chat_queueSteerItem`，仅当前有运行中的一轮时可用）、「移除」（`chat_queueRemove`）。
+  - 操作按钮（悬停或聚焦时显示，触屏设备常显）：「立即引导」（`chat_queueSteerItem`，仅当前有运行中的一轮时可用）、「编辑」（`chat_queueEdit`，见 R2.20）、「移除」（`chat_queueRemove`）。
 - **R2.9** 托盘最多显示约 4 条的高度，超出后托盘内部滚动，不挤压消息列表。
 - **R2.10** 托盘可折叠为一行摘要（P1，可选）。
 
@@ -165,6 +165,13 @@
 - **R2.12** 点击「清空」立即删除所有排队中的项，并显示可撤销的 toast（复用 `archive_undo` 文案「撤销」），约 5 秒内可撤销。
 - **R2.13** 已经进入「引导中」且已经被后台注入的消息不能再删除（它已经是对话的一部分）；「引导中」但尚未注入的项允许移除。
 - **R2.14** 队列项被删光后托盘消失。
+
+#### 编辑（v0.3）
+
+- **R2.20** 点击「编辑」：该项离开队列（所有视图同步），文本放入发起视图的输入框，输入框获得焦点。排队中和尚未被取走的引导中项都可以编辑。
+- **R2.21** 输入框已有草稿时不覆盖：取回的文本换行接在草稿之后。
+- **R2.22** 取回的消息不会被自动发送，也不会作为引导注入。修改后重新提交与普通输入相同：排到队尾，或空闲时立即发送；使用提交时的模式和当前选择的模型。
+- **R2.23** 后台只在该项仍在队列中时交出文本。已经发出或已被引导取走的项不交出，队列不变；发起视图已断开时该项保留在队列中。
 
 #### 自动发送
 
@@ -297,18 +304,20 @@ UI → 后台（通过现有 `llm-stream` 端口，或新增 `chat-queue` 端口
 | `LLM_QUEUE_RESTORE` | `chatId`, `items` | 撤销清空 |
 | `LLM_QUEUE_STEER` | `chatId`, `itemId` | 队列项转为引导 |
 | `LLM_QUEUE_RESUME` | `chatId` | 取消暂停并发送队首 |
+| `LLM_QUEUE_EDIT` | `chatId`, `itemId` | 取回队列项编辑（v0.3）；项已不在队列时忽略 |
 
 后台 → UI：
 
 | 类型 | 字段 | 说明 |
 |------|------|------|
 | `LLM_QUEUE_SNAPSHOT` | `ChatQueueState` | 任何变化后广播；`LLM_STREAM_SUBSCRIBE` 时随流快照一起下发 |
+| `LLM_QUEUE_EDIT_TEXT` | `chatId`, `text` | 只发给发起 `LLM_QUEUE_EDIT` 的视图；发送成功后后台才把该项移出队列（v0.3） |
 | `LLM_STREAM_STEERED` | `chatId`, `finishedAssistantMessage`, `userMessage`, `assistantMessageId` | 引导消息已注入：前端定稿上一段助手消息，追加用户消息和新的助手占位 |
 | `LLM_RUNNING_CHATS` | 增加 `queuedCounts?: Record<chatId, number>` | 会话列表徽标（P1） |
 
 前端配套修改：
 
-- `useLLMStream` 暴露 `enqueue(text, mode)`、`removeQueued(id)`、`clearQueue()`、`steerQueued(id)`、`resumeQueue()` 和 `queue` 状态。
+- `useLLMStream` 暴露 `enqueue(text, mode)`、`removeQueued(id)`、`clearQueue()`、`steerQueued(id)`、`resumeQueue()`、`editQueued(id)`（v0.3）和 `queue` 状态。
 - `handleEnd` 不再断开端口，或在队列非空时立即重新 `LLM_STREAM_SUBSCRIBE`，确保能收到后台自动开始的下一轮的 `LLM_STREAM_SNAPSHOT`。
 - 自动开始的新一轮对前端而言等同于「另一个视图发起的一轮」，走现有 snapshot 加入逻辑。
 
@@ -362,6 +371,7 @@ UI → 后台（通过现有 `llm-stream` 端口，或新增 `chat-queue` 端口
 | `chat_queueClear` | Clear all | 清空 | |
 | `chat_queueCleared` | Queue cleared | 已清空待发送队列 | toast，配合 `archive_undo` |
 | `chat_queueRemove` | Remove | 移除 | |
+| `chat_queueEdit` | Edit | 编辑 | v0.3，取回输入框编辑 |
 | `chat_queueSteerItem` | Steer now | 立即引导 | |
 | `chat_queueSteering` | Will be inserted after the current step | 等待当前步骤完成后插入 | 队列项状态 |
 | `chat_queueResume` | Resume sending | 继续发送 | |
@@ -404,6 +414,7 @@ UI → 后台（通过现有 `llm-stream` 端口，或新增 `chat-queue` 端口
 - [ ] 切换到另一个聊天再切回：托盘内容保留。
 - [ ] 第 21 条入队失败并提示，输入内容保留。
 - [ ] 刷新后消息列表与自动发送时看到的一致，没有重复或缺失的用户消息。
+- [ ] 点击队列项「编辑」：文本进入输入框（接在已有草稿后）并聚焦，该项离开托盘；当前轮结束后不发送、不注入该项；修改后重新提交排到队尾。
 
 ### 11.3 引导
 
@@ -441,7 +452,7 @@ UI → 后台（通过现有 `llm-stream` 端口，或新增 `chat-queue` 端口
 |------|------|
 | P0（本需求） | 按钮状态机、队列托盘（删除/清空）、自动发送、引导（快捷键 + 下拉菜单 + 立即引导）、停止/出错暂停、`Esc` 停止、中英文文案、推理中禁用编辑与斜杠命令 |
 | P1 | 清空撤销 toast、会话列表队列徽标、托盘折叠、「停止并发送」、工具状态文案 i18n |
-| P2 | 队列项编辑与拖拽排序、队列支持附件、`Alt + Up` 取回最后一条队列项到输入框、可配置默认 `Enter` 行为（排队 / 引导） |
+| P2 | 托盘内联编辑与拖拽排序、队列支持附件、`Alt + Up` 取回最后一条队列项到输入框、可配置默认 `Enter` 行为（排队 / 引导） |
 
 ## 14. 设计决策与待决问题
 
@@ -480,5 +491,6 @@ UI → 后台（通过现有 `llm-stream` 端口，或新增 `chat-queue` 端口
 | 附件 | 推理中附件按钮禁用 | 同草案。若附件在推理开始前已添加，推理中提交会提示 `chat_queueNoAttachments` 并保留草稿 |
 | 两轮之间 | 未定义 | 队列未暂停且非空时（即将自动开始下一轮），输入框同样处于「推理中」状态：`Enter` 入队，停止按钮暂停队列 |
 | P1 | 会话列表队列徽标、托盘折叠、「停止并发送」 | 未实现。清空撤销 toast 已实现 |
+| 编辑队列项 | P2 | v0.3 实现为取回到输入框编辑（R2.20–R2.23），不提供托盘内联编辑 |
 
 待决问题采用默认方案：Q1 使用入队时的模型；Q3 超时视为正常结束并继续发送，引导不延长超时；Q4 引导消息原样注入。

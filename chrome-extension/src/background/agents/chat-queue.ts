@@ -14,6 +14,7 @@ import type {
   ChatQueuePauseReason,
   ChatQueueState,
   LLMQueueCommand,
+  LLMQueueEditText,
   LLMQueueSnapshot,
   QueuedChatMessage,
 } from '@extension/shared';
@@ -164,7 +165,11 @@ const createChatQueue = ({ storage, keepAlive }: ChatQueueDeps) => {
     void ready.then(() => settle(run));
   };
 
-  const handleCommand = async (command: LLMQueueCommand): Promise<void> => {
+  /** `view` sent the command; only it receives the text of a message taken back to edit. */
+  const handleCommand = async (
+    command: LLMQueueCommand,
+    view: Pick<chrome.runtime.Port, 'postMessage'>,
+  ): Promise<void> => {
     await ready;
     const { chatId } = command;
     const items = queues.get(chatId)?.items ?? [];
@@ -220,6 +225,24 @@ const createChatQueue = ({ storage, keepAlive }: ChatQueueDeps) => {
       case 'LLM_QUEUE_RESUME':
         commit(chatId, items);
         break;
+      case 'LLM_QUEUE_EDIT': {
+        // A message that already left the queue was sent or injected and can't be edited.
+        const item = items.find(i => i.id === command.itemId);
+        if (!item) break;
+        const reply: LLMQueueEditText = { type: 'LLM_QUEUE_EDIT_TEXT', chatId, text: item.text };
+        try {
+          view.postMessage(reply);
+        } catch {
+          // The view closed; keep the message queued rather than lose it.
+          break;
+        }
+        commit(
+          chatId,
+          items.filter(i => i !== item),
+          pauseReason,
+        );
+        break;
+      }
     }
     await dispatchNext(chatId);
   };

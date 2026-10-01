@@ -286,6 +286,9 @@
   "chat_queueRemove": {
     "message": "Remove"
   },
+  "chat_queueEdit": {
+    "message": "Edit"
+  },
   "chat_queueSteerItem": {
     "message": "Steer now"
   },
