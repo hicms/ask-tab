@@ -140,6 +140,15 @@
       ]
     },
     {
+      "tab": "Research",
+      "groups": [
+        {
+          "group": "Product research",
+          "pages": ["requirements/immersive-translate-research"]
+        }
+      ]
+    },
+    {
       "tab": "Reference",
       "groups": [
         {
