@@ -2,7 +2,6 @@
 // web_fetch tool — fetch and extract content from a URL.
 // ---------------------------------------------------------------------------
 
-import { fetchViaBrowserPage, waitForTabLoad } from './web-fetch-browser';
 import { readCache, readResponseText, writeCache, withTimeout } from './web-shared';
 import { createLogger } from '../logging/logger-buffer';
 import { IS_FIREFOX } from '@extension/env';
@@ -211,68 +210,131 @@ const extractText = (html: string, maxChars: number): string => {
 };
 
 // ---------------------------------------------------------------------------
-// Browser fallback — open a background tab to extract text when fetch() fails
+// Browser tab reader — loads a URL in a tab with the user's login and reads the
+// page. Serves plain GET in Chrome and the network-error fallback everywhere.
 // ---------------------------------------------------------------------------
 
-const fetchViaBrowserFallback = async (url: string, maxChars: number): Promise<WebFetchResult> => {
-  log.trace('[webFetch] attempting browser fallback', { url });
+const PAGE_LOAD_TIMEOUT_MS = 15_000;
 
-  // Only allow http/https — block chrome://, file://, extension-internal, etc.
-  const parsedUrl = new URL(url);
-  if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-    return {
-      text: '',
-      status: 0,
-      error: `Browser fallback skipped: unsupported protocol ${parsedUrl.protocol}`,
-      browserFallback: true,
+// Chrome blocks all extension scripting on these domains — skip the tab round-trip.
+const CHROME_RESTRICTED_HOSTS = [
+  'chromewebstore.google.com',
+  'chrome.google.com',
+  'clients.google.com',
+];
+
+const waitForTabLoad = (tabId: number, timeoutMs = PAGE_LOAD_TIMEOUT_MS): Promise<void> =>
+  new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const settle = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      chrome.tabs.onUpdated.removeListener(listener);
+      fn();
     };
-  }
-
-  // Chrome blocks all extension scripting on these domains — skip the tab round-trip.
-  const BLOCKED_HOSTS = ['chromewebstore.google.com', 'chrome.google.com', 'clients.google.com'];
-  if (BLOCKED_HOSTS.some(h => parsedUrl.hostname === h || parsedUrl.hostname.endsWith(`.${h}`))) {
-    return {
-      text: '',
-      status: 0,
-      browserFallback: true,
-      error: `This URL is on a Chrome-restricted domain that blocks all extension access. Use web_search to find information about this page instead.`,
+    const timer = setTimeout(
+      () => settle(() => reject(new Error(`Tab load timed out after ${timeoutMs}ms`))),
+      timeoutMs,
+    );
+    const listener = (id: number, info: chrome.tabs.TabChangeInfo) => {
+      if (id === tabId && info.status === 'complete') settle(resolve);
     };
-  }
+    chrome.tabs.onUpdated.addListener(listener);
+    chrome.tabs
+      .get(tabId)
+      .then(tab => {
+        if (tab.status === 'complete') settle(resolve);
+      })
+      .catch(() => {
+        /* A closed tab is handled by the timeout. */
+      });
+  });
 
+const readUrlInBrowserTab = async (
+  url: string,
+  extractMode: 'text' | 'html',
+  maxChars: number,
+): Promise<WebFetchResult> => {
+  log.trace('[webFetch] reading URL in a browser tab', { url });
   let tabId: number | undefined;
+  let createdTab = false;
   try {
-    const tab = await chrome.tabs.create({ url, active: false });
-    tabId = tab.id ?? undefined;
-    if (tabId == null) {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+      throw new Error(`Unsupported browser navigation protocol: ${parsedUrl.protocol}`);
+    }
+    const { hostname } = parsedUrl;
+    if (CHROME_RESTRICTED_HOSTS.some(host => hostname === host || hostname.endsWith(`.${host}`))) {
       return {
         text: '',
         status: 0,
-        error: 'Browser fallback failed: could not create tab.',
         browserFallback: true,
+        error:
+          'This URL is on a Chrome-restricted domain that blocks all extension access. Use web_search to find information about this page instead.',
       };
     }
-    await waitForTabLoad(tabId);
-    const loadedTab = await chrome.tabs.get(tabId);
-    const title = loadedTab.title || undefined;
+
+    const openTabs = await chrome.tabs.query({});
+    const inIncognitoContext = chrome.extension?.inIncognitoContext ?? false;
+    const matchingTabs = openTabs.filter(
+      candidate =>
+        candidate.url === parsedUrl.href &&
+        candidate.id != null &&
+        candidate.incognito === inIncognitoContext,
+    );
+    const existingTab = matchingTabs.find(candidate => candidate.active) ?? matchingTabs[0];
+    const tab = existingTab ?? (await chrome.tabs.create({ url, active: false }));
+    createdTab = existingTab == null;
+    tabId = tab.id;
+    if (tabId == null) throw new Error('Could not create a browser tab.');
+
+    if (tab.status !== 'complete') await waitForTabLoad(tabId);
     const results = await chrome.scripting.executeScript({
       target: { tabId },
-      func: () => document.body.innerText,
+      func: mode => {
+        const navigation = performance.getEntriesByType('navigation')[0] as
+          | PerformanceNavigationTiming
+          | undefined;
+        return {
+          text:
+            mode === 'html'
+              ? (document.documentElement?.outerHTML ?? '')
+              : (document.body?.innerText ?? ''),
+          title: document.title,
+          status: navigation?.responseStatus ?? 0,
+          mimeType: document.contentType,
+        };
+      },
+      args: [extractMode],
     });
-    const raw = results?.[0]?.result;
-    let text = typeof raw === 'string' ? raw : '';
-    if (text.length > maxChars) {
-      text = text.slice(0, maxChars);
-    }
-    return { text, title, status: 200, browserFallback: true };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { text: '', status: 0, error: `Browser fallback failed: ${msg}`, browserFallback: true };
+    const page = results?.[0]?.result;
+    if (!page) throw new Error('Could not read the loaded page.');
+
+    const result: WebFetchResult = {
+      text: page.text.slice(0, maxChars),
+      title: page.title || undefined,
+      status: page.status,
+      mimeType: page.mimeType,
+      browserFallback: true,
+    };
+    if (page.status >= 400) result.error = `HTTP ${page.status}`;
+    if (page.status === 0) result.error = 'Could not determine the page HTTP status.';
+    return result;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      text: '',
+      status: 0,
+      error: `Browser page fetch failed: ${message}`,
+      browserFallback: true,
+    };
   } finally {
-    if (tabId != null) {
+    if (createdTab && tabId != null) {
       try {
         await chrome.tabs.remove(tabId);
       } catch {
-        /* tab may already be closed */
+        /* The user may have closed the temporary tab. */
       }
     }
   }
@@ -376,9 +438,9 @@ const executeWebFetch = async (args: WebFetchArgs): Promise<WebFetchResult> => {
 
     // CORS/network error — try browser fallback for GET text/html requests
     if (cacheable && bodyCount === 0 && extractMode !== 'binary') {
-      const fallbackResult = await fetchViaBrowserFallback(requestUrl, maxChars);
+      const fallbackResult = await readUrlInBrowserTab(requestUrl, extractMode ?? 'text', maxChars);
       if (fallbackResult.text.length > 0) {
-        writeCache(FETCH_CACHE, cacheKey, fallbackResult);
+        if (!fallbackResult.error) writeCache(FETCH_CACHE, cacheKey, fallbackResult);
         return fallbackResult;
       }
       return {
@@ -540,7 +602,7 @@ const executeBrowserAwareWebFetch = async (args: WebFetchArgs): Promise<WebFetch
   } catch {
     return executeWebFetch(args);
   }
-  return fetchViaBrowserPage(
+  return readUrlInBrowserTab(
     requestUrl,
     args.extractMode ?? 'text',
     args.maxChars ?? DEFAULT_MAX_CHARS,
