@@ -50,6 +50,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             "dist-zip/asktab-chrome-$GITHUB_REF_NAME.zip" \
             "dist-zip/asktab-chrome-$GITHUB_REF_NAME.sha256" \
+            "dist-zip/asktab-mcp-$GITHUB_REF_NAME.tgz" \
             --verify-tag --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/release-notes.md"
 
   webstore:

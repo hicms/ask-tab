@@ -27,6 +27,9 @@ function gh {
             if ($env:RELEASE_TEST_FAILURE -ne 'asset') {
                 $assets += @{ name = "asktab-chrome-$tag.sha256" }
             }
+            if ($env:RELEASE_TEST_FAILURE -ne 'bridge-asset') {
+                $assets += @{ name = "asktab-mcp-$tag.tgz" }
+            }
             @{ url = "https://example.com/releases/$tag"; assets = $assets } | ConvertTo-Json -Compress
         }
         default { throw "Unexpected gh command: $args" }

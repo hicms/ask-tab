@@ -23,19 +23,22 @@ There is no per-tool switch. Other AskTab tools (search, memory, Google, and so 
 
 ## Setup
 
-The bridge is published to npm as `asktab-mcp`, and MCP clients run it with `npx`. You need Node.js 18 or later; nothing else has to be installed or cloned.
+Every AskTab release on [GitHub](https://github.com/hicms/ask-tab/releases) includes the bridge as `asktab-mcp-vX.Y.Z.tgz`, and MCP clients run it with `npx`. You need Node.js 18 or later and access to github.com; nothing has to be installed or cloned. The bridge ships with AskTab releases from v0.1.15 on.
 
-1. In AskTab, open **Settings → Tools → MCP Bridge** and turn the option on. **Copy client config** puts a ready-made `mcpServers` entry on the clipboard, with the port and token already filled in.
+1. In AskTab, open **Settings → Tools → MCP Bridge** and turn the option on. **Copy client config** puts a ready-made `mcpServers` entry on the clipboard, with the port, the token and the bridge for your AskTab version filled in.
 2. Paste that entry into your MCP client configuration and restart the client.
 
-On macOS and Linux the entry looks like this:
+On macOS and Linux the entry looks like this (for AskTab 0.1.15):
 
 ```json
 {
   "mcpServers": {
     "asktab-browser": {
       "command": "npx",
-      "args": ["-y", "asktab-mcp"],
+      "args": [
+        "-y",
+        "https://github.com/hicms/ask-tab/releases/download/v0.1.15/asktab-mcp-v0.1.15.tgz"
+      ],
       "env": {
         "ASKTAB_MCP_PORT": "47821",
         "ASKTAB_MCP_TOKEN": "<token from the settings page>"
@@ -45,13 +48,15 @@ On macOS and Linux the entry looks like this:
 }
 ```
 
-On Windows, `npx` is a `.cmd` script that most MCP clients cannot start directly, so the copied entry uses `"command": "cmd"` and `"args": ["/c", "npx", "-y", "asktab-mcp"]` instead.
+On Windows, `npx` is a `.cmd` script that most MCP clients cannot start directly, so the copied entry uses `"command": "cmd"` and puts `"/c", "npx"` in front of the same arguments.
+
+The dependencies (the MCP SDK and `ws`) come from your configured npm registry, so a registry mirror works. The package itself always downloads from github.com; if GitHub is slow or blocked on your network, use a local build instead.
 
 MCP is off by default. The default port is 47821.
 
 ### Running from a local build
 
-To try changes before they are published, run `pnpm build` and point the client at the built file instead of `npx`:
+For development, or if you cannot download from GitHub, run `pnpm build` and point the client at the built file instead of `npx`:
 
 ```json
 "command": "node",
@@ -60,7 +65,7 @@ To try changes before they are published, run `pnpm build` and point the client 
 
 ## Versions
 
-The extension and the bridge are released separately but share the message format in `lib/protocol.ts`. A change to that file needs both a new extension release and a new `asktab-mcp` release. `npx -y asktab-mcp` resolves the latest published version, so users pick up a new bridge the next time their MCP client starts it.
+The bridge and the extension share the message format in `lib/protocol.ts` and are released together under one version. The copied config pins the bridge from the same release as the installed extension, so the two always match. After AskTab updates, copy the config again to move to the new bridge. An older bridge keeps working as long as `lib/protocol.ts` has not changed between the two versions.
 
 ## Security
 
@@ -89,15 +94,8 @@ pnpm exec vitest run tests/unit/mcp-bridge
 pnpm build && pnpm exec playwright test tests/playwright/e2e/mcp-bridge.spec.ts
 ```
 
-### Publishing
+### Releasing
 
-Publish with pnpm from the repository root so the build runs first (`prepublishOnly`):
-
-```bash
-npm login
-pnpm --filter asktab-mcp publish --access public
-```
-
-Bump `version` in `package.json` before each release. Check what will be uploaded with `pnpm --filter asktab-mcp pack`.
+The bridge is not published to npm. `pnpm release:package vX.Y.Z` writes `dist-zip/asktab-mcp-vX.Y.Z.tgz` next to the extension ZIP, and the release workflow attaches it to the GitHub Release. `scripts/release.ps1` keeps the bridge version equal to the extension version.
 
 The wire protocol is defined once in `lib/protocol.ts`. The extension side lives in `chrome-extension/src/background/mcp/` and imports only the types.

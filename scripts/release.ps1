@@ -3,11 +3,11 @@
 Publishes a version tag and verifies the GitHub Release.
 
 .DESCRIPTION
-Requires a clean, pushed main branch and matching root and Chrome extension versions.
-Increments the patch version by default, commits both package versions, and pushes
+Requires a clean, pushed main branch and matching root, Chrome extension and MCP bridge versions.
+Increments the patch version by default, commits the three package versions, and pushes
 main and the version tag together. Use -Version to choose an explicit version.
 GitHub Actions builds and publishes the production package after the tag is pushed.
-The command waits for the workflow and verifies both release assets.
+The command waits for the workflow and verifies the release assets.
 
 .PARAMETER Publish
 Update the version and publish the matching version tag to origin.
@@ -39,8 +39,8 @@ Usage: .\scripts\release.ps1 -Publish [-Version 0.2.0]
 
 -Publish increments the package.json patch version (for example 0.1.1 -> 0.1.2).
 -Version selects an explicit major.minor.patch version instead; it cannot go backwards.
-The script updates both package versions, commits them, pushes main and the tag
-together, waits for GitHub Actions, and checks the ZIP and SHA-256 assets.
+The script updates the three package versions, commits them, pushes main and the tag
+together, waits for GitHub Actions, and checks the ZIP, SHA-256 and MCP bridge assets.
 Start from a clean main branch that matches origin/main.
 Configure the repository Actions variable ASKTAB_RELEASE_SERVICE_URL first.
 '@
@@ -90,8 +90,9 @@ try {
     try {
         $currentVersion = (Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json).version
         $chromeVersion = (Get-Content -LiteralPath 'chrome-extension/package.json' -Raw | ConvertFrom-Json).version
-        if ([string]::IsNullOrWhiteSpace($currentVersion) -or $chromeVersion -cne $currentVersion) {
-            throw 'Root and Chrome extension package versions must match before releasing.'
+        $bridgeVersion = (Get-Content -LiteralPath 'packages/mcp-bridge/package.json' -Raw | ConvertFrom-Json).version
+        if ([string]::IsNullOrWhiteSpace($currentVersion) -or $chromeVersion -cne $currentVersion -or $bridgeVersion -cne $currentVersion) {
+            throw 'Root, Chrome extension and MCP bridge package versions must match before releasing.'
         }
         $currentParsed = ConvertTo-ReleaseVersion $currentVersion
         $targetVersion = if ($PSBoundParameters.ContainsKey('Version')) {
@@ -144,7 +145,7 @@ try {
         }
 
         if ($targetVersion -cne $currentVersion) {
-            $packagePaths = @('package.json', 'chrome-extension/package.json')
+            $packagePaths = @('package.json', 'chrome-extension/package.json', 'packages/mcp-bridge/package.json')
             $versionPattern = [regex] '("version"\s*:\s*")[^"]*(")'
             foreach ($path in $packagePaths) {
                 $fullPath = Join-Path $root $path
@@ -188,7 +189,7 @@ try {
         }
 
         $release = Invoke-Gh -GhArgs @('release', 'view', $tag, '--repo', $repo, '--json', 'url,assets') | ConvertFrom-Json
-        $expectedAssets = @("asktab-chrome-$tag.zip", "asktab-chrome-$tag.sha256")
+        $expectedAssets = @("asktab-chrome-$tag.zip", "asktab-chrome-$tag.sha256", "asktab-mcp-$tag.tgz")
         $actualAssets = @($release.assets | ForEach-Object { $_.name })
         foreach ($asset in $expectedAssets) {
             if ($asset -cnotin $actualAssets) {

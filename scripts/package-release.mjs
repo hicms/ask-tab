@@ -5,6 +5,7 @@ import {
   copyFileSync,
   existsSync,
   readFileSync,
+  renameSync,
   statSync,
   unlinkSync,
   writeFileSync,
@@ -17,10 +18,18 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const readJson = path => JSON.parse(readFileSync(join(root, path), 'utf8'));
 const version = readJson('package.json').version;
 const chromeVersion = readJson('chrome-extension/package.json').version;
+const bridgeVersion = readJson('packages/mcp-bridge/package.json').version;
 const tag = process.argv[2] || process.env.GITHUB_REF_NAME;
 
-if (process.argv.length > 3 || tag !== `v${version}` || chromeVersion !== version) {
-  throw new Error(`Release tag must be v${version} and match chrome-extension/package.json`);
+if (
+  process.argv.length > 3 ||
+  tag !== `v${version}` ||
+  chromeVersion !== version ||
+  bridgeVersion !== version
+) {
+  throw new Error(
+    `Release tag must be v${version} and match chrome-extension and mcp-bridge package.json`,
+  );
 }
 
 const rawServiceUrl = process.env.ASKTAB_RELEASE_SERVICE_URL;
@@ -83,6 +92,7 @@ try {
     throw new Error('Built manifest version does not match the release tag');
   }
   runPnpm(['-F', 'zipper', 'zip']);
+  runPnpm(['-F', 'asktab-mcp', 'pack', '--pack-destination', join(root, 'dist-zip')]);
 } finally {
   if (originalEnv === null) {
     if (existsSync(envFile)) unlinkSync(envFile);
@@ -98,5 +108,13 @@ if (!existsSync(archivePath) || statSync(archivePath).size === 0) {
 const digest = createHash('sha256').update(readFileSync(archivePath)).digest('hex');
 const checksumPath = join(root, 'dist-zip', `asktab-chrome-${tag}.sha256`);
 writeFileSync(checksumPath, `${digest}  ${archiveName}\n`);
+
+// The settings page builds the bridge URL from the extension version, so the asset name must carry the tag.
+const bridgePath = join(root, 'dist-zip', `asktab-mcp-${tag}.tgz`);
+renameSync(join(root, 'dist-zip', `asktab-mcp-${version}.tgz`), bridgePath);
+if (statSync(bridgePath).size === 0) {
+  throw new Error(`Empty MCP bridge package: ${bridgePath}`);
+}
 log(`Release package: ${archivePath}`);
 log(`SHA-256: ${checksumPath}`);
+log(`MCP bridge: ${bridgePath}`);

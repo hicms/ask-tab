@@ -10,7 +10,11 @@ const shell = (process.platform === 'win32' ? ['pwsh', 'powershell.exe'] : ['pws
 );
 const source = resolve('scripts/release.ps1');
 const runner = resolve('tests/fixtures/release-gh.ps1');
-const manifests = ['package.json', 'chrome-extension/package.json'];
+const manifests = [
+  'package.json',
+  'chrome-extension/package.json',
+  'packages/mcp-bridge/package.json',
+];
 
 describe.skipIf(!shell)('release script with a local Git remote', { timeout: 30_000 }, () => {
   let directory: string;
@@ -50,6 +54,7 @@ describe.skipIf(!shell)('release script with a local Git remote', { timeout: 30_
     remote = join(directory, 'origin.git');
     mkdirSync(join(root, 'scripts'), { recursive: true });
     mkdirSync(join(root, 'chrome-extension'));
+    mkdirSync(join(root, 'packages/mcp-bridge'), { recursive: true });
     copyFileSync(source, join(root, 'scripts/release.ps1'));
     for (const manifest of manifests) {
       writeFileSync(join(root, manifest), '{\n  "name": "fixture",\n  "version": "0.1.1"\n}\n');
@@ -72,7 +77,7 @@ describe.skipIf(!shell)('release script with a local Git remote', { timeout: 30_
     if (directory) rmSync(directory, { recursive: true, force: true });
   });
 
-  it('increments the patch, commits both manifests and publishes the new commit/tag on each run', () => {
+  it('increments the patch, commits all manifests and publishes the new commit/tag on each run', () => {
     const originalTag = git('rev-parse', 'v0.1.1');
     for (const version of ['0.1.2', '0.1.3']) {
       const result = publish();
@@ -132,6 +137,18 @@ describe.skipIf(!shell)('release script with a local Git remote', { timeout: 30_
     expect(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version).toBe('0.1.1');
   });
 
+  it('rejects an MCP bridge version that differs from the extension before bumping', () => {
+    writeFileSync(join(root, 'packages/mcp-bridge/package.json'), '{"version":"0.1.0"}\n');
+    git('commit', '-am', 'Stale bridge version');
+    git('push', 'origin', 'main');
+    const head = git('rev-parse', 'HEAD');
+    const result = publish();
+    expect(result.status).toBe(1);
+    expect(result.output).toContain('MCP bridge package versions must match');
+    expect(git('rev-parse', 'HEAD')).toBe(head);
+    expect(git('tag', '--list', 'v0.1.2')).toBe('');
+  });
+
   it('rejects uncommitted source changes', () => {
     writeFileSync(join(root, 'pending.txt'), 'User changes');
     const result = publish();
@@ -172,6 +189,7 @@ describe.skipIf(!shell)('release script with a local Git remote', { timeout: 30_
   it.each([
     ['workflow', 'release workflow failed'],
     ['asset', 'is missing asktab-chrome-v0.1.2.sha256'],
+    ['bridge-asset', 'is missing asktab-mcp-v0.1.2.tgz'],
   ])('reports %s failures after publishing refs', (failure, message) => {
     const result = publish([], failure);
     expect(result.status).toBe(1);

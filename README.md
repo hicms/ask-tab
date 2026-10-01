@@ -96,7 +96,7 @@ $env:ASKTAB_RELEASE_SERVICE_URL = 'https://asktab.example.com'
 pnpm release:package v0.1.1
 ```
 
-The command builds the Chrome extension and writes `asktab-chrome-v0.1.1.zip` and `asktab-chrome-v0.1.1.sha256` to `dist-zip/`. It checks the built manifest version and restores the local `.env` after packaging. It packages files locally; it does not create a Git tag or GitHub Release.
+The command builds the Chrome extension and writes `asktab-chrome-v0.1.1.zip`, `asktab-chrome-v0.1.1.sha256` and the MCP bridge package `asktab-mcp-v0.1.1.tgz` to `dist-zip/`. It checks the built manifest version and restores the local `.env` after packaging. It packages files locally; it does not create a Git tag or GitHub Release.
 
 For an automated GitHub release, set the repository Actions variable `ASKTAB_RELEASE_SERVICE_URL` to the production HTTPS service origin. Commit and push your source changes, then run this from a clean `main` branch:
 

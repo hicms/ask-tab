@@ -1,6 +1,6 @@
 {
   "name": "asktab-mcp",
-  "version": "0.1.0",
+  "version": "0.1.14",
   "description": "MCP server that lets Claude Desktop, Cursor, Claude Code and other MCP clients use the AskTab browser extension's browser tools",
   "keywords": [
     "mcp",
@@ -39,7 +39,6 @@
     "clean:turbo": "rimraf .turbo",
     "clean": "pnpm clean:bundle && pnpm clean:node_modules && pnpm clean:turbo",
     "ready": "tsc -b",
-    "prepublishOnly": "tsc -b",
     "lint": "eslint .",
     "lint:fix": "pnpm lint --fix",
     "format": "prettier . --write --ignore-path ../../.prettierignore",

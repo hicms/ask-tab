@@ -154,7 +154,14 @@ const McpBridgeConfig = () => {
 
           <Button
             onClick={() =>
-              copy(buildMcpClientConfig(config.port, config.token, detectClientPlatform()))
+              copy(
+                buildMcpClientConfig(
+                  config.port,
+                  config.token,
+                  detectClientPlatform(),
+                  chrome.runtime.getManifest().version,
+                ),
+              )
             }
             size="sm"
             variant="outline">

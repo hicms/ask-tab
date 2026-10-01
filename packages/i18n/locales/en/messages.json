@@ -1339,7 +1339,7 @@
     "message": "Token regenerated. Restart your MCP client so it uses the new token."
   },
   "mcp_nodeRequirement": {
-    "message": "The MCP client runs the bridge with npx, so Node.js 18 or later must be installed on this computer."
+    "message": "The MCP client downloads the bridge for this AskTab version from GitHub and runs it with npx, so this computer needs Node.js 18 or later and access to github.com. Copy the config again after AskTab updates."
   },
   "mcp_securityNote": {
     "message": "The bridge listens on 127.0.0.1 only. Anyone with the token can control this browser through these tools, so keep it private. Start the bridge from your MCP client after enabling this option."
