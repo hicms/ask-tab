@@ -196,7 +196,7 @@ const PreviewMessage = ({ message, isLoading, setMessages, onEditSubmit }: Previ
                 <div key={key}>
                   <MessageContent
                     className={cn({
-                      'wrap-break-word w-fit rounded-2xl px-3 py-2 text-left text-white':
+                      'chat-user-bubble wrap-break-word w-fit rounded-2xl px-3 py-2 text-left text-white':
                         message.role === 'user',
                       'bg-transparent px-0 py-0 text-left': message.role === 'assistant',
                     })}

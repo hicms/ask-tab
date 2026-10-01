@@ -629,3 +629,76 @@ code {
 [data-streamdown='table-body'] > [data-streamdown='table-row']:last-child {
   border-bottom-width: 0;
 }
+
+/* Users type plain text, where a single Enter is a line break, but markdown folds it into a
+   space. Streamdown keeps the newline in the paragraph text, so showing it is enough. */
+.chat-user-bubble p {
+  white-space: pre-wrap;
+}
+
+/* The user bubble is white text on the brand color. Streamdown paints code, tables and quotes
+   with the light theme surfaces, which leaves white text on a near-white background. */
+.chat-user-bubble [data-streamdown='inline-code'] {
+  background-color: rgb(255 255 255 / 0.2);
+  color: inherit;
+}
+
+.chat-user-bubble [data-streamdown='code-block'],
+.chat-user-bubble [data-streamdown='table-wrapper'] > .overflow-x-auto {
+  border-color: rgb(255 255 255 / 0.3);
+}
+
+.chat-user-bubble [data-streamdown='code-block'] {
+  background-color: rgb(0 0 0 / 0.12);
+}
+
+.chat-user-bubble [data-streamdown='code-block-header'],
+.chat-user-bubble [data-streamdown='table-header'] {
+  background-color: rgb(255 255 255 / 0.15);
+  color: rgb(255 255 255 / 0.85);
+}
+
+.chat-user-bubble [data-streamdown='code-block-body'] span::before {
+  color: rgb(255 255 255 / 0.5);
+}
+
+.chat-user-bubble [data-streamdown='table-body'] {
+  background-color: transparent;
+}
+
+.chat-user-bubble [data-streamdown='table-header'] > [data-streamdown='table-row'],
+.chat-user-bubble [data-streamdown='table-body'] > [data-streamdown='table-row'] {
+  border-color: rgb(255 255 255 / 0.25);
+}
+
+/* `.relative > button` is the table toolbar trigger, not the items of the menu it opens. */
+.chat-user-bubble [data-streamdown='code-block-copy-button'],
+.chat-user-bubble [data-streamdown='code-block-download-button'],
+.chat-user-bubble [data-streamdown='table-wrapper'] .relative > button {
+  color: rgb(255 255 255 / 0.8);
+}
+
+.chat-user-bubble [data-streamdown='code-block-copy-button']:hover,
+.chat-user-bubble [data-streamdown='code-block-download-button']:hover,
+.chat-user-bubble [data-streamdown='table-wrapper'] .relative > button:hover {
+  color: #fff;
+}
+
+.chat-user-bubble [data-streamdown='blockquote'] {
+  border-color: rgb(255 255 255 / 0.5);
+  color: rgb(255 255 255 / 0.85);
+}
+
+.chat-user-bubble [data-streamdown='link'] {
+  color: inherit;
+}
+
+.chat-user-bubble [data-streamdown='horizontal-rule'] {
+  border-color: rgb(255 255 255 / 0.3);
+}
+
+/* Copy/download menus and the link confirmation dialog render inside the bubble on a page
+   surface, so they must not inherit the bubble's white text. */
+.chat-user-bubble .bg-background {
+  color: var(--foreground);
+}
