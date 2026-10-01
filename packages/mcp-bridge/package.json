@@ -1,0 +1,35 @@
+{
+  "name": "@extension/mcp-bridge",
+  "version": "0.1.0",
+  "description": "Local MCP server that relays browser tool calls to the AskTab extension",
+  "type": "module",
+  "private": true,
+  "sideEffects": false,
+  "files": [
+    "dist/**"
+  ],
+  "exports": {
+    "./protocol": {
+      "types": "./lib/protocol.ts"
+    }
+  },
+  "scripts": {
+    "clean:bundle": "rimraf dist",
+    "clean:node_modules": "pnpx rimraf node_modules",
+    "clean:turbo": "rimraf .turbo",
+    "clean": "pnpm clean:bundle && pnpm clean:node_modules && pnpm clean:turbo",
+    "ready": "tsc -b",
+    "lint": "eslint .",
+    "lint:fix": "pnpm lint --fix",
+    "format": "prettier . --write --ignore-path ../../.prettierignore",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "@types/ws": "^8.18.1"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.31.0",
+    "ws": "^8.18.3"
+  }
+}

@@ -1,3 +1,4 @@
+import { McpBridgeConfig } from './mcp-bridge-config.js';
 import { IS_FIREFOX } from '@extension/env';
 import { t, useT } from '@extension/i18n';
 import { toolRegistryMeta } from '@extension/shared';
@@ -593,6 +594,11 @@ const ToolConfig = () => {
                   );
                 })}
             </div>
+          </div>
+
+          <div>
+            <Separator className="mb-4" />
+            <McpBridgeConfig />
           </div>
         </div>
       </CardContent>

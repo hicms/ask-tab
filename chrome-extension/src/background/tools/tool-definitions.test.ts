@@ -193,6 +193,16 @@ describe('tool registry consistency', () => {
   });
 });
 
+describe('getToolRegistration', () => {
+  it('returns the registration that executeTool validates against', async () => {
+    const { getToolRegistration } = await import('../tools');
+    const reg = getToolRegistration('web_fetch');
+    expect(reg?.name).toBe('web_fetch');
+    expect(reg?.schema).toBeDefined();
+    expect(getToolRegistration('no_such_tool')).toBeUndefined();
+  });
+});
+
 // ── withTimeout ─────────────────────────────────
 
 describe('withTimeout', () => {

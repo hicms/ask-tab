@@ -269,11 +269,15 @@ const getImplementedToolNames = (): Set<string> => {
   return new Set(schemaLookup.keys());
 };
 
+const getToolRegistration = (name: string): ToolRegistration | undefined =>
+  registrationLookup.get(name);
+
 export {
   getAgentTools,
   executeTool,
   getToolConfig,
   getImplementedToolNames,
+  getToolRegistration,
   withTimeout,
   TOOL_TIMEOUT_MS,
 };

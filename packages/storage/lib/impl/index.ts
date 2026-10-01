@@ -25,6 +25,12 @@ export {
   type DeepResearchConfig,
 } from './tool-config-storage.js';
 export {
+  mcpBridgeConfigStorage,
+  generateMcpBridgeToken,
+  DEFAULT_MCP_BRIDGE_PORT,
+  type McpBridgeConfig,
+} from './mcp-bridge-config-storage.js';
+export {
   SUGGESTED_ACTION_ICON_IDS,
   MAX_SUGGESTED_ACTIONS,
   isSuggestedActionIconId,

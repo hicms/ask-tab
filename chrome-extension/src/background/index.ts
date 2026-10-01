@@ -32,6 +32,7 @@ import {
   clearLogEntries,
   registerStreamPort,
 } from './logging/logger-buffer';
+import { createMcpBridgeClient, isMcpBridgeAlarm } from './mcp/mcp-bridge-client';
 import { runSessionJournal } from './memory/memory-journal';
 import { initNetworkStatus } from './network/network-status';
 import { setCronServiceRef } from './tools/scheduler';
@@ -582,6 +583,8 @@ chrome.runtime.onConnect.addListener(port => {
   }
 });
 
+const mcpBridgeClient = createMcpBridgeClient();
+
 chrome.alarms.onAlarm.addListener(alarm => {
   if (HeartbeatService.isSchedulerAlarm(alarm.name)) {
     heartbeatService.handleAlarm(alarm).catch(err => {
@@ -597,6 +600,10 @@ chrome.alarms.onAlarm.addListener(alarm => {
     // Re-reads server state each tick: the server may disable a channel on its own
     // (rejected bot token, WhatsApp unlinked from the phone).
     initChannels().catch(err => diagnostics.error('[alarm] Channel sync failed:', err));
+  } else if (isMcpBridgeAlarm(alarm.name)) {
+    mcpBridgeClient
+      .handleAlarm()
+      .catch(err => diagnostics.error('[alarm] MCP bridge reconnect failed:', err));
   }
   // keep-alive alarms: no-op (they only keep the service worker active)
 });
@@ -621,6 +628,9 @@ const initWithRetry = async (attempts = 3, delayMs = 2000): Promise<void> => {
 configReady
   .then(() => initWithRetry())
   .catch(err => diagnostics.error('[channels] configReady failed:', err));
+configReady
+  .then(() => mcpBridgeClient.start())
+  .catch(err => diagnostics.error('[mcp-bridge] Start failed:', err));
 askSessionStorage.subscribe(() => {
   initChannels().catch(err =>
     channelLog.warn('Channel refresh after session change failed', { error: String(err) }),

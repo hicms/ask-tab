@@ -22,6 +22,7 @@ asktab/
 │       ├── heartbeat/             # Autonomous agent wake-ups (HEARTBEAT.md)
 │       ├── logging/               # Logging utilities
 │       ├── media-understanding/   # Speech-to-text, media transcription
+│       ├── mcp/                   # WebSocket client that serves tool calls from the local MCP bridge
 │       ├── memory/                # Memory service sync/search client, memory journal
 │       ├── network/               # Online/offline status
 │       ├── tools/                 # All tool implementations
@@ -38,6 +39,7 @@ asktab/
 │   ├── env/                       # Build-time CEB_* environment variables
 │   ├── hmr/                       # Hot module reload for extension dev
 │   ├── i18n/                      # Internationalization
+│   ├── mcp-bridge/                # Local MCP server (stdio) that relays browser tools to the extension, see its README
 │   ├── shared/                    # Types, hooks (useLLMStream), prompts, env config
 │   ├── skills/                    # Skill template loading and parsing
 │   ├── storage/                   # Chrome storage + IndexedDB (Dexie.js) — all persistence
@@ -108,6 +110,7 @@ Side Panel / Full-Page Chat
 - **TTS** (`background/tts/`): Text-to-speech through the AskTab server TTS relay
 - **Media understanding** (`background/media-understanding/`): Speech-to-text / media transcription through the AskTab server STT relay
 - **Memory** (`background/memory/`): `memory-service.ts` syncs memory files (MEMORY.md, memory/*) and chat transcripts to the AskTab service and calls its search; the service owns chunking, embeddings and hybrid ranking. Also memory journal and pre-compaction flush
+- **MCP bridge** (`background/mcp/` + `packages/mcp-bridge/`): Off by default. When enabled in Settings → Tools, the extension connects to a local bridge over WebSocket and exposes `browser`, `debugger`, `execute_javascript` and `web_fetch` to external MCP clients. Each authenticated connection is one session whose signal owns browser snapshot refs. The bridge runs from the repo build, not from npm
 - **Tools** (`background/tools/`): Browser, CDP/Debugger, Deep Research, Execute JS, Web Search, Web Fetch, Documents, Memory, Workspace, Scheduler, Subagent, Agents List, Google (Gmail/Calendar/Drive), Image Sanitization. Browser runs for an agent are grouped into their own tab group
 - **AskTab service** (`background/ask-service/`): JWT session and public model catalog; all remote AI requests use the Rust relay.
 - **Heartbeat** (`background/heartbeat/`): Periodic autonomous agent runs driven by each agent's HEARTBEAT.md, with a Dexie TTL lock and coalescing wake queue

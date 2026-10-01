@@ -1305,6 +1305,42 @@
   "tool_enableGoogleHint": {
     "message": "Connect your Google account to enable these tools"
   },
+  "mcp_title": {
+    "message": "MCP Bridge"
+  },
+  "mcp_description": {
+    "message": "Let MCP clients such as Claude Desktop, Cursor, or Claude Code use the browser, debugger, execute_javascript, and web_fetch tools in this browser through a local bridge."
+  },
+  "mcp_enable": {
+    "message": "Allow MCP clients to use these tools"
+  },
+  "mcp_port": {
+    "message": "Port"
+  },
+  "mcp_invalidPort": {
+    "message": "Enter a port from 1024 to 65535"
+  },
+  "mcp_token": {
+    "message": "Access token"
+  },
+  "mcp_copyToken": {
+    "message": "Copy token"
+  },
+  "mcp_regenerateToken": {
+    "message": "Regenerate token"
+  },
+  "mcp_copyConfig": {
+    "message": "Copy client config"
+  },
+  "mcp_copied": {
+    "message": "Copied to clipboard"
+  },
+  "mcp_regenerated": {
+    "message": "Token regenerated. Restart your MCP client so it uses the new token."
+  },
+  "mcp_securityNote": {
+    "message": "The bridge listens on 127.0.0.1 only. Anyone with the token can control this browser through these tools, so keep it private. Start the bridge from your MCP client after enabling this option."
+  },
   "tab_chat": {
     "message": "Chat"
   },

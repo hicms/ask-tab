@@ -1219,6 +1219,42 @@
   "tool_enableGoogleHint": {
     "message": "连接您的 Google 账户以启用这些工具"
   },
+  "mcp_title": {
+    "message": "MCP 桥接"
+  },
+  "mcp_description": {
+    "message": "通过本地桥接，让 Claude Desktop、Cursor、Claude Code 等 MCP 客户端使用本浏览器中的 browser、debugger、execute_javascript 和 web_fetch 工具。"
+  },
+  "mcp_enable": {
+    "message": "允许 MCP 客户端使用这些工具"
+  },
+  "mcp_port": {
+    "message": "端口"
+  },
+  "mcp_invalidPort": {
+    "message": "请输入 1024 到 65535 之间的端口"
+  },
+  "mcp_token": {
+    "message": "访问令牌"
+  },
+  "mcp_copyToken": {
+    "message": "复制令牌"
+  },
+  "mcp_regenerateToken": {
+    "message": "重新生成令牌"
+  },
+  "mcp_copyConfig": {
+    "message": "复制客户端配置"
+  },
+  "mcp_copied": {
+    "message": "已复制到剪贴板"
+  },
+  "mcp_regenerated": {
+    "message": "令牌已重新生成。请重启 MCP 客户端以使用新令牌。"
+  },
+  "mcp_securityNote": {
+    "message": "桥接只监听 127.0.0.1。持有令牌的人可以通过这些工具控制此浏览器，请妥善保管。开启后，由 MCP 客户端负责启动桥接。"
+  },
   "tab_chat": {
     "message": "聊天"
   },
