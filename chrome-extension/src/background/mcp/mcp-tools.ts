@@ -5,7 +5,7 @@
 
 import { executeTool, getImplementedToolNames, getToolRegistration } from '../tools';
 import { defaultFormatResult } from '../tools/tool-registration';
-import type { BridgeContent, BridgeTool } from '@extension/mcp-bridge/protocol';
+import type { BridgeContent, BridgeTool } from 'asktab-mcp/protocol';
 
 /** Tools exposed to MCP clients once MCP is enabled. */
 const MCP_TOOL_NAMES = ['browser', 'debugger', 'execute_javascript', 'web_fetch'] as const;

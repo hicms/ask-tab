@@ -1252,6 +1252,9 @@
   "mcp_regenerated": {
     "message": "令牌已重新生成。请重启 MCP 客户端以使用新令牌。"
   },
+  "mcp_nodeRequirement": {
+    "message": "MCP 客户端通过 npx 运行桥接，这台电脑需要安装 Node.js 18 或更高版本。"
+  },
   "mcp_securityNote": {
     "message": "桥接只监听 127.0.0.1。持有令牌的人可以通过这些工具控制此浏览器，请妥善保管。开启后，由 MCP 客户端负责启动桥接。"
   },

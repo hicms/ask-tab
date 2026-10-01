@@ -11,7 +11,7 @@ import { callMcpTool, listMcpTools } from './mcp-tools';
 import { createLogger } from '../logging/logger-buffer';
 import { releaseToolResources } from '../tools/tool-lifecycle';
 import { mcpBridgeConfigStorage } from '@extension/storage';
-import type { BridgeToExtension, ExtensionToBridge } from '@extension/mcp-bridge/protocol';
+import type { BridgeToExtension, ExtensionToBridge } from 'asktab-mcp/protocol';
 
 const log = createLogger('tool');
 

@@ -1,14 +1,21 @@
-/** The bridge runs from a repository build, so the user fills in where the repository lives. */
-const BRIDGE_ENTRY_PLACEHOLDER = '<path-to-ask-tab>/packages/mcp-bridge/dist/index.mjs';
+type ClientPlatform = 'windows' | 'other';
+
+const BRIDGE_PACKAGE = 'asktab-mcp';
+
+const detectClientPlatform = (): ClientPlatform =>
+  navigator.userAgent.includes('Windows') ? 'windows' : 'other';
 
 /** A `mcpServers` entry for Claude Desktop, Cursor, Claude Code and other stdio MCP clients. */
-const buildMcpClientConfig = (port: number, token: string): string =>
-  JSON.stringify(
+const buildMcpClientConfig = (port: number, token: string, platform: ClientPlatform): string => {
+  const npx = ['npx', '-y', BRIDGE_PACKAGE];
+  // On native Windows, npx is a .cmd script that MCP clients cannot spawn directly.
+  const [command, ...args] = platform === 'windows' ? ['cmd', '/c', ...npx] : npx;
+  return JSON.stringify(
     {
       mcpServers: {
         'asktab-browser': {
-          command: 'node',
-          args: [BRIDGE_ENTRY_PLACEHOLDER],
+          command,
+          args,
           env: { ASKTAB_MCP_PORT: String(port), ASKTAB_MCP_TOKEN: token },
         },
       },
@@ -16,5 +23,6 @@ const buildMcpClientConfig = (port: number, token: string): string =>
     null,
     2,
   );
+};
 
-export { BRIDGE_ENTRY_PLACEHOLDER, buildMcpClientConfig };
+export { buildMcpClientConfig, detectClientPlatform };

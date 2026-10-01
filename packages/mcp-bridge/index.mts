@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { createRequire } from 'node:module';
 // The import resolver cannot expand the SDK's `./*` export pattern; tsc and Node can.
 // eslint-disable-next-line import-x/no-unresolved

@@ -1,17 +1,37 @@
 {
-  "name": "@extension/mcp-bridge",
+  "name": "asktab-mcp",
   "version": "0.1.0",
-  "description": "Local MCP server that relays browser tool calls to the AskTab extension",
+  "description": "MCP server that lets Claude Desktop, Cursor, Claude Code and other MCP clients use the AskTab browser extension's browser tools",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "browser",
+    "chrome-extension",
+    "asktab"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hicms/ask-tab.git",
+    "directory": "packages/mcp-bridge"
+  },
   "type": "module",
-  "private": true,
   "sideEffects": false,
+  "bin": {
+    "asktab-mcp": "./dist/index.mjs"
+  },
   "files": [
-    "dist/**"
+    "dist/**/*.js",
+    "dist/**/*.mjs",
+    "lib/protocol.ts"
   ],
   "exports": {
     "./protocol": {
       "types": "./lib/protocol.ts"
     }
+  },
+  "engines": {
+    "node": ">=18"
   },
   "scripts": {
     "clean:bundle": "rimraf dist",
@@ -19,6 +39,7 @@
     "clean:turbo": "rimraf .turbo",
     "clean": "pnpm clean:bundle && pnpm clean:node_modules && pnpm clean:turbo",
     "ready": "tsc -b",
+    "prepublishOnly": "tsc -b",
     "lint": "eslint .",
     "lint:fix": "pnpm lint --fix",
     "format": "prettier . --write --ignore-path ../../.prettierignore",

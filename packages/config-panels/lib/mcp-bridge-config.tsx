@@ -1,4 +1,4 @@
-import { buildMcpClientConfig } from './mcp-client-config.js';
+import { buildMcpClientConfig, detectClientPlatform } from './mcp-client-config.js';
 import { useT } from '@extension/i18n';
 import {
   DEFAULT_MCP_BRIDGE_PORT,
@@ -153,12 +153,15 @@ const McpBridgeConfig = () => {
           </div>
 
           <Button
-            onClick={() => copy(buildMcpClientConfig(config.port, config.token))}
+            onClick={() =>
+              copy(buildMcpClientConfig(config.port, config.token, detectClientPlatform()))
+            }
             size="sm"
             variant="outline">
             <CopyIcon className="size-4" />
             {t('mcp_copyConfig')}
           </Button>
+          <p className="text-muted-foreground text-xs">{t('mcp_nodeRequirement')}</p>
           <p className="text-muted-foreground text-xs">{t('mcp_securityNote')}</p>
         </div>
       )}

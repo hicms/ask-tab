@@ -23,16 +23,19 @@ There is no per-tool switch. Other AskTab tools (search, memory, Google, and so 
 
 ## Setup
 
-1. Build the repository: `pnpm build`. This also builds the bridge to `packages/mcp-bridge/dist/index.mjs`. The bridge is not published to npm.
-2. In AskTab, open **Settings → Tools → MCP Bridge** and turn the option on. Note the port and copy the token. **Copy client config** puts a ready-made `mcpServers` entry on the clipboard.
-3. Add that entry to your MCP client and replace `<path-to-ask-tab>` with the path of this repository:
+The bridge is published to npm as `asktab-mcp`, and MCP clients run it with `npx`. You need Node.js 18 or later; nothing else has to be installed or cloned.
+
+1. In AskTab, open **Settings → Tools → MCP Bridge** and turn the option on. **Copy client config** puts a ready-made `mcpServers` entry on the clipboard, with the port and token already filled in.
+2. Paste that entry into your MCP client configuration and restart the client.
+
+On macOS and Linux the entry looks like this:
 
 ```json
 {
   "mcpServers": {
     "asktab-browser": {
-      "command": "node",
-      "args": ["<path-to-ask-tab>/packages/mcp-bridge/dist/index.mjs"],
+      "command": "npx",
+      "args": ["-y", "asktab-mcp"],
       "env": {
         "ASKTAB_MCP_PORT": "47821",
         "ASKTAB_MCP_TOKEN": "<token from the settings page>"
@@ -42,7 +45,22 @@ There is no per-tool switch. Other AskTab tools (search, memory, Google, and so 
 }
 ```
 
+On Windows, `npx` is a `.cmd` script that most MCP clients cannot start directly, so the copied entry uses `"command": "cmd"` and `"args": ["/c", "npx", "-y", "asktab-mcp"]` instead.
+
 MCP is off by default. The default port is 47821.
+
+### Running from a local build
+
+To try changes before they are published, run `pnpm build` and point the client at the built file instead of `npx`:
+
+```json
+"command": "node",
+"args": ["<path-to-ask-tab>/packages/mcp-bridge/dist/index.mjs"]
+```
+
+## Versions
+
+The extension and the bridge are released separately but share the message format in `lib/protocol.ts`. A change to that file needs both a new extension release and a new `asktab-mcp` release. `npx -y asktab-mcp` resolves the latest published version, so users pick up a new bridge the next time their MCP client starts it.
 
 ## Security
 
@@ -65,10 +83,21 @@ MCP is off by default. The default port is 47821.
 ## Development
 
 ```bash
-pnpm --filter @extension/mcp-bridge ready       # build to dist/
-pnpm --filter @extension/mcp-bridge type-check
+pnpm --filter asktab-mcp ready       # build to dist/
+pnpm --filter asktab-mcp type-check
 pnpm exec vitest run tests/unit/mcp-bridge
 pnpm build && pnpm exec playwright test tests/playwright/e2e/mcp-bridge.spec.ts
 ```
+
+### Publishing
+
+Publish with pnpm from the repository root so the build runs first (`prepublishOnly`):
+
+```bash
+npm login
+pnpm --filter asktab-mcp publish --access public
+```
+
+Bump `version` in `package.json` before each release. Check what will be uploaded with `pnpm --filter asktab-mcp pack`.
 
 The wire protocol is defined once in `lib/protocol.ts`. The extension side lives in `chrome-extension/src/background/mcp/` and imports only the types.

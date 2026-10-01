@@ -28,9 +28,9 @@
   "devDependencies": {
     "@extension/dev-utils": "workspace:*",
     "@extension/hmr": "workspace:*",
-    "@extension/mcp-bridge": "workspace:*",
     "@extension/tsconfig": "workspace:*",
     "@extension/vite-config": "workspace:*",
-    "@laynezh/vite-plugin-lib-assets": "^1.1.0"
+    "@laynezh/vite-plugin-lib-assets": "^1.1.0",
+    "asktab-mcp": "workspace:*"
   }
 }
