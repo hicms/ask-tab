@@ -195,6 +195,8 @@ const Chat = ({
     setMessages,
     sendMessage,
     status,
+    activeAssistantId,
+    processResetGenerations,
     stop,
     input,
     setInput,
@@ -318,6 +320,8 @@ const Chat = ({
         />
 
         <Messages
+          activeAssistantId={activeAssistantId}
+          processResetGenerations={processResetGenerations}
           activeSubagents={activeSubagents}
           chatId={chatId}
           messages={messages}

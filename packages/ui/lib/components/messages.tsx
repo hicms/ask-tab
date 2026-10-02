@@ -44,6 +44,8 @@ type MessagesProps = {
   chatId: string;
   status: StreamingStatus;
   messages: ChatMessage[];
+  activeAssistantId?: string;
+  processResetGenerations?: Record<string, number>;
   setMessages?: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   onEditSubmit?: (messageId: string, content: string) => void;
   onSendMessage?: (content: string) => void;
@@ -54,6 +56,8 @@ type MessagesProps = {
 const Messages = ({
   status,
   messages,
+  activeAssistantId,
+  processResetGenerations,
   setMessages,
   onEditSubmit,
   onSendMessage,
@@ -61,11 +65,11 @@ const Messages = ({
   onStopSubagent,
 }: MessagesProps) => {
   const { containerRef, endRef, isAtBottom, scrollToBottom } = useScrollToBottom();
-  const last = messages.at(-1);
+  const activeAssistant = messages.find(message => message.id === activeAssistantId);
   // A steering message starts a new, still empty assistant segment mid-stream.
   const isThinking =
-    status === 'connecting' ||
-    (status === 'streaming' && last?.role === 'assistant' && last.parts.length === 0);
+    (status === 'connecting' || status === 'streaming') &&
+    (!activeAssistant || activeAssistant.parts.length === 0);
 
   return (
     <div className="relative flex-1">
@@ -81,7 +85,7 @@ const Messages = ({
             </>
           )}
 
-          {messages.map((message, index) => {
+          {messages.map(message => {
             if (COMPACTION_IDS.has(message.id)) {
               return (
                 <CompactionDivider
@@ -111,7 +115,11 @@ const Messages = ({
 
             return (
               <PreviewMessage
-                isLoading={status === 'streaming' && messages.length - 1 === index}
+                isLoading={
+                  (status === 'streaming' || status === 'connecting') &&
+                  message.id === activeAssistantId
+                }
+                resetGeneration={processResetGenerations?.[message.id]}
                 key={message.id}
                 message={message}
                 onEditSubmit={onEditSubmit}

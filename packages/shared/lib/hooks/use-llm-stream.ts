@@ -43,6 +43,8 @@ interface UseLLMStreamReturn {
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   sendMessage: (content: string, attachments?: Attachment[], replaceMessageId?: string) => void;
   status: StreamingStatus;
+  activeAssistantId?: string;
+  processResetGenerations: Record<string, number>;
   stop: () => void;
   input: string;
   setInput: React.Dispatch<React.SetStateAction<string>>;
@@ -91,6 +93,9 @@ const useLLMStream = ({
   } | null>(null);
   const [queue, setQueueState] = useState<ChatQueueState>(EMPTY_QUEUE);
   const queueRef = useRef(EMPTY_QUEUE);
+  const [processResetGenerations, setProcessResetGenerations] = useState<Record<string, number>>(
+    {},
+  );
 
   // Update the ref synchronously: stream events can arrive before React renders.
   const setMessages = useCallback<React.Dispatch<React.SetStateAction<ChatMessage[]>>>(next => {
@@ -120,11 +125,12 @@ const useLLMStream = ({
   const updateAssistantPart = useCallback(
     (updater: (parts: ChatMessagePart[]) => ChatMessagePart[]) => {
       setMessages(prev => {
-        const last = prev[prev.length - 1];
-        if (!last || last.role !== 'assistant') return prev;
-        const updated = { ...last, parts: updater([...last.parts]) };
+        const index = prev.findIndex(message => message.id === assistantMessageRef.current?.id);
+        const assistant = prev[index];
+        if (!assistant || assistant.role !== 'assistant') return prev;
+        const updated = { ...assistant, parts: updater([...assistant.parts]) };
         assistantMessageRef.current = updated;
-        return [...prev.slice(0, -1), updated];
+        return prev.map((message, position) => (position === index ? updated : message));
       });
     },
     [setMessages],
@@ -320,7 +326,15 @@ const useLLMStream = ({
           markStopped();
           break;
         case 'LLM_STREAM_RETRY':
-          if (Number(msg.attempt) > 0) updateAssistantPart(() => []);
+          if (Number(msg.attempt) > 0) {
+            const assistantId = assistantMessageRef.current?.id;
+            if (assistantId)
+              setProcessResetGenerations(previous => ({
+                ...previous,
+                [assistantId]: (previous[assistantId] ?? 0) + 1,
+              }));
+            updateAssistantPart(() => []);
+          }
           break;
         case 'LLM_QUEUE_SNAPSHOT': {
           const { items, pauseReason } = msg as unknown as LLMQueueSnapshot;
@@ -560,6 +574,8 @@ const useLLMStream = ({
     setMessages,
     sendMessage,
     status,
+    activeAssistantId: runningRef.current ? assistantMessageRef.current?.id : undefined,
+    processResetGenerations,
     stop,
     input,
     setInput,

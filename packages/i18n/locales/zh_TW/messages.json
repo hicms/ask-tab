@@ -1215,5 +1215,113 @@
   "firstRun_agentCreature": { "message": "類型" },
   "firstRun_agentVibe": { "message": "風格" },
   "firstRun_agentStrengths": { "message": "優勢" },
-  "firstRun_agentBoundaries": { "message": "界限" }
+  "firstRun_agentBoundaries": { "message": "界限" },
+  "process_running_thinking": {
+    "message": "正在分析請求"
+  },
+  "process_done_thinking": {
+    "message": "已完成分析"
+  },
+  "process_running_read": {
+    "message": "正在讀取檔案"
+  },
+  "process_done_read": {
+    "message": "已讀取檔案"
+  },
+  "process_running_write": {
+    "message": "正在寫入檔案"
+  },
+  "process_done_write": {
+    "message": "已寫入檔案"
+  },
+  "process_running_edit": {
+    "message": "正在編輯檔案"
+  },
+  "process_done_edit": {
+    "message": "修改了檔案"
+  },
+  "process_running_files": {
+    "message": "正在操作檔案"
+  },
+  "process_done_files": {
+    "message": "已操作檔案"
+  },
+  "process_running_webSearch": {
+    "message": "正在搜尋網頁"
+  },
+  "process_done_webSearch": {
+    "message": "已搜尋網頁"
+  },
+  "process_running_webFetch": {
+    "message": "正在存取網頁"
+  },
+  "process_done_webFetch": {
+    "message": "已存取網頁"
+  },
+  "process_running_browser": {
+    "message": "正在操作瀏覽器"
+  },
+  "process_done_browser": {
+    "message": "已操作瀏覽器"
+  },
+  "process_running_code": {
+    "message": "正在執行程式碼"
+  },
+  "process_done_code": {
+    "message": "執行了程式碼"
+  },
+  "process_running_memory": {
+    "message": "正在檢索記憶"
+  },
+  "process_done_memory": {
+    "message": "已檢索記憶"
+  },
+  "process_running_subagents": {
+    "message": "正在協調子智慧體"
+  },
+  "process_done_subagents": {
+    "message": "已協調子智慧體"
+  },
+  "process_running_tools": {
+    "message": "正在呼叫工具"
+  },
+  "process_done_tools": {
+    "message": "已呼叫工具"
+  },
+  "process_sharedPrefix": {
+    "message": "已"
+  },
+  "process_joinTwo": {
+    "message": "$1並$2"
+  },
+  "process_comma": {
+    "message": "，"
+  },
+  "process_more": {
+    "message": "$1等"
+  },
+  "process_allSkipped": {
+    "message": "已略過工具呼叫"
+  },
+  "process_results": {
+    "message": "工具結果"
+  },
+  "process_errors": {
+    "message": "$1 項失敗或中斷"
+  },
+  "process_skipped": {
+    "message": "$1 項已略過"
+  },
+  "process_unknown": {
+    "message": "$1 項結果未確認"
+  },
+  "process_toolReturned": {
+    "message": "已收到結果"
+  },
+  "process_toolUnknown": {
+    "message": "結果未確認"
+  },
+  "process_reasoning": {
+    "message": "思考過程"
+  }
 }

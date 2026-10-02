@@ -1493,5 +1493,113 @@
   },
   "archive_retry": {
     "message": "Retry"
+  },
+  "process_running_thinking": {
+    "message": "Analyzing request"
+  },
+  "process_done_thinking": {
+    "message": "Finished thinking"
+  },
+  "process_running_read": {
+    "message": "Reading files"
+  },
+  "process_done_read": {
+    "message": "Read files"
+  },
+  "process_running_write": {
+    "message": "Writing files"
+  },
+  "process_done_write": {
+    "message": "Wrote files"
+  },
+  "process_running_edit": {
+    "message": "Editing files"
+  },
+  "process_done_edit": {
+    "message": "Edited files"
+  },
+  "process_running_files": {
+    "message": "Working with files"
+  },
+  "process_done_files": {
+    "message": "Worked with files"
+  },
+  "process_running_webSearch": {
+    "message": "Searching the web"
+  },
+  "process_done_webSearch": {
+    "message": "Searched the web"
+  },
+  "process_running_webFetch": {
+    "message": "Fetching pages"
+  },
+  "process_done_webFetch": {
+    "message": "Fetched pages"
+  },
+  "process_running_browser": {
+    "message": "Using the browser"
+  },
+  "process_done_browser": {
+    "message": "Used the browser"
+  },
+  "process_running_code": {
+    "message": "Running code"
+  },
+  "process_done_code": {
+    "message": "Ran code"
+  },
+  "process_running_memory": {
+    "message": "Retrieving memories"
+  },
+  "process_done_memory": {
+    "message": "Retrieved memories"
+  },
+  "process_running_subagents": {
+    "message": "Coordinating subagents"
+  },
+  "process_done_subagents": {
+    "message": "Coordinated subagents"
+  },
+  "process_running_tools": {
+    "message": "Calling tools"
+  },
+  "process_done_tools": {
+    "message": "Called tools"
+  },
+  "process_sharedPrefix": {
+    "message": ""
+  },
+  "process_joinTwo": {
+    "message": "$1 and $2"
+  },
+  "process_comma": {
+    "message": ", "
+  },
+  "process_more": {
+    "message": "$1 and more"
+  },
+  "process_allSkipped": {
+    "message": "Skipped tool calls"
+  },
+  "process_results": {
+    "message": "Tool results"
+  },
+  "process_errors": {
+    "message": "$1 failed or interrupted"
+  },
+  "process_skipped": {
+    "message": "$1 skipped"
+  },
+  "process_unknown": {
+    "message": "$1 unconfirmed"
+  },
+  "process_toolReturned": {
+    "message": "Result received"
+  },
+  "process_toolUnknown": {
+    "message": "Result unconfirmed"
+  },
+  "process_reasoning": {
+    "message": "Thinking"
   }
 }

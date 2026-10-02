@@ -31,7 +31,9 @@ const MAX_QUEUED_MESSAGES = 20;
 const SKIPPED_TOOL_RESULT = 'Skipped due to queued user message.';
 
 const isSkippedToolCall = (part: ChatMessagePart): boolean =>
-  part.type === 'tool-call' && part.state === 'output-error' && part.result === SKIPPED_TOOL_RESULT;
+  (part.type === 'tool-call' || part.type === 'tool-result') &&
+  part.state === 'output-error' &&
+  part.result === SKIPPED_TOOL_RESULT;
 
 // ── Port protocol ─────────────────────────────
 

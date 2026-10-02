@@ -1,61 +1,23 @@
 import { DocumentPreview } from './document-preview';
 import { MessageContent } from './elements/message';
 import { Response, UserResponse } from './elements/response';
-import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from './elements/tool';
 import { MessageActions } from './message-actions';
 import { MessageEditor } from './message-editor';
 import { MessageReasoning } from './message-reasoning';
 import { PreviewAttachment } from './preview-attachment';
-import { ToolResultView } from './tool-result-view';
+import { ProcessGroup } from './process-group';
 import { isDocumentToolCall } from '../artifact-stream';
 import { imageContentToSrc } from '../image-src';
-import { getToolCategory, getToolIcon, summarizeToolCall } from '../tool-call-summary';
+import { buildProcessGroups } from '../process-groups';
 import { cn } from '../utils';
-import { isSkippedToolCall } from '@extension/shared';
-import { useState, useMemo, useCallback } from 'react';
-import { toast } from 'sonner';
-import type {
-  ChatMessage,
-  ChatMessagePart,
-  StreamingStatus,
-  ToolPartState,
-} from '@extension/shared';
-
-/** A run of consecutive tool-call parts rendered together as one step list. */
-type ToolCallChatPart = Extract<ChatMessagePart, { type: 'tool-call' }>;
-type RenderItem =
-  | { kind: 'part'; part: ChatMessagePart; index: number }
-  | { kind: 'tool-group'; parts: ToolCallChatPart[]; startIndex: number };
-
-/** Groups consecutive non-document tool-call parts so they render as one compact step list
- *  instead of N separately-spaced cards. */
-const buildRenderItems = (parts: ChatMessagePart[] | undefined): RenderItem[] => {
-  const items: RenderItem[] = [];
-  if (!parts) return items;
-  let i = 0;
-  while (i < parts.length) {
-    const part = parts[i];
-    if (part.type === 'tool-call' && !isDocumentToolCall(part)) {
-      const startIndex = i;
-      const group: ToolCallChatPart[] = [];
-      while (i < parts.length) {
-        const p = parts[i];
-        if (p.type !== 'tool-call' || isDocumentToolCall(p)) break;
-        group.push(p as ToolCallChatPart);
-        i++;
-      }
-      items.push({ kind: 'tool-group', parts: group, startIndex });
-      continue;
-    }
-    items.push({ kind: 'part', part, index: i });
-    i++;
-  }
-  return items;
-};
+import { useState, useMemo } from 'react';
+import type { ProcessRenderItem } from '../process-types';
+import type { ChatMessage, ChatMessagePart, StreamingStatus } from '@extension/shared';
 
 type PreviewMessageProps = {
   message: ChatMessage;
   isLoading: boolean;
+  resetGeneration?: number;
   setMessages?: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   onEditSubmit?: (messageId: string, content: string) => void;
 };
@@ -68,8 +30,26 @@ const AssistantAvatar = ({ isThinking = false }: { isThinking?: boolean }) => (
   />
 );
 
-const PreviewMessage = ({ message, isLoading, setMessages, onEditSubmit }: PreviewMessageProps) => {
+const PreviewMessage = ({
+  message,
+  isLoading,
+  resetGeneration = 0,
+  setMessages,
+  onEditSubmit,
+}: PreviewMessageProps) => {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
+  const renderItems = useMemo<ProcessRenderItem[]>(
+    () =>
+      message.role === 'assistant'
+        ? buildProcessGroups(message.id, message.parts, isLoading)
+        : message.parts.map((part, index) => ({
+            kind: 'part',
+            key: `${message.id}:part:${index}`,
+            part,
+            index,
+          })),
+    [message.id, message.parts, message.role, isLoading],
+  );
 
   const textContent = useMemo(
     () =>
@@ -153,29 +133,10 @@ const PreviewMessage = ({ message, isLoading, setMessages, onEditSubmit }: Previ
               );
             })()}
 
-          {buildRenderItems(message.parts).map(item => {
-            if (item.kind === 'tool-group') {
-              return (
-                <div
-                  className="my-1.5 flex w-full min-w-0 flex-col gap-0.5"
-                  key={`message-${message.id}-tools-${item.startIndex}`}>
-                  {item.parts.map(part => {
-                    const state = (part.state ?? 'input-available') as ToolPartState;
-                    return (
-                      <ToolCallPart
-                        args={part.args}
-                        key={part.toolCallId}
-                        result={part.result}
-                        skipped={isSkippedToolCall(part)}
-                        state={state}
-                        toolName={part.toolName}
-                      />
-                    );
-                  })}
-                </div>
-              );
+          {renderItems.map(item => {
+            if (item.kind === 'process-group') {
+              return <ProcessGroup group={item} key={`${resetGeneration}:${item.key}`} />;
             }
-
             const { part, index } = item;
             const key = `message-${message.id}-part-${index}`;
 
@@ -286,66 +247,6 @@ const PreviewMessage = ({ message, isLoading, setMessages, onEditSubmit }: Previ
         </div>
       </div>
     </div>
-  );
-};
-
-type ToolCallPartProps = {
-  state: ToolPartState;
-  toolName: string;
-  args: Record<string, unknown>;
-  result: unknown;
-  /** Never ran because a steering message arrived first; not a failure. */
-  skipped: boolean;
-};
-
-const ToolCallPart = ({ state, toolName, args, result, skipped }: ToolCallPartProps) => {
-  const isComplete = state === 'output-available' || state === 'output-error';
-
-  // Always collapsed by default — running state is conveyed by the one-line summary/icon in
-  // the header, not by force-expanding the parameters/result panel. Users expand manually.
-  const [open, setOpen] = useState(false);
-
-  const handleCopy = useCallback(() => {
-    const parts = [
-      `Tool: ${toolName}`,
-      `Parameters: ${JSON.stringify(args, null, 2)}`,
-      result != null
-        ? `Result: ${typeof result === 'string' ? result : JSON.stringify(result, null, 2)}`
-        : null,
-    ];
-    navigator.clipboard.writeText(parts.filter(Boolean).join('\n\n')).then(() => {
-      toast.success('Copied to clipboard');
-    });
-  }, [toolName, args, result]);
-
-  const summary = summarizeToolCall(toolName, args, result, state);
-
-  return (
-    <Tool onOpenChange={setOpen} open={open}>
-      <ToolHeader
-        category={getToolCategory(toolName)}
-        icon={getToolIcon(toolName)}
-        name={toolName}
-        onCopy={isComplete ? handleCopy : undefined}
-        skipped={skipped}
-        state={state}
-        summary={summary}
-      />
-      <ToolContent>
-        {state !== 'input-streaming' && <ToolInput input={args} />}
-
-        {state === 'output-available' && result != null ? (
-          <ToolOutput output={<ToolResultView args={args} result={result} toolName={toolName} />} />
-        ) : null}
-
-        {state === 'output-error' && !skipped && result != null ? (
-          <ToolOutput
-            errorText={typeof result === 'string' ? result : JSON.stringify(result, null, 2)}
-            output={null}
-          />
-        ) : null}
-      </ToolContent>
-    </Tool>
   );
 };
 

@@ -138,12 +138,20 @@ const ExpandableBlock = ({ children, className }: { children: ReactNode; classNa
   const [overflowing, setOverflowing] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Measure once against the collapsed height — content is static after the
-  // tool result arrives, so a single mount-time check is enough.
+  // Disclosures keep their contents mounted while hidden. Recheck when the
+  // block becomes visible or its contents resize, without resetting expansion.
   useEffect(() => {
     const el = ref.current;
-    if (el) setOverflowing(el.scrollHeight > el.clientHeight + 1);
-  }, []);
+    if (!el || expanded) return;
+    const measure = () => {
+      if (el.clientHeight > 0) setOverflowing(el.scrollHeight > el.clientHeight + 1);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    return () => observer.disconnect();
+  }, [expanded]);
 
   return (
     <div className="space-y-1">

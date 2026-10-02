@@ -24,8 +24,11 @@ const catalog = [
  * Only the provider transport is mocked; ports, worker, React and IndexedDB are real.
  * Each model call opens a stream that stays open until `emit(..., finish)`.
  */
-const installProvider = async (worker: Worker) => {
-  await worker.evaluate(async () => {
+const installProvider = async (
+  worker: Worker,
+  options: { supportsTools?: boolean; initialReasoning?: string } = {},
+) => {
+  await worker.evaluate(async ({ supportsTools = false, initialReasoning = '初始推理。' }) => {
     const target = globalThis as StreamWorker;
     target.testStreams = [];
     globalThis.fetch = async (input, init) => {
@@ -38,7 +41,7 @@ const installProvider = async (worker: Worker) => {
             protocol: 'openai-completions',
             kind: 'chat',
             isDefault: true,
-            supportsTools: false,
+            supportsTools,
             supportsReasoning: true,
             supportsImages: false,
             contextWindow: null,
@@ -73,7 +76,7 @@ const installProvider = async (worker: Worker) => {
             choices: [
               {
                 index: 0,
-                delta: { role: 'assistant', reasoning_content: '初始推理。' },
+                delta: { role: 'assistant', reasoning_content: initialReasoning },
                 finish_reason: null,
               },
             ],
@@ -92,7 +95,7 @@ const installProvider = async (worker: Worker) => {
         expiresAt: Date.now() + 3600000,
       },
     });
-  });
+  }, options);
 };
 
 /** Streams reasoning, or with `finish` the final text, into the model call at `index`. */
@@ -133,4 +136,61 @@ const abortedStreams = (worker: Worker) =>
 const streamBody = (worker: Worker, index: number) =>
   worker.evaluate(index => (globalThis as StreamWorker).testStreams[index]?.body ?? '', index);
 
-export { abortedStreams, catalog, emit, installProvider, streamBody, streamCount };
+const failStream = (worker: Worker, index: number, message: string) =>
+  worker.evaluate(
+    ({ index, message }) => {
+      const stream = (globalThis as StreamWorker).testStreams[index];
+      stream.closed = true;
+      stream.controller.error(new Error(message));
+    },
+    { index, message },
+  );
+
+const emitToolCalls = async (
+  worker: Worker,
+  index: number,
+  calls: Array<{ id: string; name: string; args: Record<string, unknown> }>,
+) => {
+  await worker.evaluate(
+    ({ index, calls }) => {
+      const stream = (globalThis as StreamWorker).testStreams[index];
+      const chunk = {
+        id: 'response',
+        object: 'chat.completion.chunk',
+        model: 'background-test',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: calls.map((call, index) => ({
+                index,
+                id: call.id,
+                type: 'function',
+                function: { name: call.name, arguments: JSON.stringify(call.args) },
+              })),
+            },
+            finish_reason: 'tool_calls',
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      };
+      stream.controller.enqueue(
+        new TextEncoder().encode(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`),
+      );
+      stream.closed = true;
+      stream.controller.close();
+    },
+    { index, calls },
+  );
+};
+
+export {
+  abortedStreams,
+  catalog,
+  emit,
+  emitToolCalls,
+  failStream,
+  installProvider,
+  streamBody,
+  streamCount,
+};

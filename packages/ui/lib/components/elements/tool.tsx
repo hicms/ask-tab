@@ -7,11 +7,13 @@ import {
   CheckCircleIcon,
   ChevronDownIcon,
   CircleIcon,
+  CircleHelpIcon,
   Loader2Icon,
   MinusCircleIcon,
   WrenchIcon,
   XCircleIcon,
 } from 'lucide-react';
+import type { ToolDisplayState } from '../../process-types';
 import type { ToolCategory } from '../../tool-call-summary';
 import type { ToolPartState } from '@extension/shared';
 import type { LucideIcon } from 'lucide-react';
@@ -52,7 +54,7 @@ type ToolHeaderProps = {
   icon?: LucideIcon;
   /** Semantic category, used to colour the icon. */
   category?: ToolCategory;
-  state: ToolPartState;
+  state: ToolDisplayState;
   /** Shown as a neutral status instead of the error it is stored as. */
   skipped?: boolean;
   /** Copy handler — when provided, a copy button is shown in the header. */
@@ -101,6 +103,17 @@ const ToolHeader = ({
         <span className="text-muted-foreground flex shrink-0 items-center gap-1 text-xs">
           {t('chat_toolSkipped')}
           <MinusCircleIcon className="size-3.5" />
+        </span>
+      ) : state === 'unknown' || state === 'returned' ? (
+        <span
+          className="text-muted-foreground flex shrink-0 items-center gap-1 text-[11px]"
+          title={t(state === 'unknown' ? 'process_toolUnknown' : 'process_toolReturned')}>
+          {state === 'unknown' ? (
+            <CircleHelpIcon className="size-3.5" />
+          ) : (
+            <CircleIcon className="size-3.5" />
+          )}
+          {t(state === 'unknown' ? 'process_toolUnknown' : 'process_toolReturned')}
         </span>
       ) : (
         <span className="text-muted-foreground shrink-0" title={statusLabels[state]}>

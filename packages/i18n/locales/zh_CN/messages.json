@@ -1430,5 +1430,113 @@
   },
   "archive_retry": {
     "message": "重试"
+  },
+  "process_running_thinking": {
+    "message": "正在分析请求"
+  },
+  "process_done_thinking": {
+    "message": "已完成分析"
+  },
+  "process_running_read": {
+    "message": "正在读取文件"
+  },
+  "process_done_read": {
+    "message": "已读取文件"
+  },
+  "process_running_write": {
+    "message": "正在写入文件"
+  },
+  "process_done_write": {
+    "message": "已写入文件"
+  },
+  "process_running_edit": {
+    "message": "正在编辑文件"
+  },
+  "process_done_edit": {
+    "message": "修改了文件"
+  },
+  "process_running_files": {
+    "message": "正在操作文件"
+  },
+  "process_done_files": {
+    "message": "已操作文件"
+  },
+  "process_running_webSearch": {
+    "message": "正在搜索网页"
+  },
+  "process_done_webSearch": {
+    "message": "已搜索网页"
+  },
+  "process_running_webFetch": {
+    "message": "正在访问网页"
+  },
+  "process_done_webFetch": {
+    "message": "已访问网页"
+  },
+  "process_running_browser": {
+    "message": "正在操作浏览器"
+  },
+  "process_done_browser": {
+    "message": "已操作浏览器"
+  },
+  "process_running_code": {
+    "message": "正在运行代码"
+  },
+  "process_done_code": {
+    "message": "运行了代码"
+  },
+  "process_running_memory": {
+    "message": "正在检索记忆"
+  },
+  "process_done_memory": {
+    "message": "已检索记忆"
+  },
+  "process_running_subagents": {
+    "message": "正在协调子智能体"
+  },
+  "process_done_subagents": {
+    "message": "已协调子智能体"
+  },
+  "process_running_tools": {
+    "message": "正在调用工具"
+  },
+  "process_done_tools": {
+    "message": "已调用工具"
+  },
+  "process_sharedPrefix": {
+    "message": "已"
+  },
+  "process_joinTwo": {
+    "message": "$1并$2"
+  },
+  "process_comma": {
+    "message": "，"
+  },
+  "process_more": {
+    "message": "$1等"
+  },
+  "process_allSkipped": {
+    "message": "已跳过工具调用"
+  },
+  "process_results": {
+    "message": "工具结果"
+  },
+  "process_errors": {
+    "message": "$1 项失败或中断"
+  },
+  "process_skipped": {
+    "message": "$1 项已跳过"
+  },
+  "process_unknown": {
+    "message": "$1 项结果未确认"
+  },
+  "process_toolReturned": {
+    "message": "已收到结果"
+  },
+  "process_toolUnknown": {
+    "message": "结果未确认"
+  },
+  "process_reasoning": {
+    "message": "思考过程"
   }
 }
