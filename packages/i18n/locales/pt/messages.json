@@ -93,6 +93,8 @@
   "stt_hotkey_prompt": { "message": "Pressione uma tecla…" },
   "stt_hotkey_unset": { "message": "Não definido" },
   "chat_modelSelect": { "message": "Modelo" },
+  "chat_reasoningOptions": { "message": "Opções de raciocínio" },
+  "chat_reasoningDefault": { "message": "Padrão" },
   "chat_thinkLevelThinking": { "message": "Pensamento" },
   "chat_thinkLevelThinkingDesc": { "message": "Resolve problemas complexos" },
   "chat_thinkLevelFast": { "message": "Rápido" },

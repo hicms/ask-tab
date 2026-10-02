@@ -49,6 +49,7 @@ const installProvider = async (
             vendor: null,
             tier: null,
             priceMultiplier: null,
+            reasoningControls: [],
           },
         ]);
       if (!url.includes('/api/llm/background-test')) return Response.json([]);

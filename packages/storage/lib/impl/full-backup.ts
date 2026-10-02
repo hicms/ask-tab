@@ -25,6 +25,7 @@ const LOCAL_KEYS = new Set([
   'tool-config',
   'suggested-actions',
   'selected-model-id',
+  'reasoning-selections',
   'active-agent-id',
   'last-active-session-id',
   'log-config',
@@ -179,6 +180,14 @@ const assertAiPreferences = (local: Record<string, unknown>): void => {
   if ('settings' in local) assertFields(local.settings, ['theme', 'locale'], 'settings');
   if ('selected-model-id' in local && typeof local['selected-model-id'] !== 'string') {
     throw new Error('Invalid backup configuration: selected-model-id');
+  }
+  // Values are matched against the live catalog before they are sent, so only the shape matters.
+  if (
+    'reasoning-selections' in local &&
+    (!isRecord(local['reasoning-selections']) ||
+      !Object.values(local['reasoning-selections']).every(isRecord))
+  ) {
+    throw new Error('Invalid backup configuration: reasoning-selections');
   }
   if ('tool-config' in local) assertToolConfig(local['tool-config']);
   if ('suggested-actions' in local) assertSuggestedActions(local['suggested-actions']);

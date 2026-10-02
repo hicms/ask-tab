@@ -7,6 +7,8 @@ import {
   requireSession,
   withAccountMutation,
 } from './client';
+import { migrateRetiredModelReferences } from './retired-models';
+import { isAllowedReasoningValue } from '@extension/shared';
 import {
   askSessionStorage,
   modelTiers,
@@ -15,7 +17,13 @@ import {
   selectedModelStorage,
 } from '@extension/storage';
 import type { ModelProvider } from '@extension/shared';
-import type { DbChatModel, ModelTier, PublicModel } from '@extension/storage';
+import type {
+  DbChatModel,
+  ModelTier,
+  PublicModel,
+  ReasoningControl,
+  ReasoningValue,
+} from '@extension/storage';
 
 interface SessionResponse {
   token: string;
@@ -38,12 +46,61 @@ const protocolKinds: Record<string, PublicModel['kind']> = {
   'openai-embeddings': 'embedding',
 };
 
+const MAX_REASONING_VALUE_DEPTH = 8;
+const reasoningPathSegment = /^[A-Za-z0-9_-]+$/;
+// Control paths are written into request objects, so prototype keys must never reach them.
+const forbiddenPathSegments = new Set(['__proto__', 'constructor', 'prototype']);
+
+const isReasoningValue = (value: unknown, depth = 0): value is ReasoningValue => {
+  if (depth > MAX_REASONING_VALUE_DEPTH) return false;
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every(item => isReasoningValue(item, depth + 1));
+  return (
+    typeof value === 'object' &&
+    Object.getPrototypeOf(value) === Object.prototype &&
+    Object.values(value).every(item => isReasoningValue(item, depth + 1))
+  );
+};
+
+const isReasoningPath = (path: unknown): path is string =>
+  typeof path === 'string' &&
+  path
+    .split('.')
+    .every(segment => reasoningPathSegment.test(segment) && !forbiddenPathSegments.has(segment));
+
+/** Returns null for anything outside the published shape. */
+const toReasoningControls = (value: unknown): ReasoningControl[] | null => {
+  if (!Array.isArray(value)) return null;
+  const controls: ReasoningControl[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') return null;
+    const { path, values, default: fallback } = item as Record<string, unknown>;
+    if (
+      !isReasoningPath(path) ||
+      controls.some(control => control.path === path) ||
+      !Array.isArray(values) ||
+      values.length === 0 ||
+      !values.every(entry => isReasoningValue(entry)) ||
+      !isReasoningValue(fallback)
+    ) {
+      return null;
+    }
+    const control: ReasoningControl = { path, values, default: fallback };
+    if (!isAllowedReasoningValue(control, fallback)) return null;
+    controls.push(control);
+  }
+  return controls;
+};
+
 /** Copy the published contract only; extra server fields cannot enter extension storage. */
 const toPublicModel = (value: unknown): PublicModel => {
   if (!value || typeof value !== 'object') throw new Error('Invalid server model catalog');
   const model = value as Record<string, unknown>;
   const kind = typeof model.protocol === 'string' ? protocolKinds[model.protocol] : undefined;
+  const reasoningControls = toReasoningControls(model.reasoningControls);
   if (
+    !reasoningControls ||
     typeof model.id !== 'string' ||
     !model.id ||
     typeof model.name !== 'string' ||
@@ -84,6 +141,7 @@ const toPublicModel = (value: unknown): PublicModel => {
     vendor: model.vendor as string | null,
     tier: model.tier as ModelTier | null,
     priceMultiplier: model.priceMultiplier as number | null,
+    reasoningControls,
   };
 };
 
@@ -121,6 +179,7 @@ const syncServerModels = async (): Promise<number> => {
     }
     await publicModelsStorage.set(published);
     await serverModelsStorage.set(models);
+    await migrateRetiredModelReferences(published);
     const selected = await selectedModelStorage.get();
     if (!models.some(model => model.id === selected)) {
       const fallback = chatEntries.find(model => model.isDefault) ?? chatEntries[0];

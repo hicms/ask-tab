@@ -1,5 +1,21 @@
+diff --git a/dist/providers/anthropic.js b/dist/providers/anthropic.js
+index 0bf2b894799bbc9ef5fda07bc44ea4301c9f395a..a7225778ca63658e462765739674982a17f18966 100644
+--- a/dist/providers/anthropic.js
++++ b/dist/providers/anthropic.js
+@@ -572,7 +572,10 @@ function convertMessages(messages, model, isOAuthToken, cacheControl) {
+                     });
+                 }
+                 else if (block.type === "thinking") {
+-                    if (block.thinking.trim().length === 0)
++                    // With thinking display "omitted" the API returns signed blocks with empty
++                    // text, and they must be sent back unchanged during tool use.
++                    const signed = !!block.thinkingSignature && block.thinkingSignature.trim().length > 0;
++                    if (block.thinking.trim().length === 0 && !signed)
+                         continue;
+                     // If thinking signature is missing/empty (e.g., from aborted stream),
+                     // convert to plain text block without <thinking> tags to avoid API rejection
 diff --git a/dist/providers/google.js b/dist/providers/google.js
-index ccd384b2f534ab4db43f93c864dc3d2e18f6ada3..318b6f022d97673e77466bcbc9bdb3e76c96db18 100644
+index ccd384b2f534ab4db43f93c864dc3d2e18f6ada3..8988acadc4992ba2c1c3cad296371a09b205ecb6 100644
 --- a/dist/providers/google.js
 +++ b/dist/providers/google.js
 @@ -143,7 +143,10 @@ export const streamGoogle = (model, context, options) => {

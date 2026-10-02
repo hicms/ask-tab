@@ -8,6 +8,7 @@ export * from './lib/context-limits.js';
 export * from './lib/model-capabilities.js';
 export * from './lib/model-tiers.js';
 export * from './lib/chat-model-from-stored.js';
+export * from './lib/reasoning-controls.js';
 export * from './lib/prompts.js';
 export * from './const.js';
 export * from './lib/skill-parser.js';

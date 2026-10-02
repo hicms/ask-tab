@@ -357,6 +357,8 @@
   "chat_modelSelect": {
     "message": "Model"
   },
+  "chat_reasoningOptions": { "message": "Thinking options" },
+  "chat_reasoningDefault": { "message": "Default" },
   "chat_thinkLevelThinking": {
     "message": "Thinking"
   },

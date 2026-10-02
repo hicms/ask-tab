@@ -5,7 +5,13 @@ export {
   publicModelsStorage,
   type ModelTier,
   type PublicModel,
+  type ReasoningControl,
+  type ReasoningValue,
 } from './public-models-storage.js';
+export {
+  reasoningSelectionsStorage,
+  type ReasoningSelections,
+} from './reasoning-selections-storage.js';
 export { askSessionStorage, type AskSession } from './ask-session-storage.js';
 export {
   isFileLoadedInstall,

@@ -7,7 +7,12 @@ import { completeText, createStreamFn } from './stream-bridge';
 import { chatDb } from '../../../../packages/storage/lib/impl/chat-db';
 import { confirmSessionAfterModelError } from '../ask-service/client';
 import { buildSystemPrompt } from '@extension/shared';
-import { createChat, finishModelTurn } from '@extension/storage';
+import {
+  createChat,
+  finishModelTurn,
+  publicModelsStorage,
+  reasoningSelectionsStorage,
+} from '@extension/storage';
 import { Type } from '@mariozechner/pi-ai';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessage, ChatModel } from '@extension/shared';
@@ -174,6 +179,54 @@ beforeEach(async () => {
 });
 
 describe('native Gemini relay', () => {
+  it('writes the chosen thinking controls into the REST generationConfig', async () => {
+    vi.spyOn(publicModelsStorage, 'get').mockResolvedValue([
+      {
+        id: gemini.id,
+        name: gemini.name,
+        protocol: 'gemini-generate-content',
+        kind: 'chat',
+        embeddingSpaceId: null,
+        isDefault: true,
+        supportsTools: true,
+        supportsReasoning: true,
+        supportsImages: true,
+        contextWindow: null,
+        vendor: null,
+        tier: null,
+        priceMultiplier: null,
+        reasoningControls: [
+          {
+            path: 'generationConfig.thinkingConfig.thinkingLevel',
+            values: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
+          {
+            path: 'generationConfig.thinkingConfig.includeThoughts',
+            values: [true, false],
+            default: false,
+          },
+        ],
+      },
+    ]);
+    vi.spyOn(reasoningSelectionsStorage, 'get').mockResolvedValue({
+      [gemini.id]: { 'generationConfig.thinkingConfig.thinkingLevel': 'high' },
+    });
+    fetchMock.mockResolvedValueOnce(textResponse('Done.'));
+    try {
+      await run(gemini, { messages: [userTurn] });
+    } finally {
+      vi.restoreAllMocks();
+    }
+    const { body } = sent(0);
+    expect(body.generationConfig?.thinkingConfig).toEqual({
+      thinkingLevel: 'high',
+      includeThoughts: false,
+    });
+    expect(body.generationConfig?.maxOutputTokens).toBeGreaterThan(0);
+    expect(body).not.toHaveProperty('config');
+  });
+
   it('sends a consistent text-only prompt when the model has no tool support', async () => {
     fetchMock.mockResolvedValueOnce(textResponse('Web search is unavailable.'));
     const model = { ...gemini, supportsTools: false };

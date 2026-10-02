@@ -8,6 +8,7 @@
 
 import { withAbort } from './cancellation';
 import { chatModelToPiModel } from './model-adapter';
+import { loadReasoningSettings, withReasoningSettings } from './reasoning-payload';
 import { confirmSessionAfterModelError, requireSession } from '../ask-service/client';
 import { serviceUrlReady } from '../ask-service/endpoint';
 import { createLogger } from '../logging/logger-buffer';
@@ -39,7 +40,9 @@ const streamModel = (model: Model<Api>, context: Context, options?: SimpleStream
 export const createStreamFn = (modelConfig: ChatModel): StreamFn => {
   const { model } = chatModelToPiModel(modelConfig);
 
-  return (_model: Model<Api>, context: Context, options?: SimpleStreamOptions) => {
+  return async (_model: Model<Api>, context: Context, options?: SimpleStreamOptions) => {
+    // Read per call so a change made during a long tool loop applies to its next turn.
+    const reasoning = await loadReasoningSettings(modelConfig.id);
     bridgeLog.trace('Provider call', {
       modelId: model.id,
       provider: model.provider,
@@ -48,8 +51,13 @@ export const createStreamFn = (modelConfig: ChatModel): StreamFn => {
       hasApiKey: !!options?.apiKey,
       contextWindow: model.contextWindow,
       maxTokens: model.maxTokens,
+      reasoning,
     });
-    const stream = streamModel(model, context, options);
+    const stream = streamModel(
+      model,
+      context,
+      withReasoningSettings(model.api, reasoning, options),
+    );
     void stream.result().then(message => {
       if (message.stopReason === 'error')
         void confirmSessionAfterModelError(model.baseUrl, options?.apiKey);
@@ -73,12 +81,17 @@ export const completeText = async (
     messages: [{ role: 'user', content: userContent, timestamp: Date.now() }],
   };
   const apiKey = (await withAbort(opts?.signal, () => requireSession(session))).token;
+  const reasoning = await withAbort(opts?.signal, () => loadReasoningSettings(modelConfig.id));
   const result = await withAbort(opts?.signal, () =>
-    completeSimple(model, context, {
-      maxTokens: opts?.maxTokens,
-      apiKey,
-      signal: opts?.signal,
-    }),
+    completeSimple(
+      model,
+      context,
+      withReasoningSettings(model.api, reasoning, {
+        maxTokens: opts?.maxTokens,
+        apiKey,
+        signal: opts?.signal,
+      }),
+    ),
   );
   if (result.stopReason === 'error')
     void confirmSessionAfterModelError(model.baseUrl, session.token);

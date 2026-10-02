@@ -4,6 +4,26 @@ import { createStorage, StorageEnum } from '../base/index.js';
 const modelTiers = ['flagship', 'balanced', 'fast'] as const;
 type ModelTier = (typeof modelTiers)[number];
 
+type ReasoningValue =
+  | string
+  | number
+  | boolean
+  | null
+  | ReasoningValue[]
+  | { [key: string]: ReasoningValue };
+
+/**
+ * One thinking parameter the model accepts. The relay forwards request bodies
+ * unchanged, so the client must write `path` (dot-separated, in the provider's
+ * native request body) itself; `default` is what to send when the user has not
+ * chosen a value.
+ */
+interface ReasoningControl {
+  path: string;
+  values: ReasoningValue[];
+  default: ReasoningValue;
+}
+
 interface PublicModel {
   id: string;
   name: string;
@@ -20,6 +40,8 @@ interface PublicModel {
   tier: ModelTier | null;
   /** Price relative to the catalog reference price, where 1 is the reference. */
   priceMultiplier: number | null;
+  /** Empty when the model takes no thinking parameters. */
+  reasoningControls: ReasoningControl[];
 }
 
 const publicModelsStorage = createStorage<PublicModel[]>('public-models', [], {
@@ -27,5 +49,5 @@ const publicModelsStorage = createStorage<PublicModel[]>('public-models', [], {
   liveUpdate: true,
 });
 
-export type { ModelTier, PublicModel };
+export type { ModelTier, PublicModel, ReasoningControl, ReasoningValue };
 export { modelTiers, publicModelsStorage };

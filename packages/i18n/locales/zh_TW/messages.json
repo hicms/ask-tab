@@ -259,6 +259,8 @@
   "chat_modelSelect": {
     "message": "模型"
   },
+  "chat_reasoningOptions": { "message": "思考選項" },
+  "chat_reasoningDefault": { "message": "預設" },
   "chat_thinkLevelThinking": { "message": "深度思考" },
   "chat_thinkLevelThinkingDesc": { "message": "解決複雜問題" },
   "chat_thinkLevelFast": { "message": "快速" },

@@ -29,6 +29,7 @@ vi.mock('./endpoint', () => ({
   getServiceUrl: () => 'http://ask.test',
   serviceUrlReady: async () => {},
 }));
+vi.mock('./retired-models', () => ({ migrateRetiredModelReferences: vi.fn(async () => {}) }));
 vi.mock('@extension/env', () => ({ ASK_SERVICE_URL: 'http://ask.test' }));
 vi.mock('@extension/storage', async () => ({
   modelTiers: (await vi.importActual<typeof import('@extension/storage')>('@extension/storage'))
@@ -41,6 +42,7 @@ vi.mock('@extension/storage', async () => ({
 
 const { handleAskMessage, refreshSessionOnStartup } = await import('./session');
 const { confirmSessionAfterModelError, requestAuthorized, watchSession } = await import('./client');
+const { migrateRetiredModelReferences } = await import('./retired-models');
 
 const models = [
   {
@@ -57,10 +59,13 @@ const models = [
     vendor: null,
     tier: null,
     priceMultiplier: null,
+    reasoningControls: [
+      { path: 'reasoning_effort', values: ['low', 'medium', 'high', 'xhigh'], default: 'high' },
+    ],
   },
   {
-    id: 'claude-sonnet-5',
-    name: 'Claude-Sonnet-5',
+    id: 'claude-sonnet-5-5',
+    name: 'Claude-Sonnet-5.5',
     protocol: 'anthropic-messages',
     kind: 'chat',
     embeddingSpaceId: null,
@@ -72,6 +77,10 @@ const models = [
     vendor: null,
     tier: null,
     priceMultiplier: null,
+    reasoningControls: [
+      { path: 'thinking.type', values: ['adaptive', 'between_tools'], default: 'adaptive' },
+      { path: 'output_config.effort', values: ['low', 'medium', 'high'], default: 'high' },
+    ],
   },
 ];
 
@@ -127,9 +136,9 @@ describe('ASK_LOGIN', () => {
         supportsImages: true,
       },
       {
-        id: 'ask:claude-sonnet-5',
-        modelId: 'claude-sonnet-5',
-        name: 'Claude-Sonnet-5',
+        id: 'ask:claude-sonnet-5-5',
+        modelId: 'claude-sonnet-5-5',
+        name: 'Claude-Sonnet-5.5',
         provider: 'anthropic',
         supportsTools: true,
         supportsReasoning: true,
@@ -137,7 +146,7 @@ describe('ASK_LOGIN', () => {
         contextWindow: 200000,
       },
     ]);
-    expect(store.values.selected).toBe('ask:claude-sonnet-5');
+    expect(store.values.selected).toBe('ask:claude-sonnet-5-5');
   });
 
   it('returns the server status for rejected credentials without storing a session', async () => {
@@ -386,6 +395,83 @@ describe('ASK_SYNC_MODELS', () => {
     const [first, second] = store.values.models as Record<string, unknown>[];
     expect(first).toMatchObject({ vendor: 'xai', tier: 'flagship', priceMultiplier: 3.5 });
     for (const key of ['vendor', 'tier', 'priceMultiplier']) expect(second).not.toHaveProperty(key);
+  });
+
+  it('stores published thinking controls without extra fields', async () => {
+    store.values.session = { token: 'tok', userId: 'u', email: 'a@b.co', expiresAt: 9999999999999 };
+    const kimi = {
+      ...models[0],
+      id: 'kimi-code',
+      reasoningControls: [
+        {
+          path: 'thinking',
+          values: [{ keep: 'all', type: 'enabled' }],
+          default: { keep: 'all', type: 'enabled' },
+          note: 'dropped',
+        },
+        { path: 'enable_thinking', values: [true, false], default: true },
+      ],
+    };
+    fetchMock.mockResolvedValueOnce(json(200, [kimi, { ...models[1], reasoningControls: [] }]));
+    await handleAskMessage({ type: 'ASK_SYNC_MODELS' });
+    const [first, second] = store.values.publicModels as Array<{ reasoningControls: unknown }>;
+    expect(first.reasoningControls).toEqual([
+      {
+        path: 'thinking',
+        values: [{ keep: 'all', type: 'enabled' }],
+        default: { keep: 'all', type: 'enabled' },
+      },
+      { path: 'enable_thinking', values: [true, false], default: true },
+    ]);
+    expect(second.reasoningControls).toEqual([]);
+  });
+
+  it('moves saved choices off a retired model ID with the new catalog', async () => {
+    store.values.session = { token: 'tok', userId: 'u', email: 'a@b.co', expiresAt: 9999999999999 };
+    fetchMock.mockResolvedValueOnce(json(200, models));
+    await handleAskMessage({ type: 'ASK_SYNC_MODELS' });
+    expect(migrateRetiredModelReferences).toHaveBeenCalledWith(models);
+  });
+
+  const deeplyNested = (depth: number): unknown =>
+    depth === 0 ? 'leaf' : { level: deeplyNested(depth - 1) };
+  const effort = (change: Record<string, unknown>) => ({
+    path: 'reasoning_effort',
+    values: ['low', 'high'],
+    default: 'high',
+    ...change,
+  });
+  it.each([
+    ['reasoningControls is missing', { reasoningControls: undefined }],
+    ['reasoningControls is not an array', { reasoningControls: {} }],
+    [
+      'a control default is not one of its values',
+      { reasoningControls: [effort({ default: 'max' })] },
+    ],
+    ['a control has no values', { reasoningControls: [effort({ values: [], default: 'high' })] }],
+    ['a control path is empty', { reasoningControls: [effort({ path: '' })] }],
+    [
+      'a control path has an empty segment',
+      { reasoningControls: [effort({ path: 'thinking..type' })] },
+    ],
+    [
+      'a control path reaches a prototype',
+      { reasoningControls: [effort({ path: '__proto__.polluted' })] },
+    ],
+    ['a control path repeats', { reasoningControls: [effort({}), effort({})] }],
+    [
+      'a control value nests too deeply',
+      { reasoningControls: [effort({ values: ['high', deeplyNested(12)] })] },
+    ],
+  ])('rejects a catalog whose %s', async (_case, change) => {
+    store.values.session = { token: 'tok', userId: 'u', email: 'a@b.co', expiresAt: 9999999999999 };
+    const broken: Record<string, unknown> = { ...models[0], ...change };
+    for (const [key, value] of Object.entries(change)) if (value === undefined) delete broken[key];
+    fetchMock.mockResolvedValueOnce(json(200, [broken]));
+    await expect(handleAskMessage({ type: 'ASK_SYNC_MODELS' })).rejects.toThrow(
+      'Invalid server model catalog',
+    );
+    expect(store.values.models).toBeUndefined();
   });
 
   it.each([
