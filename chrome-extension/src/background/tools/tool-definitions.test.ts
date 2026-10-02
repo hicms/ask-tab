@@ -520,12 +520,14 @@ describe('executeTool — custom tool fallback', () => {
         },
       ],
     });
-    const result = await executeTool('my_custom_tool', { input: 'hello' });
+    const signal = new AbortController().signal;
+    const result = await executeTool('my_custom_tool', { input: 'hello' }, { signal });
     expect(result).toBe('custom result');
     expect(executeCustomTool).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'my_custom_tool' }),
       { input: 'hello' },
       'agent-1',
+      signal,
     );
   });
 

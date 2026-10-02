@@ -1,4 +1,5 @@
 import { cdpAttach, cdpSend } from './cdp';
+import { withDebuggerSession } from './debugger-lifecycle';
 
 let preparing: Promise<chrome.debugger.Debuggee> | null = null;
 let legacyTabsCleaned = false;
@@ -22,13 +23,13 @@ const prepareSandbox = async (): Promise<chrome.debugger.Debuggee> => {
     if (!target) throw new Error('JavaScript sandbox debugging target is unavailable.');
   }
 
-  const debuggee = { targetId: target.id };
-  const error = await cdpAttach(debuggee);
-  if (error) throw new Error(error);
-  await cdpSend(debuggee, 'Runtime.enable');
+  return { targetId: target.id };
+};
 
+const cleanLegacyTabs = async (): Promise<void> => {
   // Migrate tabs left by older versions only after the hidden runtime is ready.
   if (!legacyTabsCleaned) {
+    const url = chrome.runtime.getURL('sandbox.html');
     const tabs = await chrome.tabs.query({ url });
     await Promise.all(
       tabs.map(async tab => {
@@ -43,7 +44,6 @@ const prepareSandbox = async (): Promise<chrome.debugger.Debuggee> => {
     );
     legacyTabsCleaned = true;
   }
-  return debuggee;
 };
 
 /** Rediscover the document after worker restarts and serialize concurrent creation. */
@@ -56,10 +56,25 @@ const ensureJavascriptSandbox = (): Promise<chrome.debugger.Debuggee> => {
   return preparing;
 };
 
+const withJavascriptSandbox = async <T>(
+  signal: AbortSignal | undefined,
+  execute: (target: chrome.debugger.Debuggee) => Promise<T>,
+): Promise<T> => {
+  signal?.throwIfAborted();
+  const target = await ensureJavascriptSandbox();
+  return withDebuggerSession(target, signal, async () => {
+    const error = await cdpAttach(target);
+    if (error) throw new Error(error);
+    await cdpSend(target, 'Runtime.enable');
+    await cleanLegacyTabs();
+    return execute(target);
+  });
+};
+
 /** Reset worker-local state for tests; the document itself remains alive. */
 const resetJavascriptSandbox = () => {
   preparing = null;
   legacyTabsCleaned = false;
 };
 
-export { ensureJavascriptSandbox, resetJavascriptSandbox };
+export { withJavascriptSandbox, resetJavascriptSandbox };

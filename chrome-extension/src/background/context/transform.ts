@@ -4,9 +4,11 @@
  */
 
 import { compactMessages, compactMessagesWithSummary, estimateMessageTokens } from './compaction';
+import { getModelContextLimit } from './limits';
+import { getProviderTokenLimit } from './provider-limit-cache';
 import { extractCriticalRules } from './summarizer';
 import { enforceToolResultBudget } from './tool-result-context-guard';
-import { displayHistoryAsContext } from '../agents/model-transcript';
+import { createPortableHistory } from '../agents/portable-history';
 import { createLogger } from '../logging/logger-buffer';
 import { diagnostics } from '@extension/shared/lib/diagnostics.js';
 import {
@@ -53,9 +55,11 @@ const createTransformContext = (
   getResult: () => TransformResult;
   /** Lower the effective context window (e.g. when a proxy reports a smaller limit than the model). */
   setProviderLimit: (limit: number) => void;
+  prepareRetry: (limit?: number) => void;
 } => {
   const result: TransformResult = { wasCompacted: false };
-  let providerLimit: number | undefined;
+  let providerLimit = getProviderTokenLimit(opts.modelConfig.id);
+  let lastContextTokens = 0;
 
   // Max summary compaction attempts per stream.
   // After this limit, fall back to sliding-window only (no LLM summarization) to prevent
@@ -169,6 +173,11 @@ const createTransformContext = (
       }).catch(diagnostics.error);
     }
 
+    lastContextTokens = compactedMessages.reduce(
+      (sum, message) => sum + estimateMessageTokens(message),
+      0,
+    );
+
     // Update result for caller
     result.wasCompacted = wasCompacted;
     result.compactionMethod = compactionMethod;
@@ -185,15 +194,11 @@ const createTransformContext = (
 
     // A compacted view is new, portable context; never masquerade its display
     // projection as assistant/tool wire messages from the original provider.
-    const latestUser = [...messages].reverse().find(message => message.role === 'user');
-    const compactedHistory =
-      compactedMessages.at(-1)?.role === 'user'
-        ? compactedMessages.slice(0, -1)
-        : compactedMessages;
-    return [
-      ...displayHistoryAsContext(compactedHistory, { includeSystem: true }),
-      ...(latestUser ? [latestUser] : []),
-    ];
+    const latestUserIndex = messages.findLastIndex(message => message.role === 'user');
+    const latestUser = messages[latestUserIndex];
+    const latestUserId = `msg-${latestUserIndex}-${latestUser?.timestamp}`;
+    const compactedHistory = compactedMessages.filter(message => message.id !== latestUserId);
+    return [...createPortableHistory(compactedHistory), ...(latestUser ? [latestUser] : [])];
   };
 
   return {
@@ -201,6 +206,20 @@ const createTransformContext = (
     getResult: () => result,
     setProviderLimit: (limit: number) => {
       providerLimit = limit;
+    },
+    prepareRetry: (limit?: number) => {
+      const currentLimit =
+        providerLimit ?? getModelContextLimit(opts.modelConfig.id, opts.modelConfig.contextWindow);
+      // Provider tokenizers and relay limits can differ from our estimate. Make
+      // every recovery strictly smaller even when the error contains no limit.
+      const estimatedLimit = Math.floor(
+        ((lastContextTokens * 1.25 + opts.systemPromptTokens) * 0.7) / 0.75,
+      );
+      providerLimit = Math.max(
+        1,
+        Math.min(limit ?? currentLimit, currentLimit * 0.7, estimatedLimit),
+      );
+      summaryCompactionAttempts = MAX_SUMMARY_COMPACTION_ATTEMPTS;
     },
   };
 };
@@ -212,7 +231,11 @@ const createTransformContext = (
 const agentMessagesToChatMessages = (messages: AgentMessage[], chatId: string): ChatMessage[] => {
   const result: ChatMessage[] = [];
 
-  for (const msg of messages) {
+  for (const [index, msg] of messages.entries()) {
+    if (msg.role === 'portableHistory') {
+      result.push(...msg.messages.map(message => ({ ...message, parts: [...message.parts] })));
+      continue;
+    }
     if (msg.role === 'user') {
       const parts: ChatMessagePart[] = [];
 
@@ -235,7 +258,7 @@ const agentMessagesToChatMessages = (messages: AgentMessage[], chatId: string): 
       }
 
       result.push({
-        id: `msg-${msg.timestamp}`,
+        id: `msg-${index}-${msg.timestamp}`,
         chatId,
         role: 'user',
         parts,
@@ -265,7 +288,7 @@ const agentMessagesToChatMessages = (messages: AgentMessage[], chatId: string): 
       }
 
       result.push({
-        id: `msg-${msg.timestamp}`,
+        id: `msg-${index}-${msg.timestamp}`,
         chatId,
         role: 'assistant',
         parts,

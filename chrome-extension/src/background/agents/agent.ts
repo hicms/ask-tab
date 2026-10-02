@@ -4,6 +4,7 @@
  */
 
 import { agentLoop, agentLoopContinue } from './agent-loop';
+import { convertToLlm as defaultConvertToLlm } from './message-adapter';
 import { releaseToolResources } from '../tools/tool-lifecycle';
 import type {
   AgentContext,
@@ -23,9 +24,6 @@ import type {
   TextContent,
   ThinkingBudgets,
 } from '@mariozechner/pi-ai';
-
-const defaultConvertToLlm = (messages: AgentMessage[]): Message[] =>
-  messages.filter(m => m.role === 'user' || m.role === 'assistant' || m.role === 'toolResult');
 
 export interface AgentOptions {
   initialState?: Partial<AgentState>;

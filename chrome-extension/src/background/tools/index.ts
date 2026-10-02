@@ -229,7 +229,7 @@ const executeTool = async (
       const ct = agent?.customTools?.find(t => t.name === toolName);
       if (ct) {
         const result = await withTimeout(
-          executeCustomTool(ct, (args ?? {}) as Record<string, unknown>, agentId),
+          executeCustomTool(ct, (args ?? {}) as Record<string, unknown>, agentId, context?.signal),
           TOOL_TIMEOUT_MS,
           toolName,
         );

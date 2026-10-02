@@ -101,6 +101,14 @@ describe('extension link handshake', () => {
     expect(link.address.host).toBe('127.0.0.1');
   });
 
+  it('answers the availability probe with Upgrade Required before accepting a WebSocket', async () => {
+    const link = await startLink();
+    const response = await fetch(`http://127.0.0.1:${link.address.port}/`, { method: 'HEAD' });
+    expect(response.status).toBe(426);
+    expect(await response.text()).toBe('');
+    track(await authenticate(link.address.port));
+  });
+
   it('rejects a browser page origin', async () => {
     const link = await startLink();
     await expect(FakeExtension.connect(link.address.port, 'https://evil.example')).rejects.toThrow(

@@ -21,6 +21,7 @@ const ALARM_PERIOD_MINUTES = 0.5;
 const KEEPALIVE_INTERVAL_MS = 20_000;
 const INITIAL_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 30_000;
+const PROBE_TIMEOUT_MS = 2_000;
 // Application close code (4000-4999); the bridge does not interpret it, it only helps diagnostics.
 const HANDSHAKE_FAILED_CLOSE_CODE = 4401;
 const NORMAL_CLOSE_CODE = 1000;
@@ -115,6 +116,7 @@ const createMcpBridgeClient = () => {
   /** Port and token of the connection we want; undefined while MCP is off. */
   let wanted: { port: number; token: string } | undefined;
   let link: Link | undefined;
+  let probe: AbortController | undefined;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let backoffMs = INITIAL_BACKOFF_MS;
   let work: Promise<void> = Promise.resolve();
@@ -156,7 +158,7 @@ const createMcpBridgeClient = () => {
     backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
     retryTimer = setTimeout(() => {
       retryTimer = undefined;
-      if (wanted && !link) connect();
+      void connect();
     }, delay);
   };
 
@@ -227,10 +229,39 @@ const createMcpBridgeClient = () => {
     }
   };
 
-  const connect = (): void => {
-    if (!wanted) return;
+  const connect = async (): Promise<void> => {
+    if (!wanted || link || probe) return;
     clearRetry();
     const { port, token } = wanted;
+    const controller = new AbortController();
+    probe = controller;
+    const timeout = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+    let available = false;
+    try {
+      // ws's HTTP server answers ordinary requests with 426 (Upgrade Required).
+      // Probe before opening a socket: Chrome reports refused WebSockets even
+      // when onerror is handled, but an absent MCP client is normal here.
+      const response = await fetch(`http://127.0.0.1:${port}/`, {
+        method: 'HEAD',
+        cache: 'no-store',
+        credentials: 'omit',
+        redirect: 'error',
+        signal: controller.signal,
+      });
+      available = response.status === 426;
+    } catch {
+      // The bridge is absent or slow to start; keep waiting through the backoff.
+    } finally {
+      clearTimeout(timeout);
+    }
+    // A configuration change can cancel this attempt while fetch is pending.
+    if (probe !== controller) return;
+    probe = undefined;
+    if (!available || controller.signal.aborted) {
+      scheduleRetry();
+      return;
+    }
+
     let ws: WebSocket;
     try {
       ws = new WebSocket(`ws://127.0.0.1:${port}`);
@@ -267,6 +298,9 @@ const createMcpBridgeClient = () => {
 
   const disconnect = async (): Promise<void> => {
     clearRetry();
+    const pendingProbe = probe;
+    probe = undefined;
+    pendingProbe?.abort();
     const target = link;
     link = undefined;
     if (!target) return;
@@ -291,12 +325,12 @@ const createMcpBridgeClient = () => {
     }
     const changed = wanted?.port !== config.port || wanted.token !== config.token;
     wanted = { port: config.port, token: config.token };
-    await ensureAlarm();
     if (changed) {
       backoffMs = INITIAL_BACKOFF_MS;
       await disconnect();
     }
-    if (!link) connect();
+    await ensureAlarm();
+    if (!link && !retryTimer) void connect();
   };
 
   const enqueue = (): Promise<void> => {
@@ -315,7 +349,7 @@ const createMcpBridgeClient = () => {
     /** The periodic alarm revives the connection after the service worker slept. */
     handleAlarm: async (): Promise<void> => {
       await work;
-      if (wanted && !link) connect();
+      await connect();
     },
   };
 };

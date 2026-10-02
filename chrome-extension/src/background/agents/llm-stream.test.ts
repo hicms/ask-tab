@@ -251,7 +251,7 @@ describe('handleLLMStream — error propagation (Fix 2)', () => {
     // Should have sent LLM_STREAM_ERROR (not LLM_STREAM_END)
     const errorMsg = mockPostMessage.mock.calls.find(call => call[0].type === 'LLM_STREAM_ERROR');
     expect(errorMsg).toBeDefined();
-    expect(errorMsg![0].error).toBe('Context window exceeded');
+    expect(errorMsg![0].error).toContain('conversation too long after retries');
 
     // Should NOT have sent LLM_STREAM_END
     const endMsg = mockPostMessage.mock.calls.find(call => call[0].type === 'LLM_STREAM_END');

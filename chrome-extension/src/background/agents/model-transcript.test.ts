@@ -174,7 +174,8 @@ describe('model transcript replay', () => {
       id: 'another-public-model',
     });
     expect(switched).toHaveLength(1);
-    expect(switched[0]?.role).toBe('user');
+    expect(switched[0]?.role).toBe('portableHistory');
+    expect(makeConvertToLlm()(switched)[0]?.role).toBe('user');
     expect(JSON.stringify(switched)).toContain('Answer');
     expect(JSON.stringify(switched)).not.toContain('private thought');
     expect(JSON.stringify(switched)).not.toContain('opaque');

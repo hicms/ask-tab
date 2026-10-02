@@ -3,6 +3,7 @@
  * model-transcript.ts; assistant records reconstructed here are lossy.
  */
 
+import { displayHistoryAsContext } from './portable-history';
 import type { ChatMessage, ChatMessagePart } from '@extension/shared';
 import type { AgentMessage } from '@mariozechner/pi-agent-core';
 import type { Message } from '@mariozechner/pi-ai';
@@ -168,8 +169,12 @@ export const chatMessagesToPiMessages = (messages: ChatMessage[]): Message[] => 
  * filter to LLM-compatible message roles.
  */
 export const convertToLlm = (messages: AgentMessage[]): Message[] =>
-  messages.filter(
-    (m): m is Message => m.role === 'user' || m.role === 'assistant' || m.role === 'toolResult',
+  messages.flatMap((message): Message[] =>
+    message.role === 'portableHistory'
+      ? displayHistoryAsContext(message.messages, { includeSystem: true })
+      : message.role === 'user' || message.role === 'assistant' || message.role === 'toolResult'
+        ? [message]
+        : [],
   );
 
 /** The SDK codec serializes reasoning for the current model protocol. */

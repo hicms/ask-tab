@@ -73,7 +73,7 @@ describe('createTransformContext', () => {
           createdAt: 2,
         },
         {
-          id: 'user',
+          id: 'msg-1-3',
           chatId: 'chat-1',
           role: 'user',
           parts: [{ type: 'text', text: 'Continue' }],
@@ -87,7 +87,7 @@ describe('createTransformContext', () => {
     const { transformContext } = createTransformContext(defaultOpts);
     const result = await transformContext([makeAgentUserMessage('Earlier', 1), latestUser]);
     expect(result).toHaveLength(2);
-    expect(result[0]?.role).toBe('user');
+    expect(result[0]?.role).toBe('portableHistory');
     expect(JSON.stringify(result[0])).toContain('Earlier facts');
     expect(result[1]).toBe(latestUser);
   });

@@ -4,6 +4,7 @@ import { createHmac, randomBytes } from 'node:crypto';
 const TOKEN = 'secret-token-value';
 const PORT = 47821;
 const ALARM = 'mcp-bridge-reconnect';
+const fetchBridge = vi.fn<typeof fetch>();
 
 // ── Fakes ──
 
@@ -126,6 +127,7 @@ const latestSocket = () => FakeWebSocket.instances[FakeWebSocket.instances.lengt
 const startClient = async () => {
   const client = createMcpBridgeClient();
   await client.start();
+  await settle();
   return client;
 };
 
@@ -159,6 +161,9 @@ beforeEach(() => {
   configListeners = [];
   Object.assign(config, { enabled: true, port: PORT, token: TOKEN });
   vi.stubGlobal('WebSocket', FakeWebSocket);
+  vi.stubGlobal('fetch', fetchBridge);
+  fetchBridge.mockReset();
+  fetchBridge.mockResolvedValue(new Response(null, { status: 426 }));
   storageGet.mockClear();
   listMcpTools.mockClear();
   callMcpTool.mockReset();
@@ -183,6 +188,7 @@ describe('disabled', () => {
   it('opens no WebSocket, creates no alarm and clears a leftover one', async () => {
     await startClient();
     expect(FakeWebSocket.instances).toHaveLength(0);
+    expect(fetchBridge).not.toHaveBeenCalled();
     expect(alarmsCreate).not.toHaveBeenCalled();
     expect(alarmsClear).toHaveBeenCalledWith(ALARM);
   });
@@ -197,6 +203,13 @@ describe('disabled', () => {
 describe('connecting', () => {
   it('connects to the loopback bridge and keeps a periodic reconnect alarm', async () => {
     await startClient();
+    expect(fetchBridge).toHaveBeenCalledWith(`http://127.0.0.1:${PORT}/`, {
+      method: 'HEAD',
+      cache: 'no-store',
+      credentials: 'omit',
+      redirect: 'error',
+      signal: expect.any(AbortSignal),
+    });
     expect(latestSocket().url).toBe(`ws://127.0.0.1:${PORT}`);
     expect(alarmsCreate).toHaveBeenCalledWith(ALARM, { periodInMinutes: 0.5 });
   });
@@ -418,6 +431,75 @@ describe('session end', () => {
 });
 
 describe('retrying', () => {
+  it('waits without opening a WebSocket while the bridge is absent, then connects when it starts', async () => {
+    fetchBridge.mockRejectedValue(new TypeError('Failed to fetch'));
+    await startClient();
+    const delays = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000];
+    for (const [index, delay] of delays.entries()) {
+      await vi.advanceTimersByTimeAsync(delay - 1);
+      expect(fetchBridge).toHaveBeenCalledTimes(index + 1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fetchBridge).toHaveBeenCalledTimes(index + 2);
+      expect(FakeWebSocket.instances).toHaveLength(0);
+    }
+
+    fetchBridge.mockResolvedValue(new Response(null, { status: 426 }));
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    await completeHandshake(latestSocket());
+    latestSocket().receive({ type: 'list_tools', id: 'after-start' });
+    await until(() =>
+      latestSocket()
+        .sentMessages()
+        .some(m => m['type'] === 'tools'),
+    );
+  });
+
+  it.each([200, 301, 403, 404, 500])(
+    'does not open a WebSocket for HTTP %s from another service',
+    async status => {
+      fetchBridge.mockResolvedValue(new Response(null, { status }));
+      await startClient();
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(fetchBridge).toHaveBeenCalledTimes(2);
+      expect(FakeWebSocket.instances).toHaveLength(0);
+    },
+  );
+
+  it('times out a stalled probe and retries without opening a WebSocket', async () => {
+    fetchBridge.mockImplementationOnce(
+      (_url, options) =>
+        new Promise((_resolve, reject) => {
+          options!.signal!.addEventListener('abort', () => reject(options!.signal!.reason), {
+            once: true,
+          });
+        }),
+    );
+    await startClient();
+    const signal = fetchBridge.mock.calls[0]![1]!.signal!;
+    await vi.advanceTimersByTimeAsync(1_999);
+    expect(signal.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(signal.aborted).toBe(true);
+    expect(FakeWebSocket.instances).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(fetchBridge).toHaveBeenCalledTimes(2);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it('does not overlap probes when the alarm fires during a pending probe', async () => {
+    let finish!: (response: Response) => void;
+    fetchBridge.mockReturnValueOnce(new Promise(resolve => (finish = resolve)));
+    const client = await startClient();
+    await client.handleAlarm();
+    await client.handleAlarm();
+    expect(fetchBridge).toHaveBeenCalledTimes(1);
+    expect(FakeWebSocket.instances).toHaveLength(0);
+    finish(new Response(null, { status: 426 }));
+    await settle();
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
   it('backs off 1s, 2s, 4s … up to 30s', async () => {
     await startClient();
     const delays = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000];
@@ -463,6 +545,44 @@ describe('configuration changes', () => {
     for (const listener of configListeners) listener();
     await settle();
   };
+
+  it('cancels a pending probe immediately when MCP is disabled and ignores its late response', async () => {
+    let finish!: (response: Response) => void;
+    fetchBridge.mockReturnValueOnce(new Promise(resolve => (finish = resolve)));
+    await startClient();
+    const signal = fetchBridge.mock.calls[0]![1]!.signal!;
+    await change({ enabled: false });
+    expect(signal.aborted).toBe(true);
+    expect(alarmsClear).toHaveBeenCalledWith(ALARM);
+    finish(new Response(null, { status: 426 }));
+    await settle();
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(fetchBridge).toHaveBeenCalledTimes(1);
+    expect(FakeWebSocket.instances).toHaveLength(0);
+  });
+
+  it('starts probing the new port immediately and ignores a late response from the old port', async () => {
+    let finish!: (response: Response) => void;
+    fetchBridge.mockReturnValueOnce(new Promise(resolve => (finish = resolve)));
+    await startClient();
+    const signal = fetchBridge.mock.calls[0]![1]!.signal!;
+    await change({ port: 50000 });
+    expect(signal.aborted).toBe(true);
+    expect(fetchBridge.mock.calls[1]![0]).toBe('http://127.0.0.1:50000/');
+    expect(latestSocket().url).toBe('ws://127.0.0.1:50000');
+    finish(new Response(null, { status: 426 }));
+    await settle();
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it('preserves the retry backoff when an unchanged configuration is reported', async () => {
+    fetchBridge.mockRejectedValue(new TypeError('Failed to fetch'));
+    await startClient();
+    await change({});
+    expect(fetchBridge).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(fetchBridge).toHaveBeenCalledTimes(2);
+  });
 
   it('reconnects with the new port and ends the old session', async () => {
     const { socket } = await establishSession();
@@ -519,5 +639,6 @@ describe('configuration changes', () => {
     config.token = '';
     await startClient();
     expect(FakeWebSocket.instances).toHaveLength(0);
+    expect(fetchBridge).not.toHaveBeenCalled();
   });
 });

@@ -1,3 +1,4 @@
+import { createExtensionLink } from '../../../packages/mcp-bridge/lib/extension-link';
 import { expect, test } from '../fixtures/extension';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -10,6 +11,58 @@ type ToolResult = { isError?: boolean; content: Array<{ type: string; text?: str
 
 const textOf = (result: ToolResult): string =>
   result.content.map(part => part.text ?? '').join('\n');
+
+test('waits quietly for an absent bridge and connects when it starts', async ({ context }) => {
+  test.setTimeout(60_000);
+  const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  const token = 'mcp-reconnect-e2e-token';
+  const unusedBridge = await createExtensionLink({ port: 0, token, log: () => {} });
+  const { port } = unusedBridge.address;
+  await unusedBridge.close();
+
+  type ProbeState = { probes: number; sockets: number };
+  type TestScope = typeof globalThis & { mcpProbeState: ProbeState };
+  await worker.evaluate(
+    async ({ port, token }) => {
+      const scope = globalThis as TestScope;
+      const state = { probes: 0, sockets: 0 };
+      scope.mcpProbeState = state;
+      const nativeFetch = globalThis.fetch;
+      globalThis.fetch = async (input, options) => {
+        if (String(input) === `http://127.0.0.1:${port}/`) state.probes++;
+        return nativeFetch(input, options);
+      };
+      globalThis.WebSocket = new Proxy(globalThis.WebSocket, {
+        construct(target, args) {
+          if (String(args[0]) === `ws://127.0.0.1:${port}`) state.sockets++;
+          return Reflect.construct(target, args);
+        },
+      });
+      await chrome.storage.local.set({ 'mcp-bridge-config': { enabled: true, port, token } });
+    },
+    { port, token },
+  );
+
+  const readState = () => worker.evaluate(() => (globalThis as TestScope).mcpProbeState);
+  await expect
+    .poll(async () => (await readState()).probes, { timeout: 15_000 })
+    .toBeGreaterThanOrEqual(2);
+  expect((await readState()).sockets).toBe(0);
+
+  const bridge = await createExtensionLink({ port, token, log: () => {} });
+  try {
+    const tools = await bridge.listTools();
+    expect(tools.map(tool => tool.name)).toContain('browser');
+    expect((await readState()).sockets).toBe(1);
+  } finally {
+    await worker.evaluate(async () => {
+      await chrome.storage.local.set({
+        'mcp-bridge-config': { enabled: false, port: 47821, token: '' },
+      });
+    });
+    await bridge.close();
+  }
+});
 
 test('an MCP client drives the browser through the local bridge', async ({
   context,

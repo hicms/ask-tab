@@ -1,5 +1,6 @@
 import { cdpAttach, cdpSend } from './cdp';
-import { ensureJavascriptSandbox, resetJavascriptSandbox } from './javascript-sandbox';
+import { withDebuggerSession } from './debugger-lifecycle';
+import { withJavascriptSandbox, resetJavascriptSandbox } from './javascript-sandbox';
 import { injectControlIndicator, removeControlIndicator } from './tab-indicator';
 import { getActiveAgentId, getWorkspaceFile } from './tool-utils';
 import { withAbort } from '../agents/cancellation';
@@ -203,7 +204,8 @@ const executeCodeInTarget = async (
   }
 
   // 1. Use the requested tab, or a hidden offscreen document.
-  let target: number | chrome.debugger.Debuggee;
+  const evaluate = (target: number | chrome.debugger.Debuggee) =>
+    evaluateCode(target, code, args, timeout, targetTabId, exportAs, signal);
   if (targetTabId != null) {
     try {
       await chrome.tabs.get(targetTabId);
@@ -212,17 +214,28 @@ const executeCodeInTarget = async (
         `Tab ${targetTabId} not found. Use browser({ action: 'tabs' }) to list open tabs.`,
       );
     }
-    const attachErr = await cdpAttach(targetTabId);
-    if (attachErr && !attachErr.includes('Already attached')) {
-      const { executeCodeFirefox } = await import('./execute-js-firefox');
-      return executeCodeFirefox(code, args, timeout, targetTabId, exportAs);
-    }
-    await cdpSend(targetTabId, 'Runtime.enable');
-    target = targetTabId;
-  } else {
-    target = await ensureJavascriptSandbox();
+    return withDebuggerSession(targetTabId, signal, async () => {
+      const attachErr = await cdpAttach(targetTabId);
+      if (attachErr && !attachErr.includes('Already attached')) {
+        const { executeCodeFirefox } = await import('./execute-js-firefox');
+        return executeCodeFirefox(code, args, timeout, targetTabId, exportAs);
+      }
+      await cdpSend(targetTabId, 'Runtime.enable');
+      return evaluate(targetTabId);
+    });
   }
+  return withJavascriptSandbox(signal, evaluate);
+};
 
+const evaluateCode = async (
+  target: number | chrome.debugger.Debuggee,
+  code: string,
+  args?: Record<string, unknown>,
+  timeout?: number,
+  targetTabId?: number,
+  exportAs?: string,
+  signal?: AbortSignal,
+): Promise<string> => {
   // 2. Inject console capture
   signal?.throwIfAborted();
   await cdpSend(target, 'Runtime.evaluate', {

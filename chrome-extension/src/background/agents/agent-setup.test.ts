@@ -13,6 +13,7 @@ import {
   runHeadlessLLM,
   buildHeadlessSystemPrompt,
 } from './agent-setup';
+import { createStreamFn } from './stream-bridge';
 import { watchSession } from '../ask-service/client';
 import { hasOversizedToolResults } from '../context/tool-result-truncation';
 import { classifyError } from '../errors/error-classification';
@@ -534,12 +535,14 @@ describe('agent-setup', () => {
 
       const model = makeChatModel();
       const onRetry = vi.fn();
+      const onContextOverflow = vi.fn();
 
       const result = await runAgent({
         model,
         systemPrompt: 'You are helpful.',
         prompt: 'Hello',
         onRetry,
+        onContextOverflow,
       });
 
       expect(onRetry).toHaveBeenCalledWith(
@@ -549,6 +552,40 @@ describe('agent-setup', () => {
       );
       expect(result.retryAttempts).toBe(1);
       expect(result.error).toBeUndefined();
+      expect(onContextOverflow).toHaveBeenCalledWith(undefined);
+    });
+
+    it('does not send an unchanged context overflow retry to the provider', async () => {
+      mockPromptFn = vi.fn(async () => {
+        const stream = mockAgentOpts.streamFn as (...args: unknown[]) => unknown;
+        try {
+          await stream(
+            {},
+            {
+              systemPrompt: 'System',
+              messages: [{ role: 'user', content: 'Hello', timestamp: Date.now() }],
+              tools: [],
+            },
+            {},
+          );
+          mockAgentState.error = 'Context window exceeded';
+        } catch (error) {
+          // The real agent loop turns stream errors into state.error.
+          mockAgentState.error = String(error);
+        }
+      });
+      vi.mocked(classifyError).mockImplementation(error =>
+        error.includes('compaction failed') ? 'compaction-failure' : 'context-overflow',
+      );
+      const result = await runAgent({
+        model: makeChatModel(),
+        systemPrompt: 'System',
+        prompt: 'Hello',
+      });
+      const providerStream = vi.mocked(createStreamFn).mock.results.at(-1)!.value;
+      expect(providerStream).toHaveBeenCalledOnce();
+      expect(result.error).toContain('could not be reduced further');
+      expect(result.retryAttempts).toBe(1);
     });
   });
 

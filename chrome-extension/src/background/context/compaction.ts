@@ -1,4 +1,4 @@
-import { getEffectiveContextLimit, getModelContextLimit } from './limits';
+import { getEffectiveContextLimit } from './limits';
 import { summarizeMessages, summarizeInStages, shouldUseAdaptiveCompaction } from './summarizer';
 import {
   stripToolResultDetails,
@@ -290,6 +290,18 @@ const preprocessToolResults = (
   return compactOldestToolResults(afterTruncation, budgetChars);
 };
 
+/** Repair history without merging/deduplicating the current user prompt into it. */
+const repairCompactionTranscript = (messages: ChatMessage[]): ChatMessage[] => {
+  const latestUser = messages.findLastIndex(
+    m => m.role === 'user' && m.parts.some(p => p.type !== 'tool-result'),
+  );
+  if (latestUser <= 0) return repairTranscript(messages);
+  return [
+    ...repairTranscript(messages.slice(0, latestUser)),
+    ...repairTranscript(messages.slice(latestUser)),
+  ];
+};
+
 /**
  * Core sliding-window compaction on already-preprocessed messages.
  * Operates on messages that have already been through truncation and
@@ -301,14 +313,15 @@ const compactMessagesCore = (
   systemPromptTokens: number,
   contextWindowOverride?: number,
   skipRepair?: boolean,
+  tokenSafetyMargin = TOKEN_SAFETY_MARGIN,
 ): CompactionResult => {
   const startTime = Date.now();
   const budget = getEffectiveContextLimit(modelId, contextWindowOverride) - systemPromptTokens;
-  const messages = skipRepair ? preprocessed : repairTranscript(preprocessed);
+  const messages = skipRepair ? preprocessed : repairCompactionTranscript(preprocessed);
   const messageSizes = messages.map(estimateMessageTokens);
   const totalTokens = messageSizes.reduce((a, b) => a + b, 0);
 
-  const adjustedTotal = Math.ceil(totalTokens * TOKEN_SAFETY_MARGIN);
+  const adjustedTotal = Math.ceil(totalTokens * tokenSafetyMargin);
   if (adjustedTotal <= budget) {
     return { messages, wasCompacted: false };
   }
@@ -325,27 +338,21 @@ const compactMessagesCore = (
 
   let remainingBudget = budget - anchorTokens - markerTokens;
   if (remainingBudget <= 0) {
-    // Even the anchor doesn't fit — return just anchor
-    const tokensAfter = estimateMessageTokens(messages[anchorIdx]!);
-    const durationMs = Date.now() - startTime;
-    compactionLog.info('Compaction complete', {
-      method: 'sliding-window',
-      tokensBefore: totalTokens,
-      tokensAfter,
-      tokensSaved: totalTokens - tokensAfter,
-      messagesDropped: messages.length - 1,
-      durationMs,
-      messagesBefore: messages.length,
-      messagesAfter: 1,
-    });
+    const bounded = enforceHardTokenLimit(
+      messages,
+      modelId,
+      systemPromptTokens,
+      contextWindowOverride,
+      tokenSafetyMargin,
+    );
     return {
-      messages: [messages[anchorIdx]!],
+      messages: bounded,
       wasCompacted: true,
       compactionMethod: 'sliding-window',
       tokensBefore: totalTokens,
-      tokensAfter,
-      messagesDropped: messages.length - 1,
-      durationMs,
+      tokensAfter: bounded.reduce((sum, message) => sum + estimateMessageTokens(message), 0),
+      messagesDropped: messages.length - bounded.length,
+      durationMs: Date.now() - startTime,
     };
   }
 
@@ -389,7 +396,13 @@ const compactMessagesCore = (
 
   // Post-compaction safety: if the result still exceeds the hard limit,
   // aggressively truncate the largest tool results in the recent window.
-  result = enforceHardTokenLimit(result, modelId, systemPromptTokens, contextWindowOverride);
+  result = enforceHardTokenLimit(
+    result,
+    modelId,
+    systemPromptTokens,
+    contextWindowOverride,
+    tokenSafetyMargin,
+  );
 
   const tokensAfter = result.reduce((sum, m) => sum + estimateMessageTokens(m), 0);
 
@@ -428,73 +441,104 @@ const compactMessagesCore = (
   };
 };
 
-/**
- * Post-compaction safety net: re-estimate the total tokens and if still
- * over the hard context limit (not the 75% budget — the full limit minus
- * system prompt), iteratively truncate the largest tool results until
- * the estimate fits. This prevents the "compaction thinks it fits but
- * provider rejects" loop.
+/** Bound all history content, including legacy flattened text, after compaction.
+ * The latest user prompt is never truncated. Full UI history remains in storage.
  */
 const enforceHardTokenLimit = (
   messages: ChatMessage[],
   modelId: string,
   systemPromptTokens: number,
   contextWindowOverride?: number,
+  tokenSafetyMargin = TOKEN_SAFETY_MARGIN,
 ): ChatMessage[] => {
-  const hardLimit = getModelContextLimit(modelId, contextWindowOverride) - systemPromptTokens;
-  const totalTokens = messages.reduce((sum, m) => sum + estimateMessageTokens(m), 0);
-  const adjustedTotal = Math.ceil(totalTokens * TOKEN_SAFETY_MARGIN);
-
-  if (adjustedTotal <= hardLimit) return messages;
-
-  compactionLog.trace('enforceHardTokenLimit: over limit, truncating', {
-    adjustedTotal,
-    hardLimit,
-    messageCount: messages.length,
-  });
-
-  // Collect all tool-result parts with their sizes, sorted largest first
-  const candidates: Array<{ msgIdx: number; partIdx: number; size: number }> = [];
-  for (let mi = 0; mi < messages.length; mi++) {
-    for (let pi = 0; pi < messages[mi]!.parts.length; pi++) {
-      const part = messages[mi]!.parts[pi]!;
-      if (part.type === 'tool-result') {
-        const str = typeof part.result === 'string' ? part.result : JSON.stringify(part.result);
-        candidates.push({ msgIdx: mi, partIdx: pi, size: str.length });
-      }
-    }
-  }
-  candidates.sort((a, b) => b.size - a.size);
-
-  const result = messages.map(m => ({ ...m, parts: [...m.parts] }));
-  const targetChars = Math.floor(hardLimit * CHARS_PER_TOKEN_ESTIMATE * 0.8); // 80% of limit in chars
-  let currentChars = messages.reduce(
-    (sum, m) =>
-      sum +
-      m.parts.reduce((ps, p) => {
-        if (p.type === 'tool-result') {
-          const str = typeof p.result === 'string' ? p.result : JSON.stringify(p.result);
-          return ps + str.length;
-        }
-        if (p.type === 'text' || p.type === 'reasoning') return ps + p.text.length;
-        if (p.type === 'tool-call') return ps + JSON.stringify(p.args).length;
-        return ps;
-      }, 0),
-    0,
+  const budget = Math.floor(
+    (getEffectiveContextLimit(modelId, contextWindowOverride) - systemPromptTokens) /
+      tokenSafetyMargin,
   );
+  const totalTokens = messages.reduce((sum, message) => sum + estimateMessageTokens(message), 0);
+  if (totalTokens <= budget) return messages;
 
-  for (const { msgIdx, partIdx, size } of candidates) {
-    if (currentChars <= targetChars) break;
-    const part = result[msgIdx]!.parts[partIdx]!;
-    if (part.type !== 'tool-result') continue;
-    const maxChars = Math.max(MIN_KEEP_CHARS, Math.floor(size * 0.3));
-    const str = typeof part.result === 'string' ? part.result : JSON.stringify(part.result);
-    if (str.length > maxChars) {
-      result[msgIdx]!.parts[partIdx] = { ...part, result: truncateToolResultText(str, maxChars) };
-      currentChars -= size - maxChars;
-    }
+  const latestUser = messages.findLastIndex(
+    message => message.role === 'user' && message.parts.some(part => part.type !== 'tool-result'),
+  );
+  const latestTokens = latestUser < 0 ? 0 : estimateMessageTokens(messages[latestUser]!);
+  if (latestTokens > budget || budget < 32) {
+    throw new Error(
+      'Context compaction failed: the latest message and system instructions exceed this model’s context budget. Shorten the message or select a model with a larger context window.',
+    );
   }
 
+  const marker: ChatMessage = {
+    id: '__context_budget_marker__',
+    chatId: messages[0]!.chatId,
+    role: 'system',
+    parts: [{ type: 'text', text: '[Earlier context shortened to fit the model context window.]' }],
+    createdAt: 0,
+  };
+  let remaining = budget - latestTokens;
+  const markerTokens = estimateMessageTokens(marker);
+  const includeMarker = remaining >= markerTokens;
+  if (includeMarker) remaining -= markerTokens;
+  const kept = new Map<number, ChatMessage>();
+  if (latestUser >= 0) kept.set(latestUser, messages[latestUser]!);
+
+  const keepWithin = (index: number, allowance: number): void => {
+    const message = messages[index]!;
+    const size = estimateMessageTokens(message);
+    if (size <= allowance) {
+      kept.set(index, message);
+      remaining -= size;
+    } else if (allowance >= 32) {
+      // A shortened message is portable context, not a reconstructed tool call.
+      const text = message.parts
+        .flatMap(part => {
+          if (part.type === 'text') return [part.text];
+          if (part.type === 'tool-call')
+            return [`Tool call (${part.toolName}): ${JSON.stringify(part.args)}`];
+          if (part.type === 'tool-result')
+            return [`Tool result (${part.toolName}): ${JSON.stringify(part.result)}`];
+          if (part.type === 'file') return [`File: ${part.filename ?? 'attachment'}`];
+          return [];
+        })
+        .join('\n');
+      const notice = '\n[... earlier content shortened ...]\n';
+      const chars = Math.max(0, (allowance - 4) * CHARS_PER_TOKEN_ESTIMATE - notice.length);
+      const head = Math.ceil(chars / 2);
+      const tail = Math.floor(chars / 2);
+      const shortened: ChatMessage = {
+        ...message,
+        parts: [
+          {
+            type: 'text',
+            text:
+              text.length <= chars
+                ? text
+                : text.slice(0, head) + notice + (tail ? text.slice(-tail) : ''),
+          },
+        ],
+      };
+      kept.set(index, shortened);
+      remaining -= estimateMessageTokens(shortened);
+    }
+  };
+
+  // Keep a bounded anchor, then prioritize recent messages over older history.
+  const anchor = messages.findIndex(message => message.role === 'user');
+  if (anchor >= 0 && anchor !== latestUser) keepWithin(anchor, Math.floor(remaining * 0.15));
+  let recent = 0;
+  for (let index = messages.length - 1; index >= 0 && remaining >= 4; index--) {
+    if (kept.has(index)) continue;
+    const size = estimateMessageTokens(messages[index]!);
+    if (size > remaining && recent >= MIN_RECENT_MESSAGES) break;
+    const allowance =
+      size <= remaining
+        ? remaining
+        : Math.floor(remaining / Math.max(1, MIN_RECENT_MESSAGES - recent));
+    keepWithin(index, allowance);
+    recent++;
+  }
+  const result = [...kept.entries()].sort(([a], [b]) => a - b).map(([, message]) => message);
+  if (includeMarker) result.splice(anchor >= 0 && kept.has(anchor) ? 1 : 0, 0, marker);
   return result;
 };
 
@@ -516,7 +560,7 @@ const compactMessages = (
   systemPromptTokens = 0,
   contextWindowOverride?: number,
 ): CompactionResult => {
-  if (messages.length <= 2) {
+  if (messages.length === 0) {
     return { messages, wasCompacted: false };
   }
 
@@ -571,12 +615,12 @@ const compactMessagesWithSummary = async (
   const cfgTokenSafetyMargin = compactionConfig?.tokenSafetyMargin ?? TOKEN_SAFETY_MARGIN;
   const cfgMinRecentMessages = compactionConfig?.recentTurnsPreserve ?? MIN_RECENT_MESSAGES;
 
-  if (messages.length <= 2) {
+  if (messages.length === 0) {
     return { messages, wasCompacted: false, compactionMethod: 'none' };
   }
 
   // Repair transcript: remove empty/duplicate messages, fix role ordering, repair tool pairing
-  const repaired = repairTranscript(messages);
+  const repaired = repairCompactionTranscript(messages);
 
   // Preprocess: truncate oversized tool results + compact oldest results
   const truncated = preprocessToolResults(
@@ -619,27 +663,14 @@ const compactMessagesWithSummary = async (
   let remainingBudget = budget - anchorTokens - summaryReserve;
 
   if (remainingBudget <= 0) {
-    const tokensAfter = estimateMessageTokens(truncated[anchorIdx]!);
-    const durationMs = Date.now() - startTime;
-    compactionLog.info('Compaction complete', {
-      method: 'sliding-window',
-      tokensBefore: totalTokens,
-      tokensAfter,
-      tokensSaved: totalTokens - tokensAfter,
-      messagesDropped: truncated.length - 1,
-      durationMs,
-      messagesBefore: truncated.length,
-      messagesAfter: 1,
-    });
-    return {
-      messages: [truncated[anchorIdx]!],
-      wasCompacted: true,
-      compactionMethod: 'sliding-window',
-      tokensBefore: totalTokens,
-      tokensAfter,
-      messagesDropped: truncated.length - 1,
-      durationMs,
-    };
+    return compactMessagesCore(
+      truncated,
+      modelId,
+      systemPromptTokens,
+      contextWindowOverride,
+      true,
+      cfgTokenSafetyMargin,
+    );
   }
 
   // maxHistoryShare guard: cap how much of the budget any single message
@@ -746,6 +777,7 @@ const compactMessagesWithSummary = async (
       systemPromptTokens,
       contextWindowOverride,
       true,
+      cfgTokenSafetyMargin,
     );
     // Preserve the outer startTime for more accurate total duration
     if (fallback.wasCompacted) {
@@ -865,6 +897,7 @@ const compactMessagesWithSummary = async (
           modelId,
           systemPromptTokens,
           contextWindowOverride,
+          cfgTokenSafetyMargin,
         );
 
         const tokensAfter = repaired.reduce((sum, m) => sum + estimateMessageTokens(m), 0);
@@ -917,6 +950,7 @@ const compactMessagesWithSummary = async (
       systemPromptTokens,
       contextWindowOverride,
       true,
+      cfgTokenSafetyMargin,
     );
     // Preserve the outer startTime for more accurate total duration
     if (fallback.wasCompacted) {

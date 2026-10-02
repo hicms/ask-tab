@@ -19,6 +19,7 @@ import { typeByRef } from './browser-type';
 import { clearSnapshotVisuals, showCdpSnapshotVisuals, sendVisualCommand } from './browser-visuals';
 import { waitForPage } from './browser-wait';
 import { cdpSend, cdpSendWithReattach, keepTabRendering } from './cdp';
+import { withDebuggerSession } from './debugger-lifecycle';
 import { sanitizeImage } from './image-sanitization';
 import { injectControlIndicator, removeControlIndicator } from './tab-indicator';
 import { createLogger } from '../logging/logger-buffer';
@@ -86,6 +87,22 @@ const getOrCreateSession = (tabId: number): TabSession => {
 const cleanupSession = (tabId: number): void => {
   sessions.delete(tabId);
 };
+
+const withBrowserDebuggerSession = <T>(
+  tabId: number,
+  signal: AbortSignal | undefined,
+  execute: () => Promise<T>,
+): Promise<T> =>
+  withDebuggerSession(tabId, signal, execute, () => {
+    const session = sessions.get(tabId);
+    if (session) {
+      session.attached = false;
+      session.refMap.clear();
+      session.snapshotBackend = undefined;
+    }
+    cleanupSession(tabId);
+    attachFailureCache.delete(tabId);
+  });
 
 const pushToRingBuffer = <T>(buffer: T[], item: T): void => {
   buffer.push(item);
@@ -522,7 +539,11 @@ const handleTabs = async (): Promise<string> => {
   return `Open tabs (${tabs.length}):\n${lines.join('\n')}`;
 };
 
-const handleOpen = async (args: BrowserArgs, chatId?: string): Promise<string> => {
+const handleOpen = async (
+  args: BrowserArgs,
+  chatId?: string,
+  signal?: AbortSignal,
+): Promise<string> => {
   if (!args.url) return 'Error: "url" is required for the "open" action.';
   const props = { url: args.url, active: args.active ?? false };
   const tab =
@@ -532,7 +553,9 @@ const handleOpen = async (args: BrowserArgs, chatId?: string): Promise<string> =
 
   // Attach while the page loads so a background tab keeps rendering.
   if (tab.id != null) {
-    const attachErr = await ensureAttached(tab.id);
+    const attachErr = await withBrowserDebuggerSession(tab.id, signal, () =>
+      ensureAttached(tab.id!),
+    );
     if (attachErr) {
       browserLog.info('handleOpen: attach failed, page may not render in the background', {
         tabId: tab.id,
@@ -1025,7 +1048,12 @@ const executeBrowser = async (
   return runBrowserTabAction(
     args,
     context?.signal,
-    () => executeBrowserAction(args, context?.chatId),
+    () =>
+      !IS_FIREFOX && args.tabId != null && args.action !== 'open'
+        ? withBrowserDebuggerSession(args.tabId, context?.signal, () =>
+            executeBrowserAction(args, context),
+          )
+        : executeBrowserAction(args, context),
     async tabId => {
       const session = sessions.get(tabId);
       session?.refMap.clear();
@@ -1037,8 +1065,9 @@ const executeBrowser = async (
 
 const executeBrowserAction = async (
   args: BrowserArgs,
-  chatId?: string,
+  context?: ToolContext,
 ): Promise<string | ScreenshotResult> => {
+  const chatId = context?.chatId;
   const isTabGroupAction =
     args.action === 'group_tabs' ||
     args.action === 'ungroup_tabs' ||
@@ -1071,7 +1100,7 @@ const executeBrowserAction = async (
         result = await handleTabs();
         break;
       case 'open':
-        result = await handleOpen(args, chatId);
+        result = await handleOpen(args, chatId, context?.signal);
         break;
       case 'focus':
         result = await handleFocus(args);

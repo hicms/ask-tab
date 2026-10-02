@@ -9,7 +9,7 @@ import { chatModelToPiModel } from './model-adapter';
 import { createModelCheckpoint, modelSourceKey } from './model-transcript';
 import { createStreamFn } from './stream-bridge';
 import { requireSession, watchSession } from '../ask-service/client';
-import { setProviderTokenLimit } from '../context/provider-limit-cache';
+import { getProviderTokenLimit, setProviderTokenLimit } from '../context/provider-limit-cache';
 import { hasOversizedToolResults, truncateToolResults } from '../context/tool-result-truncation';
 import { createTransformContext } from '../context/transform';
 import {
@@ -38,7 +38,7 @@ import { nanoid } from 'nanoid';
 import type { ErrorCategory } from '../errors/error-classification';
 import type { ChatModel, ChatMessagePart, ModelProvider } from '@extension/shared';
 import type { DbChatModel, DbChat, AskSession } from '@extension/storage';
-import type { AgentEvent, AgentMessage } from '@mariozechner/pi-agent-core';
+import type { AgentEvent, AgentMessage, StreamFn } from '@mariozechner/pi-agent-core';
 import type { AssistantMessage, ImageContent, Message, TextContent } from '@mariozechner/pi-ai';
 
 const agentLog = createLogger('agent');
@@ -95,6 +95,8 @@ interface RunAgentOpts {
   onRetry?: (info: RetryInfo) => void;
   /** Called when the provider reports a lower token limit than the model's contextWindow. */
   onProviderLimitDetected?: (limit: number) => void;
+  /** Tighten context after any overflow, including errors without a numeric limit. */
+  onContextOverflow?: (limit?: number) => void;
 
   // Event callbacks (all optional — headless uses none)
   onTextDelta?: (delta: string) => void;
@@ -470,7 +472,33 @@ const runAgent = async (opts: RunAgentOpts): Promise<RunAgentResult> => {
   // 1. Build pi-mono primitives (shared across attempts)
   const sessionSnapshot = await requireSession();
   const { model: piModel } = chatModelToPiModel(model);
-  const streamFn = createStreamFn(model);
+  const providerStream = createStreamFn(model);
+  let lastRequest: string | undefined;
+  let rejectedRequest: string | undefined;
+  const streamFn: StreamFn = (resolvedModel, context, options) => {
+    const providerLimit = getProviderTokenLimit(model.id);
+    const streamOptions = providerLimit
+      ? {
+          ...options,
+          maxTokens: Math.min(
+            options?.maxTokens ?? piModel.maxTokens,
+            Math.max(1, Math.floor(providerLimit * 0.25)),
+          ),
+        }
+      : options;
+    const request = JSON.stringify({
+      ...context,
+      maxTokens: streamOptions?.maxTokens,
+      messages: context.messages.map(({ timestamp: _timestamp, ...message }) => message),
+    });
+    if (request === rejectedRequest) {
+      throw new Error(
+        'Context compaction failed: history could not be reduced further. Shorten the latest message or select a model with a larger context window.',
+      );
+    }
+    lastRequest = request;
+    return providerStream(resolvedModel, context, streamOptions);
+  };
   const tools =
     model.supportsTools === false
       ? []
@@ -564,6 +592,9 @@ const runAgent = async (opts: RunAgentOpts): Promise<RunAgentResult> => {
         setProviderTokenLimit(model.id, providerLimit);
         opts.onProviderLimitDetected?.(providerLimit);
       }
+
+      rejectedRequest = lastRequest;
+      opts.onContextOverflow?.(providerLimit);
 
       // Determine retry strategy
       if (hasOversizedToolResults(currentMessages, model.id, providerLimit)) {
@@ -732,7 +763,7 @@ const runHeadlessLLM = async (opts: {
 
   // Build transformContext for headless mode (previously missing — cron jobs never compacted)
   const systemPromptTokens = Math.ceil(systemPrompt.length / 4);
-  const { transformContext, setProviderLimit } = createTransformContext({
+  const { transformContext, setProviderLimit, prepareRetry } = createTransformContext({
     chatId,
     modelConfig: model,
     systemPromptTokens,
@@ -749,6 +780,7 @@ const runHeadlessLLM = async (opts: {
       transformContext,
       onCheckpoint: createModelCheckpoint(chatId, modelSourceKey(model)),
       onProviderLimitDetected: setProviderLimit,
+      onContextOverflow: prepareRetry,
       chatId,
     });
 

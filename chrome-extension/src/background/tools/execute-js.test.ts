@@ -126,6 +126,7 @@ import {
   parseToolMetadata,
   stripLeadingComments,
 } from './execute-js';
+import { releaseToolResources } from './tool-lifecycle';
 /* eslint-enable import-x/first, import-x/order */
 
 // Mock activeAgentStorage to return 'test-agent'
@@ -204,6 +205,11 @@ describe('executeCode', () => {
       expect.any(Function),
     );
     expect(closeDocument).toHaveBeenCalledOnce();
+    await releaseToolResources(controller.signal);
+    expect(mockDebuggerDetach).toHaveBeenCalledWith(
+      { targetId: SANDBOX_TARGET_ID },
+      expect.any(Function),
+    );
     expect(await executeCode('return 42')).toBe('42');
   });
 
@@ -258,6 +264,63 @@ describe('executeCode', () => {
 // ── Hidden sandbox lifecycle ────────────────────
 
 describe('hidden sandbox lifecycle', () => {
+  it.each([undefined, 7])('releases debugger target %s when the task ends', async tabId => {
+    const signal = new AbortController().signal;
+    expect(await executeCode('return 42', undefined, undefined, tabId, undefined, signal)).toBe(
+      '42',
+    );
+    expect(mockDebuggerDetach).not.toHaveBeenCalled();
+    await releaseToolResources(signal);
+    expect(mockDebuggerDetach).toHaveBeenCalledExactlyOnceWith(
+      tabId == null ? { targetId: SANDBOX_TARGET_ID } : { tabId },
+      expect.any(Function),
+    );
+  });
+
+  it('releases the sandbox after an execution error', async () => {
+    const signal = new AbortController().signal;
+    await expect(
+      executeCode('throw new Error("boom")', undefined, undefined, undefined, undefined, signal),
+    ).rejects.toThrow('boom');
+    await releaseToolResources(signal);
+    expect(mockDebuggerDetach).toHaveBeenCalledExactlyOnceWith(
+      { targetId: SANDBOX_TARGET_ID },
+      expect.any(Function),
+    );
+  });
+
+  it('preserves sandbox modules across task cleanup and reattaches for the next task', async () => {
+    const first = new AbortController().signal;
+    const second = new AbortController().signal;
+    await executeCode('return {value: 42}', undefined, undefined, undefined, 'saved', first);
+    await releaseToolResources(first);
+    expect(
+      await executeCode(
+        'return window.__modules.saved.value',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        second,
+      ),
+    ).toBe('42');
+    await releaseToolResources(second);
+    expect(mockDebuggerAttach).toHaveBeenCalledTimes(2);
+    expect(mockDebuggerDetach).toHaveBeenCalledTimes(2);
+    expect(mockOffscreenCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not detach a sandbox still owned by another task', async () => {
+    const first = new AbortController().signal;
+    const second = new AbortController().signal;
+    await executeCode('return 1', undefined, undefined, undefined, undefined, first);
+    await executeCode('return 2', undefined, undefined, undefined, undefined, second);
+    await releaseToolResources(first);
+    expect(mockDebuggerDetach).not.toHaveBeenCalled();
+    await releaseToolResources(second);
+    expect(mockDebuggerDetach).toHaveBeenCalledOnce();
+  });
+
   it('executes in an offscreen target without creating a browser tab', async () => {
     expect(await executeCode('return 42')).toBe('42');
     expect(mockOffscreenCreate).toHaveBeenCalledWith(

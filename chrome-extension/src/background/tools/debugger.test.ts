@@ -30,7 +30,8 @@ vi.mock('@extension/storage', () => ({
   },
 }));
 
-const { executeDebugger } = await import('./debugger');
+const { executeDebugger, debuggerToolDef } = await import('./debugger');
+const { releaseToolResources } = await import('./tool-lifecycle');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -68,6 +69,19 @@ describe('debugger — list_targets', () => {
 // ── attach ──
 
 describe('debugger — attach', () => {
+  it('releases its connection with the registered task context', async () => {
+    const signal = new AbortController().signal;
+    mockAttach.mockImplementation((_target: unknown, _version: string, cb: () => void) => cb());
+    mockDetach.mockImplementation((_target: unknown, cb: () => void) => cb());
+    expect(debuggerToolDef.needsContext).toBe(true);
+    expect(await debuggerToolDef.execute({ action: 'attach', tabId: 42 }, { signal })).toBe(
+      'Debugger attached to tab 42',
+    );
+    expect(mockDetach).not.toHaveBeenCalled();
+    await releaseToolResources(signal);
+    expect(mockDetach).toHaveBeenCalledExactlyOnceWith({ tabId: 42 }, expect.any(Function));
+  });
+
   it('attaches successfully', async () => {
     mockAttach.mockImplementation((_target: unknown, _version: string, cb: () => void) => {
       cb();

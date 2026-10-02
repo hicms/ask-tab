@@ -15,6 +15,7 @@ vi.mock('@extension/storage', () => ({
   updateAgent: vi.fn(),
 }));
 vi.mock('../tool-utils', () => ({ getActiveAgentId: vi.fn(), getWorkspaceFile: vi.fn() }));
+vi.mock('../../logging/logger-buffer', () => ({ createLogger: () => ({ warn: vi.fn() }) }));
 
 beforeEach(() => {
   vi.clearAllMocks();

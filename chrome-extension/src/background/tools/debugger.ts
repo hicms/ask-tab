@@ -1,4 +1,5 @@
 import { cdpSend, cdpAttach } from './cdp';
+import { withDebuggerSession } from './debugger-lifecycle';
 import { injectControlIndicator, removeControlIndicator } from './tab-indicator';
 import { Type } from '@sinclair/typebox';
 import type { ToolRegistration } from './tool-registration';
@@ -44,7 +45,15 @@ type DebuggerArgs = Static<typeof debuggerSchema>;
 // Executor
 // ---------------------------------------------------------------------------
 
-const executeDebugger = async (args: DebuggerArgs): Promise<string> => {
+const executeDebugger = async (args: DebuggerArgs, signal?: AbortSignal): Promise<string> => {
+  if (args.tabId != null && (args.action === 'attach' || args.action === 'send')) {
+    return withDebuggerSession(args.tabId, signal, () => executeDebuggerAction(args));
+  }
+  signal?.throwIfAborted();
+  return executeDebuggerAction(args);
+};
+
+const executeDebuggerAction = async (args: DebuggerArgs): Promise<string> => {
   const highlightTabId =
     args.action === 'attach' || args.action === 'send' ? args.tabId : undefined;
   if (highlightTabId != null) await injectControlIndicator(highlightTabId);
@@ -111,7 +120,8 @@ const debuggerToolDef: ToolRegistration = {
     'Send Chrome DevTools Protocol (CDP) commands to browser tabs. Actions: send (execute a CDP command), attach/detach (manage debugger session), list_targets (list debuggable targets).',
   schema: debuggerSchema,
   chromeOnly: true,
-  execute: args => executeDebugger(args as DebuggerArgs),
+  needsContext: true,
+  execute: (args, context) => executeDebugger(args as DebuggerArgs, context?.signal),
 };
 
 export { debuggerSchema, executeDebugger, debuggerToolDef };

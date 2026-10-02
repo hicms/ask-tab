@@ -238,14 +238,14 @@ describe('compactMessages', () => {
     }
   });
 
-  it('handles single message (never compacts)', () => {
+  it('leaves a short single message unchanged', () => {
     const msg = makeMessage();
     const result = compactMessages([msg], 'gpt-4o');
     expect(result.wasCompacted).toBe(false);
     expect(result.messages).toEqual([msg]);
   });
 
-  it('handles two messages (never compacts)', () => {
+  it('leaves two short messages unchanged', () => {
     const messages = [makeMessage({ id: 'm1' }), makeMessage({ id: 'm2', role: 'assistant' })];
     const result = compactMessages(messages, 'gpt-4o');
     expect(result.wasCompacted).toBe(false);
@@ -494,8 +494,11 @@ describe('compactMessagesWithSummary', () => {
     const result = await compactMessagesWithSummary(messages, 'gpt-4o', mockModelConfig);
     expect(result.wasCompacted).toBe(true);
     expect(result.compactionMethod).toBe('sliding-window');
-    expect(result.messages).toHaveLength(1);
     expect(result.messages[0]!.id).toBe('m1');
+    expect(result.messages.at(-1)).toEqual(messages.at(-1));
+    expect(
+      result.messages.reduce((sum, message) => sum + estimateMessageTokens(message), 0),
+    ).toBeLessThanOrEqual(96000 / 1.25);
     expect(mockSummarize).not.toHaveBeenCalled();
   });
 
@@ -1360,6 +1363,7 @@ describe('compactMessagesWithSummary — transcript repair integration', () => {
   };
 
   it('repairs transcript before compaction', async () => {
+    vi.mocked(repairTranscript).mockClear();
     const mockSummarizeLocal = vi.mocked(summarizeMessages);
     mockSummarizeLocal.mockResolvedValueOnce('Summary of conversation');
 
@@ -1403,7 +1407,13 @@ describe('compactMessagesWithSummary — transcript repair integration', () => {
     expect(mockRepair).toHaveBeenCalled();
     // The input should include the empty message; repair filters it
     const inputMessages = mockRepair.mock.calls[0]![0]!;
-    expect(inputMessages.length).toBe(messages.length);
+    const latestUser = messages.findLastIndex(message => message.role === 'user');
+    expect(inputMessages.map(message => message.id)).toEqual(
+      messages.slice(0, latestUser).map(message => message.id),
+    );
+    expect(mockRepair.mock.calls[1]![0].map(message => message.id)).toEqual(
+      messages.slice(latestUser).map(message => message.id),
+    );
   });
 });
 

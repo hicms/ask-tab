@@ -615,6 +615,46 @@ describe('handleLLMStream', () => {
     );
   });
 
+  it('clears the earlier overflow error when the retry succeeds', async () => {
+    mockRunAgent.mockImplementation(async (opts: RunAgentOpts) => {
+      opts.onAgentEnd?.({
+        agent: { state: { error: 'Context window exceeded' } } as never,
+        messages: [],
+        stepCount: 1,
+        timedOut: false,
+      });
+      opts.onRetry?.({
+        attempt: 1,
+        maxAttempts: 3,
+        reason: 'Reduced history',
+        strategy: 'compaction',
+      });
+      opts.onAgentEnd?.({
+        agent: { state: {} } as never,
+        messages: [],
+        stepCount: 1,
+        timedOut: false,
+      });
+      return {
+        responseText: 'OK',
+        parts: [],
+        usage: { inputTokens: 1, outputTokens: 1 },
+        agent: { state: {} } as never,
+        stepCount: 1,
+        timedOut: false,
+        retryAttempts: 1,
+      };
+    });
+    const port = createMockPort();
+    await handleLLMStream(port as never, makeRequest());
+    expect(port.postMessage.mock.calls.some(([event]) => event.type === 'LLM_STREAM_ERROR')).toBe(
+      false,
+    );
+    expect(port.postMessage.mock.calls.some(([event]) => event.type === 'LLM_STREAM_END')).toBe(
+      true,
+    );
+  });
+
   it('sends LLM_STREAM_ERROR on exception', async () => {
     mockRunAgent.mockRejectedValueOnce(new Error('API connection failed'));
 

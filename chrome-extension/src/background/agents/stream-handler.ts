@@ -134,7 +134,6 @@ const runLLMStream = async (port: StreamTarget, active: ActiveStream): Promise<v
   let assistantMessage = active.assistantMessage;
   let assistantParts = assistantMessage.parts;
   let turnPartStart = 0;
-  let agentErrorMessage: string | undefined;
   let steeringWrites = Promise.resolve();
 
   const persistSteeringWrite = (message: ChatMessage) => {
@@ -223,6 +222,7 @@ const runLLMStream = async (port: StreamTarget, active: ActiveStream): Promise<v
       transformContext,
       getResult: getCompactionResult,
       setProviderLimit,
+      prepareRetry,
     } = createTransformContext({
       chatId,
       modelConfig,
@@ -264,6 +264,7 @@ const runLLMStream = async (port: StreamTarget, active: ActiveStream): Promise<v
     let lastOutputTokens = 0;
     let lastResponseText = '';
     let ttsEndPromise: Promise<void> | undefined;
+    let agentErrorMessage: string | undefined;
     let endPayload: Omit<LLMStreamEnd, 'type'> | undefined;
 
     const runResult = await runAgent({
@@ -277,12 +278,15 @@ const runLLMStream = async (port: StreamTarget, active: ActiveStream): Promise<v
       transformContext: notifyingTransformContext,
       chatId,
       onProviderLimitDetected: setProviderLimit,
+      onContextOverflow: prepareRetry,
       getSteeringMessages: async () => steering.poll(),
       onUserMessage: message => {
         const item = steering.markInjected(message);
         if (item) injectSteering(item);
       },
       onRetry: info => {
+        agentErrorMessage = undefined;
+        endPayload = undefined;
         // Reset accumulated parts on retry — the stream restarts fresh
         assistantParts.length = 0;
         turnPartStart = 0;
@@ -508,7 +512,8 @@ const runLLMStream = async (port: StreamTarget, active: ActiveStream): Promise<v
       await touchChat(chatId);
       if (endPayload?.usage) await updateSessionTokens(chatId, endPayload.usage);
     }
-    if (agentErrorMessage) sendError(port, chatId, agentErrorMessage);
+    const finalError = runResult.error ?? agentErrorMessage;
+    if (finalError) sendError(port, chatId, finalError);
     if (endPayload) sendEnd(port, endPayload);
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
