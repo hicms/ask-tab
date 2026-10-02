@@ -1,6 +1,7 @@
 dist/
 **/build/
 node_modules/
+.pnpm-store/
 **/coverage/
 **/.turbo/
 .plan/
