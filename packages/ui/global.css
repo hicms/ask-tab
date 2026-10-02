@@ -630,36 +630,45 @@ code {
   border-bottom-width: 0;
 }
 
-/* Users type plain text, where a single Enter is a line break, but markdown folds it into a
-   space. Streamdown keeps the newline in the paragraph text, so showing it is enough. */
-.chat-user-bubble p {
-  white-space: pre-wrap;
+.chat-user-bubble {
+  --user-bubble-surface: #e8ebef;
+  --user-bubble-border: #d5dae1;
+  --user-bubble-muted: #5b6472;
+  background-color: #f3f4f6;
+  color: #20252d;
 }
 
-/* The user bubble is white text on the brand color. Streamdown paints code, tables and quotes
-   with the light theme surfaces, which leaves white text on a near-white background. */
+.dark .chat-user-bubble {
+  --user-bubble-surface: #1c1f23;
+  --user-bubble-border: #42474f;
+  --user-bubble-muted: #aeb6c2;
+  background-color: #25282d;
+  color: #e8ebef;
+}
+
+/* Keep Markdown surfaces neutral and readable inside the user bubble in both themes. */
 .chat-user-bubble [data-streamdown='inline-code'] {
-  background-color: rgb(255 255 255 / 0.2);
+  background-color: var(--user-bubble-surface);
   color: inherit;
 }
 
 .chat-user-bubble [data-streamdown='code-block'],
 .chat-user-bubble [data-streamdown='table-wrapper'] > .overflow-x-auto {
-  border-color: rgb(255 255 255 / 0.3);
+  border-color: var(--user-bubble-border);
 }
 
 .chat-user-bubble [data-streamdown='code-block'] {
-  background-color: rgb(0 0 0 / 0.12);
+  background-color: var(--user-bubble-surface);
 }
 
 .chat-user-bubble [data-streamdown='code-block-header'],
 .chat-user-bubble [data-streamdown='table-header'] {
-  background-color: rgb(255 255 255 / 0.15);
-  color: rgb(255 255 255 / 0.85);
+  background-color: var(--user-bubble-surface);
+  color: var(--user-bubble-muted);
 }
 
 .chat-user-bubble [data-streamdown='code-block-body'] span::before {
-  color: rgb(255 255 255 / 0.5);
+  color: var(--user-bubble-muted);
 }
 
 .chat-user-bubble [data-streamdown='table-body'] {
@@ -668,25 +677,25 @@ code {
 
 .chat-user-bubble [data-streamdown='table-header'] > [data-streamdown='table-row'],
 .chat-user-bubble [data-streamdown='table-body'] > [data-streamdown='table-row'] {
-  border-color: rgb(255 255 255 / 0.25);
+  border-color: var(--user-bubble-border);
 }
 
 /* `.relative > button` is the table toolbar trigger, not the items of the menu it opens. */
 .chat-user-bubble [data-streamdown='code-block-copy-button'],
 .chat-user-bubble [data-streamdown='code-block-download-button'],
 .chat-user-bubble [data-streamdown='table-wrapper'] .relative > button {
-  color: rgb(255 255 255 / 0.8);
+  color: var(--user-bubble-muted);
 }
 
 .chat-user-bubble [data-streamdown='code-block-copy-button']:hover,
 .chat-user-bubble [data-streamdown='code-block-download-button']:hover,
 .chat-user-bubble [data-streamdown='table-wrapper'] .relative > button:hover {
-  color: #fff;
+  color: inherit;
 }
 
 .chat-user-bubble [data-streamdown='blockquote'] {
-  border-color: rgb(255 255 255 / 0.5);
-  color: rgb(255 255 255 / 0.85);
+  border-color: var(--user-bubble-border);
+  color: var(--user-bubble-muted);
 }
 
 .chat-user-bubble [data-streamdown='link'] {
@@ -694,11 +703,10 @@ code {
 }
 
 .chat-user-bubble [data-streamdown='horizontal-rule'] {
-  border-color: rgb(255 255 255 / 0.3);
+  border-color: var(--user-bubble-border);
 }
 
-/* Copy/download menus and the link confirmation dialog render inside the bubble on a page
-   surface, so they must not inherit the bubble's white text. */
+/* Dialogs and menus have their own page surface and foreground. */
 .chat-user-bubble .bg-background {
   color: var(--foreground);
 }

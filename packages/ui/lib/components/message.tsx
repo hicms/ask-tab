@@ -1,6 +1,6 @@
 import { DocumentPreview } from './document-preview';
 import { MessageContent } from './elements/message';
-import { Response } from './elements/response';
+import { Response, UserResponse } from './elements/response';
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from './elements/tool';
 import { MessageActions } from './message-actions';
 import { MessageEditor } from './message-editor';
@@ -196,15 +196,16 @@ const PreviewMessage = ({ message, isLoading, setMessages, onEditSubmit }: Previ
                 <div key={key}>
                   <MessageContent
                     className={cn({
-                      'chat-user-bubble wrap-break-word w-fit rounded-2xl px-3 py-2 text-left text-white':
+                      'chat-user-bubble wrap-break-word w-fit rounded-2xl px-3 py-2 text-left':
                         message.role === 'user',
                       'bg-transparent px-0 py-0 text-left': message.role === 'assistant',
                     })}
-                    data-testid="message-content"
-                    style={
-                      message.role === 'user' ? { backgroundColor: 'var(--chat-brand)' } : undefined
-                    }>
-                    <Response>{part.text}</Response>
+                    data-testid="message-content">
+                    {message.role === 'user' ? (
+                      <UserResponse>{part.text}</UserResponse>
+                    ) : (
+                      <Response>{part.text}</Response>
+                    )}
                   </MessageContent>
                 </div>
               );
@@ -232,17 +233,23 @@ const PreviewMessage = ({ message, isLoading, setMessages, onEditSubmit }: Previ
 
             if (part.type === 'tool-call' && isDocumentToolCall(part)) {
               const result = part.result as
-                | { id?: string; title?: string; kind?: string }
+                | { id?: string; title?: string; kind?: string; content?: string }
                 | undefined;
-              const args = part.args as { title?: string; kind?: string } | undefined;
+              const args = part.args as
+                | { id?: string; title?: string; kind?: string; content?: string }
+                | undefined;
               return (
                 <div className="w-full" key={key}>
                   <DocumentPreview
+                    chatId={message.chatId}
+                    state={part.state}
                     args={
                       args
                         ? {
+                            id: args.id,
                             title: args.title ?? 'Untitled',
                             kind: (args.kind ?? 'text') as 'text' | 'code' | 'sheet' | 'image',
+                            content: args.content,
                           }
                         : undefined
                     }
@@ -252,6 +259,7 @@ const PreviewMessage = ({ message, isLoading, setMessages, onEditSubmit }: Previ
                             id: result.id,
                             title: result.title ?? 'Untitled',
                             kind: (result.kind ?? 'text') as 'text' | 'code' | 'sheet' | 'image',
+                            content: result.content,
                           }
                         : undefined
                     }

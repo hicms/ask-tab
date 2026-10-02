@@ -1,11 +1,15 @@
 import { cn } from '../../utils';
+import { cjk } from '@streamdown/cjk';
 import { mermaid } from '@streamdown/mermaid';
-import { Streamdown } from 'streamdown';
+import remarkBreaks from 'remark-breaks';
+import { defaultRemarkPlugins, Streamdown } from 'streamdown';
 import type { ComponentProps } from 'react';
 
 type ResponseProps = ComponentProps<typeof Streamdown>;
 
 const mermaidPlugin = mermaid;
+const userRemarkPlugins = [...Object.values(defaultRemarkPlugins), remarkBreaks];
+const userPlugins = { cjk };
 
 const Response = ({ className, children, plugins, ...props }: ResponseProps) => (
   <Streamdown
@@ -19,4 +23,12 @@ const Response = ({ className, children, plugins, ...props }: ResponseProps) => 
   </Streamdown>
 );
 
-export { Response };
+// Submitted user text is complete: preserve its Markdown and soft line breaks without
+// the streaming renderer repairing literal, unfinished delimiters.
+const UserResponse = ({ children }: Pick<ResponseProps, 'children'>) => (
+  <Response mode="static" plugins={userPlugins} remarkPlugins={userRemarkPlugins}>
+    {children}
+  </Response>
+);
+
+export { Response, UserResponse };

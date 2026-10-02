@@ -23,15 +23,20 @@ const PureArtifactPanel = () => {
   const { artifact, setArtifact } = useArtifact();
 
   const [editorContent, setEditorContent] = useState(artifact.content);
-  const [editorMode, setEditorMode] = useState<MarkdownEditorMode>('raw');
+  const [editorMode, setEditorMode] = useState<MarkdownEditorMode>('view');
   const lastSyncedContentRef = useRef(artifact.content);
+  const lastDocumentIdRef = useRef(artifact.documentId);
 
   // Sync editorContent when artifact changes externally (streaming or switching artifacts)
   useEffect(() => {
-    if (artifact.content !== lastSyncedContentRef.current) {
+    if (
+      artifact.documentId !== lastDocumentIdRef.current ||
+      artifact.content !== lastSyncedContentRef.current
+    ) {
       setEditorContent(artifact.content);
       lastSyncedContentRef.current = artifact.content;
-      setEditorMode('raw');
+      lastDocumentIdRef.current = artifact.documentId;
+      setEditorMode('view');
     }
   }, [artifact.documentId, artifact.content]);
 
@@ -155,6 +160,7 @@ const PureArtifactPanel = () => {
     <AnimatePresence>
       {artifact.isVisible && (
         <motion.div
+          data-testid="artifact-panel"
           animate={{ opacity: 1, x: 0 }}
           className="bg-background fixed inset-0 z-50 flex flex-col"
           exit={{ opacity: 0, x: 100 }}
@@ -162,7 +168,11 @@ const PureArtifactPanel = () => {
           {/* Header */}
           <div className="flex items-center justify-between border-b p-2">
             <div className="flex items-center gap-2">
-              <Button onClick={handleClose} size="icon-sm" variant="ghost">
+              <Button
+                aria-label="Close document"
+                onClick={handleClose}
+                size="icon-sm"
+                variant="ghost">
                 <XIcon className="size-4" />
               </Button>
               <div className="flex flex-col">

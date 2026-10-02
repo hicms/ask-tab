@@ -1,84 +1,102 @@
+import { ImageEditor } from './editors/image-editor';
+import { Response } from './elements/response';
 import { useArtifact } from '../hooks/use-artifact';
 import { cn } from '../utils';
 import { getArtifactById } from '@extension/storage';
+import { cjk } from '@streamdown/cjk';
 import { FileIcon, ImageIcon, Loader2Icon, MaximizeIcon } from 'lucide-react';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import type { ArtifactKind } from '../artifact-types';
-import type { MouseEvent } from 'react';
+import type { ToolPartState } from '@extension/shared';
+import type { DbArtifact } from '@extension/storage';
 
 type DocumentPreviewProps = {
-  result?: { id: string; title: string; kind: ArtifactKind };
-  args?: { title: string; kind: ArtifactKind };
+  result?: { id: string; title: string; kind: ArtifactKind; content?: string };
+  args?: { id?: string; title: string; kind: ArtifactKind; content?: string };
+  state?: ToolPartState;
+  chatId?: string;
 };
 
-const DocumentPreview = ({ result, args }: DocumentPreviewProps) => {
+const previewPlugins = { cjk };
+
+const DocumentPreview = ({ result, args, state, chatId }: DocumentPreviewProps) => {
   const { artifact, setArtifact } = useArtifact();
-  const hitboxRef = useRef<HTMLDivElement>(null);
+  const previewId = useId();
+  const storedId = result?.id ?? args?.id;
+  const documentId = storedId ?? previewId;
+  const [loaded, setLoaded] = useState<{ id: string; document?: DbArtifact }>();
 
-  const title = result?.title ?? args?.title ?? 'Untitled';
-  const kind = result?.kind ?? args?.kind ?? 'text';
-  const documentId = result?.id ?? artifact.documentId;
-  const isStreaming = artifact.status === 'streaming';
+  useEffect(() => {
+    if (!storedId) return;
+    let cancelled = false;
+    getArtifactById(storedId)
+      .then(document => {
+        if (!cancelled) setLoaded({ id: storedId, document });
+      })
+      .catch(() => {
+        if (!cancelled) setLoaded({ id: storedId });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [storedId, state]);
 
-  const handleClick = useCallback(
-    async (e: MouseEvent<HTMLDivElement>) => {
-      e.stopPropagation();
-      if (artifact.status === 'streaming') {
-        setArtifact(prev => ({ ...prev, isVisible: true }));
-        return;
-      }
-      // Try loading content from IndexedDB
-      if (documentId && documentId !== 'init') {
-        try {
-          const stored = await getArtifactById(documentId);
-          if (stored) {
-            setArtifact({
-              documentId,
-              chatId: stored.chatId,
-              title,
-              kind,
-              content: stored.content,
-              isVisible: true,
-              status: 'idle',
-            });
-            return;
-          }
-        } catch {
-          // Fall through to default behavior
-        }
-      }
-      // Fallback: open panel with whatever content is available
-      setArtifact(prev => ({ ...prev, documentId, title, kind, isVisible: true }));
-    },
-    [setArtifact, documentId, title, kind, artifact.status],
-  );
+  const stored = loaded?.id === storedId ? loaded?.document : undefined;
+  const title = stored?.title ?? result?.title ?? args?.title ?? 'Untitled';
+  const kind = stored?.kind ?? result?.kind ?? args?.kind ?? 'text';
+  const isCurrentArtifact = artifact.documentId === documentId;
+  // Tool arguments contain the complete document even before its database write finishes.
+  // Never fall back to the content of a different, currently-open document.
+  const content =
+    (isCurrentArtifact ? artifact.content : undefined) ??
+    stored?.content ??
+    result?.content ??
+    args?.content ??
+    '';
+  const isStreaming =
+    state === 'input-streaming' ||
+    state === 'input-available' ||
+    (isCurrentArtifact && artifact.status === 'streaming');
+  const isLoading = !content && !!storedId && loaded?.id !== storedId;
+  const hasError = state === 'output-error';
+  const canOpen = !!content && !isStreaming && !hasError;
 
-  // If artifact is already visible, show a compact reference
-  if (artifact.isVisible) {
-    return (
-      <div className="border-border inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm">
-        {kind === 'image' ? <ImageIcon className="size-4" /> : <FileIcon className="size-4" />}
-        <span className="truncate">{title}</span>
-      </div>
-    );
-  }
+  const handleOpen = useCallback(() => {
+    if (!canOpen) return;
+    setArtifact({
+      documentId,
+      chatId: stored?.chatId ?? chatId,
+      title,
+      kind,
+      content,
+      isVisible: true,
+      status: 'idle',
+    });
+  }, [canOpen, setArtifact, documentId, stored?.chatId, chatId, title, kind, content]);
 
   return (
     <div
-      className={cn('relative w-full max-w-sm cursor-pointer')}
-      onClick={handleClick}
-      onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === ' ')
-          handleClick(e as unknown as MouseEvent<HTMLDivElement>);
+      aria-disabled={!canOpen}
+      aria-label={`Open document: ${title}`}
+      className={cn('relative w-full min-w-0', canOpen && 'cursor-pointer')}
+      data-testid="document-preview"
+      onClick={e => {
+        e.stopPropagation();
+        handleOpen();
       }}
-      ref={hitboxRef}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleOpen();
+        }
+      }}
       role="button"
       tabIndex={0}>
-      {/* Header */}
       <div className="border-border dark:bg-muted flex items-center justify-between gap-2 rounded-t-xl border border-b-0 p-3">
         <div className="flex min-w-0 items-center gap-2">
           <span className="text-muted-foreground">
-            {isStreaming ? (
+            {isStreaming || isLoading ? (
               <Loader2Icon className="size-4 animate-spin" />
             ) : kind === 'image' ? (
               <ImageIcon className="size-4" />
@@ -88,19 +106,38 @@ const DocumentPreview = ({ result, args }: DocumentPreviewProps) => {
           </span>
           <span className="truncate text-sm font-medium">{title}</span>
         </div>
-        <MaximizeIcon className="text-muted-foreground size-4" />
+        <MaximizeIcon className="text-muted-foreground size-4 shrink-0" />
       </div>
 
-      {/* Preview body */}
-      <div className="border-border bg-muted dark:bg-muted h-24 overflow-hidden rounded-b-xl border border-t-0 p-4">
-        {kind === 'image' ? (
-          <div className="bg-muted-foreground/20 h-full w-full animate-pulse rounded" />
-        ) : (
-          <div className="space-y-2">
-            <div className="bg-muted-foreground/20 h-3 w-3/4 animate-pulse rounded" />
-            <div className="bg-muted-foreground/20 h-3 w-1/2 animate-pulse rounded" />
-            <div className="bg-muted-foreground/20 h-3 w-2/3 animate-pulse rounded" />
+      <div className="border-border bg-muted h-40 overflow-hidden rounded-b-xl border border-t-0 p-4">
+        {hasError ? (
+          <p className="text-muted-foreground text-sm">Document could not be created.</p>
+        ) : content ? (
+          <div className="pointer-events-none h-full select-none" inert>
+            {kind === 'text' ? (
+              <Response
+                className="text-xs [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm"
+                controls={false}
+                mode={isStreaming ? 'streaming' : 'static'}
+                plugins={previewPlugins}>
+                {content}
+              </Response>
+            ) : kind === 'image' ? (
+              <ImageEditor
+                content={content}
+                title={title}
+                status="idle"
+                isCurrentVersion
+                isInline
+              />
+            ) : (
+              <pre className="whitespace-pre-wrap break-words text-xs">{content}</pre>
+            )}
           </div>
+        ) : (
+          <p className="text-muted-foreground text-sm">
+            {isStreaming || isLoading ? 'Loading document…' : 'No document content available.'}
+          </p>
         )}
       </div>
     </div>

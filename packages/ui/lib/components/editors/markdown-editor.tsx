@@ -1,5 +1,6 @@
 import { cn } from '../../utils';
 import { Button, Separator } from '../ui';
+import { cjk } from '@streamdown/cjk';
 import { mermaid } from '@streamdown/mermaid';
 import {
   BoldIcon,
@@ -346,7 +347,8 @@ const MarkdownEditor = ({
             className={cn('overflow-auto p-4', showEditor ? 'w-1/2 rounded border' : 'w-full')}>
             <Streamdown
               className="prose dark:prose-invert max-w-none text-sm [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_pre]:!bg-[unset] [&_pre]:!text-[unset]"
-              plugins={{ mermaid: mermaidPlugin }}>
+              mode={streaming ? 'streaming' : 'static'}
+              plugins={{ mermaid: mermaidPlugin, cjk }}>
               {content || '*Empty*'}
             </Streamdown>
           </div>
