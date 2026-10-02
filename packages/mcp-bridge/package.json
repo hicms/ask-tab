@@ -1,6 +1,6 @@
 {
   "name": "asktab-mcp",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "MCP server that lets Claude Desktop, Cursor, Claude Code and other MCP clients use the AskTab browser extension's browser tools",
   "keywords": [
     "mcp",
