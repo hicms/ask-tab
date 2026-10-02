@@ -185,6 +185,8 @@
   "chat_modelSelect": {
     "message": "모델"
   },
+  "chat_reasoningOptions": { "message": "사고 옵션" },
+  "chat_reasoningDefault": { "message": "기본값" },
   "chat_thinkLevelThinking": {
     "message": "사고 모드"
   },

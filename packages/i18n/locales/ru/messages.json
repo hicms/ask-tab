@@ -185,6 +185,8 @@
   "chat_modelSelect": {
     "message": "Модель"
   },
+  "chat_reasoningOptions": { "message": "Параметры размышления" },
+  "chat_reasoningDefault": { "message": "По умолчанию" },
   "chat_thinkLevelThinking": { "message": "Размышление" },
   "chat_thinkLevelThinkingDesc": { "message": "Решает сложные задачи" },
   "chat_thinkLevelFast": { "message": "Быстро" },

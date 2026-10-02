@@ -185,6 +185,8 @@
   "chat_modelSelect": {
     "message": "モデル"
   },
+  "chat_reasoningOptions": { "message": "思考オプション" },
+  "chat_reasoningDefault": { "message": "デフォルト" },
   "chat_thinkLevelThinking": { "message": "思考" },
   "chat_thinkLevelThinkingDesc": { "message": "複雑な問題を解決" },
   "chat_thinkLevelFast": { "message": "高速" },

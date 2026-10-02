@@ -348,6 +348,8 @@
   "chat_modelSelect": {
     "message": "模型"
   },
+  "chat_reasoningOptions": { "message": "思考选项" },
+  "chat_reasoningDefault": { "message": "默认" },
   "chat_thinkLevelThinking": { "message": "深度思考" },
   "chat_thinkLevelThinkingDesc": { "message": "解决复杂问题" },
   "chat_thinkLevelFast": { "message": "快速" },

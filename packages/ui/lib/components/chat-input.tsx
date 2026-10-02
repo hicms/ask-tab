@@ -7,6 +7,7 @@ import { ModelTierLabel, tierLabels } from './model-tier-label';
 import { ModelVendorIcon } from './model-vendor-icon';
 import { insertPastedText } from './paste-text';
 import { PreviewAttachment } from './preview-attachment';
+import { ReasoningControlsMenu } from './reasoning-controls-menu';
 import {
   Button,
   DropdownMenu,
@@ -634,6 +635,9 @@ const ChatInput = ({
                 </SelectContent>
               </Select>
             )}
+            <ReasoningControlsMenu
+              modelId={models.find(model => (model.dbId ?? model.id) === selectedModelId)?.id}
+            />
           </div>
           <div className="flex items-center gap-1">
             {recordingStream && (

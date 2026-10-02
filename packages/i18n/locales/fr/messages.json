@@ -185,6 +185,8 @@
   "chat_modelSelect": {
     "message": "Modèle"
   },
+  "chat_reasoningOptions": { "message": "Options de réflexion" },
+  "chat_reasoningDefault": { "message": "Par défaut" },
   "chat_thinkLevelThinking": { "message": "Réflexion" },
   "chat_thinkLevelThinkingDesc": { "message": "Résout les problèmes complexes" },
   "chat_thinkLevelFast": { "message": "Rapide" },

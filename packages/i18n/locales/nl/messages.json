@@ -185,6 +185,8 @@
   "chat_modelSelect": {
     "message": "Model"
   },
+  "chat_reasoningOptions": { "message": "Denkopties" },
+  "chat_reasoningDefault": { "message": "Standaard" },
   "chat_thinkLevelThinking": { "message": "Denken" },
   "chat_thinkLevelThinkingDesc": { "message": "Lost complexe problemen op" },
   "chat_thinkLevelFast": { "message": "Snel" },
