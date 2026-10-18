@@ -6,10 +6,12 @@ import { MessageEditor } from './message-editor';
 import { MessageReasoning } from './message-reasoning';
 import { PreviewAttachment } from './preview-attachment';
 import { ProcessGroup } from './process-group';
+import { WaitingAfterContent, WaitingIndicator } from './waiting-activity';
 import { isDocumentToolCall } from '../artifact-stream';
 import { imageContentToSrc } from '../image-src';
 import { buildProcessGroups } from '../process-groups';
 import { cn } from '../utils';
+import { needsTrailingWaiting } from '../waiting-feedback';
 import { useState, useMemo } from 'react';
 import type { ProcessRenderItem } from '../process-types';
 import type { ChatMessage, ChatMessagePart, StreamingStatus } from '@extension/shared';
@@ -25,7 +27,7 @@ type PreviewMessageProps = {
 const AssistantAvatar = ({ isThinking = false }: { isThinking?: boolean }) => (
   <img
     alt="AskTab"
-    className={cn('-mt-1 size-8 shrink-0', isThinking && 'animate-pulse')}
+    className={cn('-mt-1 size-8 shrink-0', isThinking && 'motion-safe:animate-pulse')}
     src={chrome.runtime.getURL('asktab-avatar.svg')}
   />
 );
@@ -61,7 +63,7 @@ const PreviewMessage = ({
   );
 
   // The connecting indicator already represents an assistant with no content yet.
-  if (message.role === 'assistant' && message.parts.length === 0) {
+  if (message.role === 'assistant' && renderItems.length === 0) {
     return null;
   }
 
@@ -135,7 +137,13 @@ const PreviewMessage = ({
 
           {renderItems.map(item => {
             if (item.kind === 'process-group') {
-              return <ProcessGroup group={item} key={`${resetGeneration}:${item.key}`} />;
+              return (
+                <ProcessGroup
+                  group={item}
+                  key={`${resetGeneration}:${item.key}`}
+                  startedAt={message.createdAt}
+                />
+              );
             }
             const { part, index } = item;
             const key = `message-${message.id}-part-${index}`;
@@ -232,6 +240,10 @@ const PreviewMessage = ({
             return null;
           })}
 
+          {message.role === 'assistant' && isLoading && needsTrailingWaiting(renderItems) && (
+            <WaitingAfterContent startedAt={message.createdAt} content={message.parts} />
+          )}
+
           {/* Message actions (copy / edit) */}
           {!isLoading && textContent && (
             <MessageActions
@@ -250,23 +262,16 @@ const PreviewMessage = ({
   );
 };
 
-const ThinkingMessage = () => (
+const ThinkingMessage = ({ startedAt }: { startedAt?: number }) => (
   <div
-    className="group/message fade-in animate-in w-full duration-300"
+    className="group/message motion-safe:fade-in motion-safe:animate-in w-full duration-300"
     data-role="assistant"
     data-testid="message-assistant-loading">
     <div className="flex items-start justify-start gap-3">
       <AssistantAvatar isThinking />
 
-      <div className="flex w-full flex-col gap-2 md:gap-4">
-        <div className="text-muted-foreground flex items-center gap-1 p-0 text-sm">
-          <span className="animate-pulse">Thinking</span>
-          <span className="inline-flex">
-            <span className="animate-bounce [animation-delay:0ms]">.</span>
-            <span className="animate-bounce [animation-delay:150ms]">.</span>
-            <span className="animate-bounce [animation-delay:300ms]">.</span>
-          </span>
-        </div>
+      <div className="min-w-0 flex-1">
+        <WaitingIndicator startedAt={startedAt} />
       </div>
     </div>
   </div>

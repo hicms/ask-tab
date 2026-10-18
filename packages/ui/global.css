@@ -2,6 +2,120 @@
 @tailwind components;
 @tailwind utilities;
 
+.waiting-indicator {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: 26rem;
+  align-items: flex-start;
+  gap: 0.65rem;
+  overflow: hidden;
+  border-radius: 0.9rem;
+  padding: 0.75rem 0.85rem;
+  background: linear-gradient(115deg, rgb(59 130 246 / 5%), rgb(139 92 246 / 5%), transparent);
+  font-size: 0.8rem;
+}
+
+.waiting-orb {
+  position: relative;
+  display: grid;
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  place-items: center;
+  color: #6155bd;
+}
+
+.waiting-orb::before {
+  position: absolute;
+  inset: -0.15rem;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, #76adff, #c4b5fd, #b6e6fb, #76adff);
+  opacity: 0.45;
+  filter: blur(5px);
+  content: '';
+  animation: waiting-orbit 5s linear infinite;
+}
+
+.waiting-activity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+  line-height: 1.5rem;
+}
+
+.waiting-activity-copy {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.waiting-activity-shimmer {
+  color: #5265a1;
+  background-image: linear-gradient(100deg, #5265a1 25%, #8c50b6 45%, #477bab 55%, #5265a1 75%);
+  background-size: 250% 100%;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation:
+    waiting-shimmer 3s linear infinite,
+    waiting-phrase-in 300ms ease-out;
+}
+
+.dark .waiting-indicator {
+  background: linear-gradient(115deg, rgb(96 165 250 / 9%), rgb(167 139 250 / 7%), transparent);
+}
+
+.dark .waiting-orb {
+  color: #c4b5fd;
+}
+
+.dark .waiting-activity-shimmer {
+  color: #a8bdf4;
+  background-image: linear-gradient(100deg, #a8bdf4 25%, #d5b5f3 45%, #8ed9f1 55%, #a8bdf4 75%);
+}
+
+@keyframes waiting-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes waiting-shimmer {
+  from {
+    background-position: 100% 50%;
+  }
+  to {
+    background-position: -150% 50%;
+  }
+}
+
+@keyframes waiting-phrase-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .waiting-orb::before,
+  .waiting-activity-shimmer {
+    animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .waiting-activity-shimmer {
+    background: none;
+    -webkit-text-fill-color: CanvasText;
+  }
+}
+
 :root {
   --background: hsl(0 0% 100%);
   --foreground: hsl(240 10% 3.9%);

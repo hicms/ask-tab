@@ -1,5 +1,6 @@
 import { MessageReasoning } from './message-reasoning';
 import { ToolCallPart } from './tool-call-part';
+import { WaitingActivity } from './waiting-activity';
 import { processActivity, summarizeProcessGroup } from '../process-activity';
 import { processTitle } from '../process-title';
 import { getToolIcon } from '../tool-call-summary';
@@ -29,7 +30,7 @@ const useLiveTitle = (title: string, closed: boolean): string => {
   return closed ? title : displayed;
 };
 
-const ProcessGroup = memo(({ group }: { group: Group }) => {
+const ProcessGroup = memo(({ group, startedAt }: { group: Group; startedAt: number }) => {
   const t = useT();
   const [open, setOpen] = useState(false);
   const bodyId = useId();
@@ -69,7 +70,16 @@ const ProcessGroup = memo(({ group }: { group: Group }) => {
         title={title}
         type="button">
         <Icon className={cn('size-3.5 shrink-0', !group.closed && 'motion-safe:animate-pulse')} />
-        <span className="min-w-0 flex-1 truncate">{title}</span>
+        <span className="min-w-0 flex-1 truncate">
+          {group.closed ? (
+            title
+          ) : (
+            <WaitingActivity
+              startedAt={startedAt}
+              text={summary.running || summary.detail ? title : undefined}
+            />
+          )}
+        </span>
         <ChevronDownIcon
           className={cn('size-3.5 shrink-0 transition-transform', open && 'rotate-180')}
         />

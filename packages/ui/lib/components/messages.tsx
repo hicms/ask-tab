@@ -4,6 +4,7 @@ import { PreviewMessage, ThinkingMessage } from './message';
 import { SubagentProgressCard, SubagentResultCard } from './subagent-progress-card';
 import { SuggestedActions } from './suggested-actions';
 import { useScrollToBottom } from '../hooks/use-scroll-to-bottom';
+import { buildProcessGroups } from '../process-groups';
 import { ArrowDownIcon } from 'lucide-react';
 import type { ChatMessage, StreamingStatus, SubagentProgressInfo } from '@extension/shared';
 
@@ -69,7 +70,8 @@ const Messages = ({
   // A steering message starts a new, still empty assistant segment mid-stream.
   const isThinking =
     (status === 'connecting' || status === 'streaming') &&
-    (!activeAssistant || activeAssistant.parts.length === 0);
+    (!activeAssistant ||
+      buildProcessGroups(activeAssistant.id, activeAssistant.parts, true).length === 0);
 
   return (
     <div className="relative flex-1">
@@ -132,7 +134,7 @@ const Messages = ({
             <SubagentProgressCard key={sa.runId} info={sa} onStop={onStopSubagent} />
           ))}
 
-          {isThinking && <ThinkingMessage />}
+          {isThinking && <ThinkingMessage startedAt={activeAssistant?.createdAt} />}
 
           <div className="min-h-[24px] min-w-[24px] shrink-0" ref={endRef} />
         </div>

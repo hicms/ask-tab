@@ -1561,5 +1561,80 @@
   },
   "process_reasoning": {
     "message": "思考过程"
+  },
+  "waiting_status": {
+    "message": "正在准备回复"
+  },
+  "waiting_phrase0": {
+    "message": "正在思考你的问题"
+  },
+  "waiting_phrase1": {
+    "message": "正在梳理问题的思路"
+  },
+  "waiting_phrase2": {
+    "message": "正在结合上下文思考"
+  },
+  "waiting_phrase3": {
+    "message": "正在斟酌回答的方向"
+  },
+  "waiting_phrase4": {
+    "message": "正在准备更周全的回复"
+  },
+  "waiting_phrase5": {
+    "message": "正在构思回答"
+  },
+  "waiting_phrase6": {
+    "message": "正在仔细考虑你的需求"
+  },
+  "waiting_phrase7": {
+    "message": "正在思考其中的细节"
+  },
+  "waiting_phrase8": {
+    "message": "正在组织回答的思路"
+  },
+  "waiting_phrase9": {
+    "message": "正在进一步理解这个问题"
+  },
+  "waiting_phrase10": {
+    "message": "正在围绕你的问题展开思考"
+  },
+  "waiting_phrase11": {
+    "message": "正在梳理上下文的关联"
+  },
+  "waiting_phrase12": {
+    "message": "正在留意问题中的细节"
+  },
+  "waiting_phrase13": {
+    "message": "正在继续推敲思路"
+  },
+  "waiting_phrase14": {
+    "message": "正在仔细斟酌这个问题"
+  },
+  "waiting_phrase15": {
+    "message": "正在考虑如何说得更清楚"
+  },
+  "waiting_phrase16": {
+    "message": "正在多想一步"
+  },
+  "waiting_phrase17": {
+    "message": "正在结合前文构思回复"
+  },
+  "waiting_phrase18": {
+    "message": "正在准备对你有帮助的回答"
+  },
+  "waiting_phrase19": {
+    "message": "正在花些时间想得更周全"
+  },
+  "waiting_phrase20": {
+    "message": "正在继续处理你的请求"
+  },
+  "waiting_phrase21": {
+    "message": "正在斟酌合适的表达"
+  },
+  "waiting_phrase22": {
+    "message": "正在认真准备这次回复"
+  },
+  "waiting_phrase23": {
+    "message": "正在继续整理回答思路"
   }
 }

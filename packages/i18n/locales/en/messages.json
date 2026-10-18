@@ -1624,5 +1624,80 @@
   },
   "process_reasoning": {
     "message": "Thinking"
+  },
+  "waiting_status": {
+    "message": "Preparing a response"
+  },
+  "waiting_phrase0": {
+    "message": "Thinking about your request"
+  },
+  "waiting_phrase1": {
+    "message": "Working through your question"
+  },
+  "waiting_phrase2": {
+    "message": "Considering the context"
+  },
+  "waiting_phrase3": {
+    "message": "Giving this some thought"
+  },
+  "waiting_phrase4": {
+    "message": "Preparing a thoughtful response"
+  },
+  "waiting_phrase5": {
+    "message": "Working on your reply"
+  },
+  "waiting_phrase6": {
+    "message": "Taking a closer look"
+  },
+  "waiting_phrase7": {
+    "message": "Thinking through the details"
+  },
+  "waiting_phrase8": {
+    "message": "Considering how to respond"
+  },
+  "waiting_phrase9": {
+    "message": "Taking time with your question"
+  },
+  "waiting_phrase10": {
+    "message": "Keeping your request in focus"
+  },
+  "waiting_phrase11": {
+    "message": "Working through the context"
+  },
+  "waiting_phrase12": {
+    "message": "Giving the details some attention"
+  },
+  "waiting_phrase13": {
+    "message": "Continuing to think it through"
+  },
+  "waiting_phrase14": {
+    "message": "Considering your question carefully"
+  },
+  "waiting_phrase15": {
+    "message": "Making room for the details"
+  },
+  "waiting_phrase16": {
+    "message": "Taking another moment to think"
+  },
+  "waiting_phrase17": {
+    "message": "Keeping the context in mind"
+  },
+  "waiting_phrase18": {
+    "message": "Working toward a helpful reply"
+  },
+  "waiting_phrase19": {
+    "message": "Spending a little more time on this"
+  },
+  "waiting_phrase20": {
+    "message": "Still working on your request"
+  },
+  "waiting_phrase21": {
+    "message": "Thinking about the best way to explain"
+  },
+  "waiting_phrase22": {
+    "message": "Taking care with the response"
+  },
+  "waiting_phrase23": {
+    "message": "Continuing to prepare your reply"
   }
 }

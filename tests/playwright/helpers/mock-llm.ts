@@ -99,10 +99,16 @@ const installProvider = async (
   }, options);
 };
 
-/** Streams reasoning, or with `finish` the final text, into the model call at `index`. */
-const emit = async (worker: Worker, index: number, text: string, finish = false) => {
+/** Streams a delta, or with `finish` the final text, into the model call at `index`. */
+const emit = async (
+  worker: Worker,
+  index: number,
+  text: string,
+  finish = false,
+  part: 'reasoning' | 'text' = 'reasoning',
+) => {
   await worker.evaluate(
-    ({ index, text, finish }) => {
+    ({ index, text, finish, part }) => {
       const stream = (globalThis as StreamWorker).testStreams[index];
       const chunk = {
         id: 'response',
@@ -111,7 +117,7 @@ const emit = async (worker: Worker, index: number, text: string, finish = false)
         choices: [
           {
             index: 0,
-            delta: finish ? { content: text } : { reasoning_content: text },
+            delta: finish || part === 'text' ? { content: text } : { reasoning_content: text },
             finish_reason: finish ? 'stop' : null,
           },
         ],
@@ -124,7 +130,7 @@ const emit = async (worker: Worker, index: number, text: string, finish = false)
         stream.controller.close();
       }
     },
-    { index, text, finish },
+    { index, text, finish, part },
   );
 };
 
